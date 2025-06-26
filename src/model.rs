@@ -177,6 +177,18 @@ pub struct PointAlongLineLocationReference {
     pub side: SideOfRoad,
 }
 
+/// Point along line with access is a point location which is defined by a line,
+/// an offset value and a coordinate. The line will be referenced by two location reference
+/// points and the concrete position of the access point on that line is referenced using
+/// the positive offset. The point of interest is identified by the coordinate pair.
+/// Additionally information about the side of the road where the point is located and
+/// the orientation with respect to the direction of the line can be added.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PoiLocationReference {
+    pub point: PointAlongLineLocationReference,
+    pub poi: Coordinate,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u8)]
 pub enum LocationType {
@@ -196,6 +208,7 @@ pub enum LocationReference {
     Line(LineLocationReference),
     GeoCoordinate(Coordinate),
     PointAlongLine(PointAlongLineLocationReference),
+    Poi(PoiLocationReference),
 }
 
 impl Frc {

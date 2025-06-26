@@ -6,7 +6,7 @@ use base64::prelude::BASE64_STANDARD;
 use crate::{
     Bearing, Coordinate, Fow, Frc, Length, LineAttributes, LineLocationReference,
     LocationReference, LocationReferencePoint, LocationType, Offset, OpenLrError, Orientation,
-    PathAttributes, PointAlongLineLocationReference, SideOfRoad,
+    PathAttributes, PoiLocationReference, PointAlongLineLocationReference, SideOfRoad,
 };
 
 pub fn decode_base64_openlr(data: impl AsRef<[u8]>) -> Result<LocationReference, OpenLrError> {
@@ -23,6 +23,7 @@ pub fn decode_binary_openlr(data: &[u8]) -> Result<LocationReference, OpenLrErro
         LocationType::Line => Ok(Line(reader.read_line()?)),
         LocationType::GeoCoordinate => Ok(GeoCoordinate(reader.read_coordinate()?)),
         LocationType::PointAlongLine => Ok(PointAlongLine(reader.read_point_along_line()?)),
+        LocationType::PoiWithAccessPoint => Ok(Poi(reader.read_poi()?)),
         _ => unimplemented!(),
     }
 }
@@ -149,6 +150,12 @@ impl<'a> OpenLrBinaryReader<'a> {
             orientation,
             side,
         })
+    }
+
+    fn read_poi(&mut self) -> Result<PoiLocationReference, OpenLrError> {
+        let point = self.read_point_along_line()?;
+        let poi = self.read_relative_coordinate(point.points[0].coordinate)?;
+        Ok(PoiLocationReference { point, poi })
     }
 
     fn read_coordinate(&mut self) -> Result<Coordinate, OpenLrError> {
@@ -550,6 +557,55 @@ mod tests {
                 offset: Offset::from_range(0.9980469),
                 orientation: Orientation::Unknown,
                 side: SideOfRoad::OnRoadOrUnknown,
+            })
+        );
+    }
+
+    #[test]
+    fn openlr_poi_location_reference_001() {
+        let location = decode_base64_openlr("KwOg5iUNnCOTAv+D/5QjQ1j/gP/r").unwrap();
+
+        assert_eq!(
+            location,
+            LocationReference::Poi(PoiLocationReference {
+                point: PointAlongLineLocationReference {
+                    points: [
+                        LocationReferencePoint {
+                            coordinate: Coordinate {
+                                lon: 5.1025807,
+                                lat: 52.106
+                            },
+                            line: LineAttributes {
+                                frc: Frc::Frc4,
+                                fow: Fow::SingleCarriageway,
+                                bear: Bearing::from_degrees(219)
+                            },
+                            path: Some(PathAttributes {
+                                lfrcnp: Frc::Frc4,
+                                dnp: Length::from_meters(147)
+                            })
+                        },
+                        LocationReferencePoint {
+                            coordinate: Coordinate {
+                                lon: 5.1013307,
+                                lat: 52.104_92
+                            },
+                            line: LineAttributes {
+                                frc: Frc::Frc4,
+                                fow: Fow::SingleCarriageway,
+                                bear: Bearing::from_degrees(39)
+                            },
+                            path: None
+                        }
+                    ],
+                    offset: Offset::from_range(0.34570312),
+                    orientation: Orientation::Unknown,
+                    side: SideOfRoad::OnRoadOrUnknown,
+                },
+                poi: Coordinate {
+                    lon: 5.1013007,
+                    lat: 52.105_79
+                }
             })
         );
     }

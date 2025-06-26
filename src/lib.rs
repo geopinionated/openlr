@@ -8,6 +8,6 @@ pub use error::OpenLrError;
 pub use model::{
     Bearing, Coordinate, Fow, Frc, Length, LineAttributes, LineLocationReference,
     LocationReference, LocationReferencePoint, LocationType, Offset, Orientation, PathAttributes,
-    PointAlongLineLocationReference, SideOfRoad,
+    PoiLocationReference, PointAlongLineLocationReference, SideOfRoad,
 };
 pub use reader::{decode_base64_openlr, decode_binary_openlr};
