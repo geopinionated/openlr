@@ -7,7 +7,7 @@ use crate::{
     Bearing, CircleLocationReference, Coordinate, Fow, Frc, Length, LineAttributes,
     LineLocationReference, LocationReference, LocationReferencePoint, LocationType, Offset,
     OpenLrError, Orientation, PathAttributes, PoiLocationReference,
-    PointAlongLineLocationReference, SideOfRoad,
+    PointAlongLineLocationReference, RectangleLocationReference, SideOfRoad,
 };
 
 pub fn decode_base64_openlr(data: impl AsRef<[u8]>) -> Result<LocationReference, OpenLrError> {
@@ -26,6 +26,7 @@ pub fn decode_binary_openlr(data: &[u8]) -> Result<LocationReference, OpenLrErro
         LocationType::PointAlongLine => Ok(PointAlongLine(reader.read_point_along_line()?)),
         LocationType::PoiWithAccessPoint => Ok(Poi(reader.read_poi()?)),
         LocationType::Circle => Ok(Circle(reader.read_circle()?)),
+        LocationType::Rectangle => Ok(Rectangle(reader.read_rectangle()?)),
         _ => unimplemented!(),
     }
 }
@@ -164,6 +165,21 @@ impl<'a> OpenLrBinaryReader<'a> {
         let center = self.read_coordinate()?;
         let radius = self.read_radius()?;
         Ok(CircleLocationReference { center, radius })
+    }
+
+    fn read_rectangle(&mut self) -> Result<RectangleLocationReference, OpenLrError> {
+        let lower_left = self.read_coordinate()?;
+
+        let upper_right = if self.len() > 11 {
+            self.read_coordinate()?
+        } else {
+            self.read_relative_coordinate(lower_left)?
+        };
+
+        Ok(RectangleLocationReference {
+            lower_left,
+            upper_right,
+        })
     }
 
     fn read_coordinate(&mut self) -> Result<Coordinate, OpenLrError> {
@@ -652,6 +668,44 @@ mod tests {
                     lat: 55.945_29
                 },
                 radius: Length::from_meters(2000)
+            })
+        );
+    }
+
+    #[test]
+    fn openlr_rectangle_location_reference_001() {
+        let location = decode_base64_openlr("Qxl5HRKFDR33oB/agA==").unwrap();
+
+        assert_eq!(
+            location,
+            LocationReference::Rectangle(RectangleLocationReference {
+                lower_left: Coordinate {
+                    lon: 35.821_533,
+                    lat: 26.043_36
+                },
+                upper_right: Coordinate {
+                    lon: 42.141_483,
+                    lat: 44.793_995
+                }
+            })
+        );
+    }
+
+    #[test]
+    fn openlr_rectangle_location_reference_002() {
+        let location = decode_base64_openlr("QwOgcSUNGgGIAX8=").unwrap();
+
+        assert_eq!(
+            location,
+            LocationReference::Rectangle(RectangleLocationReference {
+                lower_left: Coordinate {
+                    lon: 5.100_07,
+                    lat: 52.103_207
+                },
+                upper_right: Coordinate {
+                    lon: 5.103_99,
+                    lat: 52.107_037
+                }
             })
         );
     }

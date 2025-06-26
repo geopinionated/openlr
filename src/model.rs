@@ -195,6 +195,15 @@ pub struct CircleLocationReference {
     pub radius: Length,
 }
 
+/// A rectangle location reference consists of the lower left corner point as a pair
+/// of WGS84 coordinates in absolute format and the upper right corner point, given in
+/// absolute format (large rectangle) or relative format (standard rectangle).
+#[derive(Debug, Clone, PartialEq)]
+pub struct RectangleLocationReference {
+    pub lower_left: Coordinate,
+    pub upper_right: Coordinate,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u8)]
 pub enum LocationType {
@@ -216,6 +225,7 @@ pub enum LocationReference {
     PointAlongLine(PointAlongLineLocationReference),
     Poi(PoiLocationReference),
     Circle(CircleLocationReference),
+    Rectangle(RectangleLocationReference),
 }
 
 impl Frc {
