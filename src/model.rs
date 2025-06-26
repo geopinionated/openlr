@@ -164,6 +164,19 @@ pub struct LineLocationReference {
     pub offsets: Offsets,
 }
 
+/// Point along line is a point location which is defined by a line and an offset value.
+/// The line will be referenced by two location reference points and the concrete position
+/// on that line is referenced using the positive offset. Additionally information about
+/// the side of the road where the point is located and the orientation with respect
+/// to the direction of the line can be added.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PointAlongLineLocationReference {
+    pub points: [LocationReferencePoint; 2],
+    pub offset: Offset,
+    pub orientation: Orientation,
+    pub side: SideOfRoad,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u8)]
 pub enum LocationType {
@@ -182,6 +195,7 @@ pub enum LocationType {
 pub enum LocationReference {
     Line(LineLocationReference),
     GeoCoordinate(Coordinate),
+    PointAlongLine(PointAlongLineLocationReference),
 }
 
 impl Frc {
@@ -293,5 +307,29 @@ impl Offset {
     /// Returns the offset in [0, 1] range.
     pub fn from_byte(bucket: u8) -> Self {
         Self((bucket as f32 + 0.5) / 256.0)
+    }
+}
+
+impl Orientation {
+    pub const fn try_from_byte(byte: u8) -> Result<Self, OpenLrError> {
+        match byte {
+            0 => Ok(Self::Unknown),
+            1 => Ok(Self::Forward),
+            2 => Ok(Self::Backward),
+            3 => Ok(Self::Both),
+            _ => Err(OpenLrError::BinaryParseError),
+        }
+    }
+}
+
+impl SideOfRoad {
+    pub const fn try_from_byte(byte: u8) -> Result<Self, OpenLrError> {
+        match byte {
+            0 => Ok(Self::OnRoadOrUnknown),
+            1 => Ok(Self::Right),
+            2 => Ok(Self::Left),
+            3 => Ok(Self::Both),
+            _ => Err(OpenLrError::BinaryParseError),
+        }
     }
 }
