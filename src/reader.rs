@@ -14,9 +14,12 @@ pub fn decode_base64_openlr(data: impl AsRef<[u8]>) -> Result<LocationReference,
 }
 
 pub fn decode_binary_openlr(data: &[u8]) -> Result<LocationReference, OpenLrError> {
+    use LocationReference::*;
+
     let mut reader = OpenLrBinaryReader::new(data);
     match reader.read_header()? {
-        LocationType::Line => Ok(LocationReference::Line(reader.read_line()?)),
+        LocationType::Line => Ok(Line(reader.read_line()?)),
+        LocationType::GeoCoordinate => Ok(GeoCoordinate(reader.read_coordinate()?)),
         _ => unimplemented!(),
     }
 }
@@ -359,6 +362,32 @@ mod tests {
                     }
                 ],
                 offsets: Offsets::default()
+            })
+        );
+    }
+
+    #[test]
+    fn openlr_coordinate_location_reference_001() {
+        let location = decode_base64_openlr("I+djotZ9eA==").unwrap();
+
+        assert_eq!(
+            location,
+            LocationReference::GeoCoordinate(Coordinate {
+                lon: -34.608_94,
+                lat: -58.373_27
+            })
+        );
+    }
+
+    #[test]
+    fn openlr_coordinate_location_reference_002() {
+        let location = decode_base64_openlr("IyVUdwmSoA==").unwrap();
+
+        assert_eq!(
+            location,
+            LocationReference::GeoCoordinate(Coordinate {
+                lon: 52.495_22,
+                lat: 13.461_675
             })
         );
     }

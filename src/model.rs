@@ -181,6 +181,7 @@ pub enum LocationType {
 #[derive(Debug, Clone, PartialEq)]
 pub enum LocationReference {
     Line(LineLocationReference),
+    GeoCoordinate(Coordinate),
 }
 
 impl Frc {
@@ -228,7 +229,9 @@ impl Coordinate {
     /// Returns degrees from a big-endian coordinate representation in a 24-bit resolution.
     pub fn degrees_from_be_bytes(bytes: [u8; 3]) -> f32 {
         const RESOLUTION: usize = 24;
-        let value = i32::from_be_bytes([0, bytes[0], bytes[1], bytes[2]]) as f32;
+        let is_negative = bytes[0] & 0x80 != 0;
+        let sign = if is_negative { 0xFF } else { 0 };
+        let value = i32::from_be_bytes([sign, bytes[0], bytes[1], bytes[2]]) as f32;
         ((value - value.signum() * 0.5) * 360.0) / (1 << RESOLUTION) as f32
     }
 
