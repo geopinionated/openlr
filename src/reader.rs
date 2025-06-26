@@ -4,9 +4,10 @@ use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 
 use crate::{
-    Bearing, Coordinate, Fow, Frc, Length, LineAttributes, LineLocationReference,
-    LocationReference, LocationReferencePoint, LocationType, Offset, OpenLrError, Orientation,
-    PathAttributes, PoiLocationReference, PointAlongLineLocationReference, SideOfRoad,
+    Bearing, CircleLocationReference, Coordinate, Fow, Frc, Length, LineAttributes,
+    LineLocationReference, LocationReference, LocationReferencePoint, LocationType, Offset,
+    OpenLrError, Orientation, PathAttributes, PoiLocationReference,
+    PointAlongLineLocationReference, SideOfRoad,
 };
 
 pub fn decode_base64_openlr(data: impl AsRef<[u8]>) -> Result<LocationReference, OpenLrError> {
@@ -24,6 +25,7 @@ pub fn decode_binary_openlr(data: &[u8]) -> Result<LocationReference, OpenLrErro
         LocationType::GeoCoordinate => Ok(GeoCoordinate(reader.read_coordinate()?)),
         LocationType::PointAlongLine => Ok(PointAlongLine(reader.read_point_along_line()?)),
         LocationType::PoiWithAccessPoint => Ok(Poi(reader.read_poi()?)),
+        LocationType::Circle => Ok(Circle(reader.read_circle()?)),
         _ => unimplemented!(),
     }
 }
@@ -158,6 +160,12 @@ impl<'a> OpenLrBinaryReader<'a> {
         Ok(PoiLocationReference { point, poi })
     }
 
+    fn read_circle(&mut self) -> Result<CircleLocationReference, OpenLrError> {
+        let center = self.read_coordinate()?;
+        let radius = self.read_radius()?;
+        Ok(CircleLocationReference { center, radius })
+    }
+
     fn read_coordinate(&mut self) -> Result<Coordinate, OpenLrError> {
         let mut parse_coordinate = || -> Result<f32, OpenLrError> {
             let mut c = [0u8; 3];
@@ -212,6 +220,12 @@ impl<'a> OpenLrBinaryReader<'a> {
         let mut offset = [0u8; 1];
         self.cursor.read_exact(&mut offset)?;
         Ok(Offset::from_byte(offset[0]))
+    }
+
+    fn read_radius(&mut self) -> Result<Length, OpenLrError> {
+        let mut radius = [0u8; 4];
+        let length = self.cursor.read(&mut radius)?;
+        Ok(Length::radius_from_be_bytes(&radius[..length]))
     }
 }
 
@@ -606,6 +620,38 @@ mod tests {
                     lon: 5.1013007,
                     lat: 52.105_79
                 }
+            })
+        );
+    }
+
+    #[test]
+    fn openlr_circle_location_reference_001() {
+        let location = decode_base64_openlr("AwOgxCUNmwEs").unwrap();
+
+        assert_eq!(
+            location,
+            LocationReference::Circle(CircleLocationReference {
+                center: Coordinate {
+                    lon: 5.101_851,
+                    lat: 52.105_976
+                },
+                radius: Length::from_meters(300)
+            })
+        );
+    }
+
+    #[test]
+    fn openlr_circle_location_reference_002() {
+        let location = decode_base64_openlr("A/2lJCfIiAfQ").unwrap();
+
+        assert_eq!(
+            location,
+            LocationReference::Circle(CircleLocationReference {
+                center: Coordinate {
+                    lon: -3.3115947,
+                    lat: 55.945_29
+                },
+                radius: Length::from_meters(2000)
             })
         );
     }

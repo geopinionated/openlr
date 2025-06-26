@@ -84,7 +84,7 @@ pub enum Orientation {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
-pub struct Length(u16);
+pub struct Length(u32);
 
 /// The bearing describes the angle between the true North and the road.
 /// The physical data format defines the bearing field as an integer value between 0
@@ -189,6 +189,12 @@ pub struct PoiLocationReference {
     pub poi: Coordinate,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct CircleLocationReference {
+    pub center: Coordinate,
+    pub radius: Length,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u8)]
 pub enum LocationType {
@@ -209,6 +215,7 @@ pub enum LocationReference {
     GeoCoordinate(Coordinate),
     PointAlongLine(PointAlongLineLocationReference),
     Poi(PoiLocationReference),
+    Circle(CircleLocationReference),
 }
 
 impl Frc {
@@ -271,11 +278,11 @@ impl Coordinate {
 }
 
 impl Length {
-    pub const fn from_meters(meters: u16) -> Self {
+    pub const fn from_meters(meters: u32) -> Self {
         Self(meters)
     }
 
-    pub const fn meters(&self) -> u16 {
+    pub const fn meters(&self) -> u32 {
         self.0
     }
 
@@ -285,7 +292,14 @@ impl Length {
     pub fn dnp_from_byte(byte: u8) -> Length {
         const DISTANCE_PER_INTERVAL: f32 = 58.6;
         let dnp = ((byte as f32 + 0.5) * DISTANCE_PER_INTERVAL).round();
-        Length(dnp as u16)
+        Length(dnp as u32)
+    }
+
+    /// Returns the length of a radius in meters from big-endian slice of (up to 4) bytes.
+    pub fn radius_from_be_bytes(bytes: &[u8]) -> Length {
+        let mut radius = [0u8; 4];
+        radius[4 - bytes.len()..].copy_from_slice(bytes);
+        Length(u32::from_be_bytes(radius))
     }
 }
 
