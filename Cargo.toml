@@ -2,5 +2,11 @@
 name = "openlr"
 version = "0.1.0"
 edition = "2024"
+description = "OpenLR Rust implementation"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/geopinionated/openlr"
 
 [dependencies]
+approx = "0.5"
+base64 = "0.22"
+thiserror = "2.0"
