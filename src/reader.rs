@@ -4,19 +4,19 @@ use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 
 use crate::{
-    Bearing, CircleLocationReference, ClosedLineLocationReference, Coordinate, Fow, Frc,
-    GridLocationReference, GridSize, Length, LineAttributes, LineLocationReference,
-    LocationReference, LocationReferencePoint, LocationType, Offset, OpenLrError, Orientation,
-    PathAttributes, PoiLocationReference, PointAlongLineLocationReference,
-    PolygonLocationReference, RectangleLocationReference, SideOfRoad,
+    Bearing, Circle, ClosedLine, Coordinate, DecodeError, Fow, Frc, Grid, GridSize, Length, Line,
+    LineAttributes, LocationReference, LocationType, Offset, Orientation, PathAttributes, Poi,
+    Point, PointAlongLine, Polygon, Rectangle, SideOfRoad,
 };
 
-pub fn decode_base64_openlr(data: impl AsRef<[u8]>) -> Result<LocationReference, OpenLrError> {
+/// Decodes an OpenLR Location Reference encoded in Base64.
+pub fn decode_base64_openlr(data: impl AsRef<[u8]>) -> Result<LocationReference, DecodeError> {
     let data = BASE64_STANDARD.decode(data)?;
     decode_binary_openlr(&data)
 }
 
-pub fn decode_binary_openlr(data: &[u8]) -> Result<LocationReference, OpenLrError> {
+/// Decodes a binary representation of an OpenLR Location Reference.
+pub fn decode_binary_openlr(data: &[u8]) -> Result<LocationReference, DecodeError> {
     use LocationReference::*;
 
     let mut reader = OpenLrBinaryReader::new(data);
@@ -40,26 +40,27 @@ struct OpenLrBinaryReader<'a> {
 }
 
 impl<'a> OpenLrBinaryReader<'a> {
-    fn new(data: &'a [u8]) -> Self {
+    const fn new(data: &'a [u8]) -> Self {
         Self {
             cursor: Cursor::new(data),
         }
     }
 
-    fn len(&self) -> usize {
+    const fn len(&self) -> usize {
         self.cursor.get_ref().len()
     }
 
-    fn read_header(&mut self) -> Result<LocationType, OpenLrError> {
+    fn read_header(&mut self) -> Result<LocationType, DecodeError> {
         let mut header = [0u8; 1];
         self.cursor.read_exact(&mut header)?;
+        let header = header[0];
 
-        let version = header[0] & 0b111;
+        let version = header & 0b111;
         if version != 3 {
-            return Err(OpenLrError::VersionNotSupported);
+            return Err(DecodeError::VersionNotSupported(version));
         }
 
-        let location_type = (header[0] >> 3) & 0b1111;
+        let location_type = (header >> 3) & 0b1111;
         let location_type = match location_type {
             0 => LocationType::Circle,
             1 => LocationType::Line,
@@ -70,15 +71,15 @@ impl<'a> OpenLrBinaryReader<'a> {
             8 if self.len() > 13 => LocationType::Grid,
             8 => LocationType::Rectangle,
             11 => LocationType::ClosedLine,
-            _ => return Err(OpenLrError::BinaryParseError),
+            _ => return Err(DecodeError::InvalidHeader(header)),
         };
 
         Ok(location_type)
     }
 
-    fn read_line(&mut self) -> Result<LineLocationReference, OpenLrError> {
+    fn read_line(&mut self) -> Result<Line, DecodeError> {
         let relative_points_count = (self.len() - 9) / 7;
-        let mut line = LineLocationReference::with_capacity(1 + relative_points_count);
+        let mut line = Line::with_capacity(1 + relative_points_count);
 
         let mut coordinate = self.read_coordinate()?;
         let mut attributes = self.read_attributes()?;
@@ -86,7 +87,7 @@ impl<'a> OpenLrBinaryReader<'a> {
         for _ in 0..relative_points_count {
             let dnp = self.read_dnp()?;
 
-            line.points.push(LocationReferencePoint {
+            line.points.push(Point {
                 coordinate,
                 line: attributes.line,
                 path: Some(PathAttributes {
@@ -99,7 +100,7 @@ impl<'a> OpenLrBinaryReader<'a> {
             attributes = self.read_attributes()?;
         }
 
-        line.points.push(LocationReferencePoint {
+        line.points.push(Point {
             coordinate,
             line: attributes.line,
             path: None,
@@ -119,14 +120,14 @@ impl<'a> OpenLrBinaryReader<'a> {
         Ok(line)
     }
 
-    fn read_closed_line(&mut self) -> Result<ClosedLineLocationReference, OpenLrError> {
+    fn read_closed_line(&mut self) -> Result<ClosedLine, DecodeError> {
         let relative_points_count = (self.len() - 12) / 7;
-        let mut line = ClosedLineLocationReference::with_capacity(1 + relative_points_count);
+        let mut line = ClosedLine::with_capacity(1 + relative_points_count);
 
         let mut coordinate = self.read_coordinate()?;
         let attributes = self.read_attributes()?;
         let dnp = self.read_dnp()?;
-        line.points.push(LocationReferencePoint {
+        line.points.push(Point {
             coordinate,
             line: attributes.line,
             path: Some(PathAttributes {
@@ -139,7 +140,7 @@ impl<'a> OpenLrBinaryReader<'a> {
             coordinate = self.read_relative_coordinate(coordinate)?;
             let attributes = self.read_attributes()?;
             let dnp = self.read_dnp()?;
-            line.points.push(LocationReferencePoint {
+            line.points.push(Point {
                 coordinate,
                 line: attributes.line,
                 path: Some(PathAttributes {
@@ -155,13 +156,13 @@ impl<'a> OpenLrBinaryReader<'a> {
         Ok(line)
     }
 
-    fn read_point_along_line(&mut self) -> Result<PointAlongLineLocationReference, OpenLrError> {
+    fn read_point_along_line(&mut self) -> Result<PointAlongLine, DecodeError> {
         let coordinate = self.read_coordinate()?;
         let attributes = self.read_attributes()?;
         let dnp = self.read_dnp()?;
         let orientation = attributes.orientation()?;
 
-        let point_1 = LocationReferencePoint {
+        let point_1 = Point {
             coordinate,
             line: attributes.line,
             path: Some(PathAttributes {
@@ -174,7 +175,7 @@ impl<'a> OpenLrBinaryReader<'a> {
         let attributes = self.read_attributes()?;
         let side = attributes.side()?;
 
-        let point_2 = LocationReferencePoint {
+        let point_2 = Point {
             coordinate,
             line: attributes.line,
             path: None,
@@ -186,7 +187,7 @@ impl<'a> OpenLrBinaryReader<'a> {
             Offset::default()
         };
 
-        Ok(PointAlongLineLocationReference {
+        Ok(PointAlongLine {
             points: [point_1, point_2],
             offset,
             orientation,
@@ -194,19 +195,19 @@ impl<'a> OpenLrBinaryReader<'a> {
         })
     }
 
-    fn read_poi(&mut self) -> Result<PoiLocationReference, OpenLrError> {
+    fn read_poi(&mut self) -> Result<Poi, DecodeError> {
         let point = self.read_point_along_line()?;
         let poi = self.read_relative_coordinate(point.points[0].coordinate)?;
-        Ok(PoiLocationReference { point, poi })
+        Ok(Poi { point, poi })
     }
 
-    fn read_circle(&mut self) -> Result<CircleLocationReference, OpenLrError> {
+    fn read_circle(&mut self) -> Result<Circle, DecodeError> {
         let center = self.read_coordinate()?;
         let radius = self.read_radius()?;
-        Ok(CircleLocationReference { center, radius })
+        Ok(Circle { center, radius })
     }
 
-    fn read_rectangle(&mut self) -> Result<RectangleLocationReference, OpenLrError> {
+    fn read_rectangle(&mut self) -> Result<Rectangle, DecodeError> {
         let lower_left = self.read_coordinate()?;
 
         let upper_right = if self.len() > 11 {
@@ -215,13 +216,13 @@ impl<'a> OpenLrBinaryReader<'a> {
             self.read_relative_coordinate(lower_left)?
         };
 
-        Ok(RectangleLocationReference {
+        Ok(Rectangle {
             lower_left,
             upper_right,
         })
     }
 
-    fn read_grid(&mut self) -> Result<GridLocationReference, OpenLrError> {
+    fn read_grid(&mut self) -> Result<Grid, DecodeError> {
         let lower_left = self.read_coordinate()?;
 
         let upper_right = if self.len() > 15 {
@@ -230,19 +231,19 @@ impl<'a> OpenLrBinaryReader<'a> {
             self.read_relative_coordinate(lower_left)?
         };
 
-        let rect = RectangleLocationReference {
+        let rect = Rectangle {
             lower_left,
             upper_right,
         };
 
         let size = self.read_grid_size()?;
 
-        Ok(GridLocationReference { rect, size })
+        Ok(Grid { rect, size })
     }
 
-    fn read_polygon(&mut self) -> Result<PolygonLocationReference, OpenLrError> {
+    fn read_polygon(&mut self) -> Result<Polygon, DecodeError> {
         let relative_corners_count = (self.len() - 7) / 4;
-        let mut polygon = PolygonLocationReference::with_capacity(1 + relative_corners_count);
+        let mut polygon = Polygon::with_capacity(1 + relative_corners_count);
 
         let mut coordinate = self.read_coordinate()?;
         polygon.corners.push(coordinate);
@@ -255,34 +256,34 @@ impl<'a> OpenLrBinaryReader<'a> {
         Ok(polygon)
     }
 
-    fn read_coordinate(&mut self) -> Result<Coordinate, OpenLrError> {
-        let mut parse_coordinate = || -> Result<f32, OpenLrError> {
+    fn read_coordinate(&mut self) -> Result<Coordinate, DecodeError> {
+        let mut read_coordinate = || -> Result<f32, DecodeError> {
             let mut c = [0u8; 3];
             self.cursor.read_exact(&mut c)?;
             Ok(Coordinate::degrees_from_be_bytes(c))
         };
 
-        let lon = parse_coordinate()?;
-        let lat = parse_coordinate()?;
+        let lon = read_coordinate()?;
+        let lat = read_coordinate()?;
         Ok(Coordinate { lon, lat })
     }
 
     fn read_relative_coordinate(
         &mut self,
         previous: Coordinate,
-    ) -> Result<Coordinate, OpenLrError> {
-        let mut parse_coordinate = |previous| -> Result<f32, OpenLrError> {
+    ) -> Result<Coordinate, DecodeError> {
+        let mut read_coordinate = |previous| -> Result<f32, DecodeError> {
             let mut c = [0u8; 2];
             self.cursor.read_exact(&mut c)?;
             Ok(Coordinate::degrees_from_be_bytes_relative(c, previous))
         };
 
-        let lon = parse_coordinate(previous.lon)?;
-        let lat = parse_coordinate(previous.lat)?;
+        let lon = read_coordinate(previous.lon)?;
+        let lat = read_coordinate(previous.lat)?;
         Ok(Coordinate { lon, lat })
     }
 
-    fn read_attributes(&mut self) -> Result<EncodedAttributes, OpenLrError> {
+    fn read_attributes(&mut self) -> Result<EncodedAttributes, DecodeError> {
         let mut attributes = [0u8; 2];
         self.cursor.read_exact(&mut attributes)?;
 
@@ -299,25 +300,25 @@ impl<'a> OpenLrBinaryReader<'a> {
         })
     }
 
-    fn read_dnp(&mut self) -> Result<Length, OpenLrError> {
+    fn read_dnp(&mut self) -> Result<Length, DecodeError> {
         let mut dnp = [0u8; 1];
         self.cursor.read_exact(&mut dnp)?;
         Ok(Length::dnp_from_byte(dnp[0]))
     }
 
-    fn read_offset(&mut self) -> Result<Offset, OpenLrError> {
+    fn read_offset(&mut self) -> Result<Offset, DecodeError> {
         let mut offset = [0u8; 1];
         self.cursor.read_exact(&mut offset)?;
         Ok(Offset::from_byte(offset[0]))
     }
 
-    fn read_radius(&mut self) -> Result<Length, OpenLrError> {
+    fn read_radius(&mut self) -> Result<Length, DecodeError> {
         let mut radius = [0u8; 4];
         let length = self.cursor.read(&mut radius)?;
         Ok(Length::radius_from_be_bytes(&radius[..length]))
     }
 
-    fn read_grid_size(&mut self) -> Result<GridSize, OpenLrError> {
+    fn read_grid_size(&mut self) -> Result<GridSize, DecodeError> {
         let mut size = [0u8; 4];
         self.cursor.read_exact(&mut size)?;
         Ok(GridSize::from_be_bytes(size))
@@ -332,7 +333,7 @@ struct EncodedAttributes {
 }
 
 impl EncodedAttributes {
-    const fn lfrcnp(&self) -> Result<Frc, OpenLrError> {
+    const fn lfrcnp(&self) -> Result<Frc, DecodeError> {
         Frc::try_from_byte(self.lfrcnp_or_flags)
     }
 
@@ -344,11 +345,11 @@ impl EncodedAttributes {
         self.lfrcnp_or_flags & 0b01 != 0
     }
 
-    const fn orientation(&self) -> Result<Orientation, OpenLrError> {
+    const fn orientation(&self) -> Result<Orientation, DecodeError> {
         Orientation::try_from_byte(self.orientation_or_side)
     }
 
-    const fn side(&self) -> Result<SideOfRoad, OpenLrError> {
+    const fn side(&self) -> Result<SideOfRoad, DecodeError> {
         SideOfRoad::try_from_byte(self.orientation_or_side)
     }
 }
@@ -359,14 +360,38 @@ mod tests {
     use crate::model::Offsets;
 
     #[test]
+    fn openlr_version_1_not_supported() {
+        assert_eq!(
+            decode_base64_openlr("CQcm6yX4vTPGFwM7AskzCw==").unwrap_err(),
+            DecodeError::VersionNotSupported(1)
+        );
+    }
+
+    #[test]
+    fn openlr_version_2_not_supported() {
+        assert_eq!(
+            decode_base64_openlr("CgRbWyNG9BpsCQCb/jsbtAT/6/+jK1kC").unwrap_err(),
+            DecodeError::VersionNotSupported(2)
+        );
+    }
+
+    #[test]
+    fn openlr_invalid_header() {
+        assert_eq!(
+            decode_base64_openlr("ewGkNSK5Wg==").unwrap_err(),
+            DecodeError::InvalidHeader(0b01111011)
+        );
+    }
+
+    #[test]
     fn openlr_line_location_reference_001() {
         let location = decode_base64_openlr("CwRbWyNG9RpsCQCb/jsbtAT/6/+jK1lE").unwrap();
 
         assert_eq!(
             location,
-            LocationReference::Line(LineLocationReference {
+            LocationReference::Line(Line {
                 points: vec![
-                    LocationReferencePoint {
+                    Point {
                         coordinate: Coordinate {
                             lon: 6.1268198,
                             lat: 49.608_517
@@ -381,7 +406,7 @@ mod tests {
                             dnp: Length::from_meters(557)
                         })
                     },
-                    LocationReferencePoint {
+                    Point {
                         coordinate: Coordinate {
                             lon: 6.128_37,
                             lat: 49.603_99
@@ -396,7 +421,7 @@ mod tests {
                             dnp: Length::from_meters(264)
                         })
                     },
-                    LocationReferencePoint {
+                    Point {
                         coordinate: Coordinate {
                             lon: 6.128_16,
                             lat: 49.603_058
@@ -423,9 +448,9 @@ mod tests {
 
         assert_eq!(
             location,
-            LocationReference::Line(LineLocationReference {
+            LocationReference::Line(Line {
                 points: vec![
-                    LocationReferencePoint {
+                    Point {
                         coordinate: Coordinate {
                             lon: 0.6752192,
                             lat: 47.365_16
@@ -440,7 +465,7 @@ mod tests {
                             dnp: Length::from_meters(498)
                         })
                     },
-                    LocationReferencePoint {
+                    Point {
                         coordinate: Coordinate {
                             lon: 0.6769992,
                             lat: 47.369_602
@@ -467,9 +492,9 @@ mod tests {
 
         assert_eq!(
             location,
-            LocationReference::Line(LineLocationReference {
+            LocationReference::Line(Line {
                 points: vec![
-                    LocationReferencePoint {
+                    Point {
                         coordinate: Coordinate {
                             lon: 9.975_06,
                             lat: 48.063_286
@@ -484,7 +509,7 @@ mod tests {
                             dnp: Length::from_meters(88)
                         })
                     },
-                    LocationReferencePoint {
+                    Point {
                         coordinate: Coordinate {
                             lon: 9.975_06,
                             lat: 48.063_286
@@ -508,9 +533,9 @@ mod tests {
 
         assert_eq!(
             location,
-            LocationReference::Line(LineLocationReference {
+            LocationReference::Line(Line {
                 points: vec![
-                    LocationReferencePoint {
+                    Point {
                         coordinate: Coordinate {
                             lon: 6.1268198,
                             lat: 49.608_498
@@ -525,7 +550,7 @@ mod tests {
                             dnp: Length::from_meters(29)
                         })
                     },
-                    LocationReferencePoint {
+                    Point {
                         coordinate: Coordinate {
                             lon: 6.128_36,
                             lat: 49.603_966
@@ -540,7 +565,7 @@ mod tests {
                             dnp: Length::from_meters(29)
                         })
                     },
-                    LocationReferencePoint {
+                    Point {
                         coordinate: Coordinate {
                             lon: 6.128_15,
                             lat: 49.603_046
@@ -590,9 +615,9 @@ mod tests {
 
         assert_eq!(
             location,
-            LocationReference::PointAlongLine(PointAlongLineLocationReference {
+            LocationReference::PointAlongLine(PointAlongLine {
                 points: [
-                    LocationReferencePoint {
+                    Point {
                         coordinate: Coordinate {
                             lon: -2.0216238,
                             lat: 48.618_44
@@ -607,7 +632,7 @@ mod tests {
                             dnp: Length::from_meters(1436)
                         })
                     },
-                    LocationReferencePoint {
+                    Point {
                         coordinate: Coordinate {
                             lon: -2.0084338,
                             lat: 48.616_76
@@ -633,9 +658,9 @@ mod tests {
 
         assert_eq!(
             location,
-            LocationReference::PointAlongLine(PointAlongLineLocationReference {
+            LocationReference::PointAlongLine(PointAlongLine {
                 points: [
-                    LocationReferencePoint {
+                    Point {
                         coordinate: Coordinate {
                             lon: 0.4710495,
                             lat: 45.889_732
@@ -650,7 +675,7 @@ mod tests {
                             dnp: Length::from_meters(88)
                         })
                     },
-                    LocationReferencePoint {
+                    Point {
                         coordinate: Coordinate {
                             lon: 0.4707495,
                             lat: 45.889_25
@@ -676,10 +701,10 @@ mod tests {
 
         assert_eq!(
             location,
-            LocationReference::Poi(PoiLocationReference {
-                point: PointAlongLineLocationReference {
+            LocationReference::Poi(Poi {
+                point: PointAlongLine {
                     points: [
-                        LocationReferencePoint {
+                        Point {
                             coordinate: Coordinate {
                                 lon: 5.1025807,
                                 lat: 52.106
@@ -694,7 +719,7 @@ mod tests {
                                 dnp: Length::from_meters(147)
                             })
                         },
-                        LocationReferencePoint {
+                        Point {
                             coordinate: Coordinate {
                                 lon: 5.1013307,
                                 lat: 52.104_92
@@ -725,7 +750,7 @@ mod tests {
 
         assert_eq!(
             location,
-            LocationReference::Circle(CircleLocationReference {
+            LocationReference::Circle(Circle {
                 center: Coordinate {
                     lon: 5.101_851,
                     lat: 52.105_976
@@ -741,7 +766,7 @@ mod tests {
 
         assert_eq!(
             location,
-            LocationReference::Circle(CircleLocationReference {
+            LocationReference::Circle(Circle {
                 center: Coordinate {
                     lon: -3.3115947,
                     lat: 55.945_29
@@ -757,7 +782,7 @@ mod tests {
 
         assert_eq!(
             location,
-            LocationReference::Rectangle(RectangleLocationReference {
+            LocationReference::Rectangle(Rectangle {
                 lower_left: Coordinate {
                     lon: 35.821_533,
                     lat: 26.043_36
@@ -776,7 +801,7 @@ mod tests {
 
         assert_eq!(
             location,
-            LocationReference::Rectangle(RectangleLocationReference {
+            LocationReference::Rectangle(Rectangle {
                 lower_left: Coordinate {
                     lon: 5.100_07,
                     lat: 52.103_207
@@ -795,8 +820,8 @@ mod tests {
 
         assert_eq!(
             location,
-            LocationReference::Grid(GridLocationReference {
-                rect: RectangleLocationReference {
+            LocationReference::Grid(Grid {
+                rect: Rectangle {
                     lower_left: Coordinate {
                         lon: -5.0989758,
                         lat: 49.377_46
@@ -820,8 +845,8 @@ mod tests {
 
         assert_eq!(
             location,
-            LocationReference::Grid(GridLocationReference {
-                rect: RectangleLocationReference {
+            LocationReference::Grid(Grid {
+                rect: Rectangle {
                     lower_left: Coordinate {
                         lon: 5.098_804,
                         lat: 52.102_116
@@ -845,7 +870,7 @@ mod tests {
 
         assert_eq!(
             location,
-            LocationReference::Polygon(PolygonLocationReference {
+            LocationReference::Polygon(Polygon {
                 corners: vec![
                     Coordinate {
                         lon: 5.099_362,
@@ -874,9 +899,9 @@ mod tests {
 
         assert_eq!(
             location,
-            LocationReference::ClosedLine(ClosedLineLocationReference {
+            LocationReference::ClosedLine(ClosedLine {
                 points: vec![
-                    LocationReferencePoint {
+                    Point {
                         coordinate: Coordinate {
                             lon: 6.128_3,
                             lat: 49.605_965
@@ -891,7 +916,7 @@ mod tests {
                             dnp: Length::from_meters(264)
                         })
                     },
-                    LocationReferencePoint {
+                    Point {
                         coordinate: Coordinate {
                             lon: 6.1283904,
                             lat: 49.603_973
