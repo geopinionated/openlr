@@ -220,6 +220,17 @@ pub struct GridSize {
     pub rows: u16,
 }
 
+/// A polygon location is a non-intersecting shape defined by a sequence of
+/// geo-coordinate pairs. The coordinate pairs can be everywhere on the surface.
+/// They define the corners of the underlying geometrical polygon. The boundary
+/// of this polygon is constituted by straight lines between every pair of
+/// consecutive corners in the sequence, plus the straight line between the last and
+/// the first corner.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct PolygonLocationReference {
+    pub corners: Vec<Coordinate>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u8)]
 pub enum LocationType {
@@ -243,6 +254,7 @@ pub enum LocationReference {
     Circle(CircleLocationReference),
     Rectangle(RectangleLocationReference),
     Grid(GridLocationReference),
+    Polygon(PolygonLocationReference),
 }
 
 impl Frc {
@@ -282,6 +294,14 @@ impl LineLocationReference {
         Self {
             points: Vec::with_capacity(capacity),
             offsets: Offsets::default(),
+        }
+    }
+}
+
+impl PolygonLocationReference {
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            corners: Vec::with_capacity(capacity),
         }
     }
 }

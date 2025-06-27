@@ -7,7 +7,8 @@ use crate::{
     Bearing, CircleLocationReference, Coordinate, Fow, Frc, GridLocationReference, GridSize,
     Length, LineAttributes, LineLocationReference, LocationReference, LocationReferencePoint,
     LocationType, Offset, OpenLrError, Orientation, PathAttributes, PoiLocationReference,
-    PointAlongLineLocationReference, RectangleLocationReference, SideOfRoad,
+    PointAlongLineLocationReference, PolygonLocationReference, RectangleLocationReference,
+    SideOfRoad,
 };
 
 pub fn decode_base64_openlr(data: impl AsRef<[u8]>) -> Result<LocationReference, OpenLrError> {
@@ -28,7 +29,7 @@ pub fn decode_binary_openlr(data: &[u8]) -> Result<LocationReference, OpenLrErro
         LocationType::Circle => Ok(Circle(reader.read_circle()?)),
         LocationType::Rectangle => Ok(Rectangle(reader.read_rectangle()?)),
         LocationType::Grid => Ok(Grid(reader.read_grid()?)),
-        LocationType::Polygon => unimplemented!(),
+        LocationType::Polygon => Ok(Polygon(reader.read_polygon()?)),
         LocationType::ClosedLine => unimplemented!(),
     }
 }
@@ -201,6 +202,21 @@ impl<'a> OpenLrBinaryReader<'a> {
         let size = self.read_grid_size()?;
 
         Ok(GridLocationReference { rect, size })
+    }
+
+    fn read_polygon(&mut self) -> Result<PolygonLocationReference, OpenLrError> {
+        let relative_corners_count = (self.len() - 7) / 4;
+        let mut polygon = PolygonLocationReference::with_capacity(1 + relative_corners_count);
+
+        let mut coordinate = self.read_coordinate()?;
+        polygon.corners.push(coordinate);
+
+        for _ in 0..relative_corners_count {
+            coordinate = self.read_relative_coordinate(coordinate)?;
+            polygon.corners.push(coordinate);
+        }
+
+        Ok(polygon)
     }
 
     fn read_coordinate(&mut self) -> Result<Coordinate, OpenLrError> {
@@ -783,6 +799,35 @@ mod tests {
                     columns: 3,
                     rows: 2
                 }
+            })
+        );
+    }
+
+    #[test]
+    fn openlr_polygon_location_reference_001() {
+        let location = decode_base64_openlr("EwOgUCUNEwJFAH//yAEv/vIAxw==").unwrap();
+
+        assert_eq!(
+            location,
+            LocationReference::Polygon(PolygonLocationReference {
+                corners: vec![
+                    Coordinate {
+                        lon: 5.099_362,
+                        lat: 52.103_058
+                    },
+                    Coordinate {
+                        lon: 5.105_172,
+                        lat: 52.104_33
+                    },
+                    Coordinate {
+                        lon: 5.104_617,
+                        lat: 52.107_353
+                    },
+                    Coordinate {
+                        lon: 5.101_919,
+                        lat: 52.109_34
+                    }
+                ]
             })
         );
     }
