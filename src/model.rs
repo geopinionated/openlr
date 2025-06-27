@@ -20,6 +20,12 @@ pub enum Frc {
     Frc7 = 7,
 }
 
+impl Default for Frc {
+    fn default() -> Self {
+        Self::Frc7
+    }
+}
+
 /// Form of Way.
 /// The form of way (FOW) describes the physical road type of a line.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -51,6 +57,12 @@ pub enum Fow {
     Other = 7,
 }
 
+impl Default for Fow {
+    fn default() -> Self {
+        Self::Other
+    }
+}
+
 /// The side of road information (SOR) describes the relationship between the
 /// point of interest and a referenced line.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -65,6 +77,12 @@ pub enum SideOfRoad {
     Left = 2,
     /// Point is on both sides of the road.
     Both = 3,
+}
+
+impl Default for SideOfRoad {
+    fn default() -> Self {
+        Self::OnRoadOrUnknown
+    }
 }
 
 /// The orientation information (ORI) describes the relationship between the
@@ -83,6 +101,12 @@ pub enum Orientation {
     Both = 3,
 }
 
+impl Default for Orientation {
+    fn default() -> Self {
+        Self::Unknown
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct Length(u32);
 
@@ -95,7 +119,7 @@ pub struct Bearing(u16);
 /// Coordinate pair stands for a pair of WGS84 longitude (lon) and latitude (lat) values.
 /// This coordinate pair specifies a geometric point in a digital map.
 /// The lon and lat values are stored in decamicrodegree resolution (five decimals).
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct Coordinate {
     pub lon: f32,
     pub lat: f32,
@@ -111,7 +135,7 @@ impl PartialEq for Coordinate {
 
 /// Line attributes are part of a location reference point and consist of functional road
 /// class (FRC), form of way (FOW) and bearing (BEAR) data.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct LineAttributes {
     pub frc: Frc,
     pub fow: Fow,
@@ -121,7 +145,7 @@ pub struct LineAttributes {
 /// The path attributes are part of a location reference point (except for the last
 /// location reference point) and consists of lowest functional road class to next point
 /// (LFRCNP) and distance to next point (DNP) data.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct PathAttributes {
     /// Lowest functional road class to next point.
     pub lfrcnp: Frc,
@@ -133,7 +157,7 @@ pub struct PathAttributes {
 /// A single LRP may be bound to the road network. In such a case all values of the LRP
 /// refer to a node or line within the road network. The coordinates refer to a node of
 /// a line or a point on a line and the additional attributes refer to attributes of a line.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct LocationReferencePoint {
     pub coordinate: Coordinate,
     pub line: LineAttributes,
@@ -162,6 +186,14 @@ pub struct Offsets {
 pub struct LineLocationReference {
     pub points: Vec<LocationReferencePoint>,
     pub offsets: Offsets,
+}
+
+/// A closed line location references the area defined by a closed path (i.e. a circuit)
+/// in the road network. The boundary always consists of road segments.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct ClosedLineLocationReference {
+    pub points: Vec<LocationReferencePoint>,
+    pub last_line: LineAttributes,
 }
 
 /// Point along line is a point location which is defined by a line and an offset value.
@@ -255,6 +287,7 @@ pub enum LocationReference {
     Rectangle(RectangleLocationReference),
     Grid(GridLocationReference),
     Polygon(PolygonLocationReference),
+    ClosedLine(ClosedLineLocationReference),
 }
 
 impl Frc {
@@ -294,6 +327,15 @@ impl LineLocationReference {
         Self {
             points: Vec::with_capacity(capacity),
             offsets: Offsets::default(),
+        }
+    }
+}
+
+impl ClosedLineLocationReference {
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            points: Vec::with_capacity(capacity),
+            last_line: LineAttributes::default(),
         }
     }
 }

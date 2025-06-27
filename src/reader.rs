@@ -4,11 +4,11 @@ use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 
 use crate::{
-    Bearing, CircleLocationReference, Coordinate, Fow, Frc, GridLocationReference, GridSize,
-    Length, LineAttributes, LineLocationReference, LocationReference, LocationReferencePoint,
-    LocationType, Offset, OpenLrError, Orientation, PathAttributes, PoiLocationReference,
-    PointAlongLineLocationReference, PolygonLocationReference, RectangleLocationReference,
-    SideOfRoad,
+    Bearing, CircleLocationReference, ClosedLineLocationReference, Coordinate, Fow, Frc,
+    GridLocationReference, GridSize, Length, LineAttributes, LineLocationReference,
+    LocationReference, LocationReferencePoint, LocationType, Offset, OpenLrError, Orientation,
+    PathAttributes, PoiLocationReference, PointAlongLineLocationReference,
+    PolygonLocationReference, RectangleLocationReference, SideOfRoad,
 };
 
 pub fn decode_base64_openlr(data: impl AsRef<[u8]>) -> Result<LocationReference, OpenLrError> {
@@ -30,7 +30,7 @@ pub fn decode_binary_openlr(data: &[u8]) -> Result<LocationReference, OpenLrErro
         LocationType::Rectangle => Ok(Rectangle(reader.read_rectangle()?)),
         LocationType::Grid => Ok(Grid(reader.read_grid()?)),
         LocationType::Polygon => Ok(Polygon(reader.read_polygon()?)),
-        LocationType::ClosedLine => unimplemented!(),
+        LocationType::ClosedLine => Ok(ClosedLine(reader.read_closed_line()?)),
     }
 }
 
@@ -115,6 +115,42 @@ impl<'a> OpenLrBinaryReader<'a> {
 
         line.offsets.pos = read_offset(attributes.pos_offset_flag())?;
         line.offsets.neg = read_offset(attributes.neg_offset_flag())?;
+
+        Ok(line)
+    }
+
+    fn read_closed_line(&mut self) -> Result<ClosedLineLocationReference, OpenLrError> {
+        let relative_points_count = (self.len() - 12) / 7;
+        let mut line = ClosedLineLocationReference::with_capacity(1 + relative_points_count);
+
+        let mut coordinate = self.read_coordinate()?;
+        let attributes = self.read_attributes()?;
+        let dnp = self.read_dnp()?;
+        line.points.push(LocationReferencePoint {
+            coordinate,
+            line: attributes.line,
+            path: Some(PathAttributes {
+                lfrcnp: attributes.lfrcnp()?,
+                dnp,
+            }),
+        });
+
+        for _ in 0..relative_points_count {
+            coordinate = self.read_relative_coordinate(coordinate)?;
+            let attributes = self.read_attributes()?;
+            let dnp = self.read_dnp()?;
+            line.points.push(LocationReferencePoint {
+                coordinate,
+                line: attributes.line,
+                path: Some(PathAttributes {
+                    lfrcnp: attributes.lfrcnp()?,
+                    dnp,
+                }),
+            });
+        }
+
+        let attributes = self.read_attributes()?;
+        line.last_line = attributes.line;
 
         Ok(line)
     }
@@ -828,6 +864,54 @@ mod tests {
                         lat: 52.109_34
                     }
                 ]
+            })
+        );
+    }
+
+    #[test]
+    fn openlr_closed_line_location_reference_001() {
+        let location = decode_base64_openlr("WwRboCNGfhJrBAAJ/zkb9AgTFQ==").unwrap();
+
+        assert_eq!(
+            location,
+            LocationReference::ClosedLine(ClosedLineLocationReference {
+                points: vec![
+                    LocationReferencePoint {
+                        coordinate: Coordinate {
+                            lon: 6.128_3,
+                            lat: 49.605_965
+                        },
+                        line: LineAttributes {
+                            frc: Frc::Frc2,
+                            fow: Fow::MultipleCarriageway,
+                            bear: Bearing::from_degrees(129)
+                        },
+                        path: Some(PathAttributes {
+                            lfrcnp: Frc::Frc3,
+                            dnp: Length::from_meters(264)
+                        })
+                    },
+                    LocationReferencePoint {
+                        coordinate: Coordinate {
+                            lon: 6.1283904,
+                            lat: 49.603_973
+                        },
+                        line: LineAttributes {
+                            frc: Frc::Frc3,
+                            fow: Fow::SingleCarriageway,
+                            bear: Bearing::from_degrees(231)
+                        },
+                        path: Some(PathAttributes {
+                            lfrcnp: Frc::Frc7,
+                            dnp: Length::from_meters(498)
+                        })
+                    },
+                ],
+                last_line: LineAttributes {
+                    frc: Frc::Frc2,
+                    fow: Fow::SingleCarriageway,
+                    bear: Bearing::from_degrees(242)
+                }
             })
         );
     }
