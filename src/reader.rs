@@ -4,9 +4,9 @@ use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 
 use crate::{
-    Bearing, CircleLocationReference, Coordinate, Fow, Frc, Length, LineAttributes,
-    LineLocationReference, LocationReference, LocationReferencePoint, LocationType, Offset,
-    OpenLrError, Orientation, PathAttributes, PoiLocationReference,
+    Bearing, CircleLocationReference, Coordinate, Fow, Frc, GridLocationReference, GridSize,
+    Length, LineAttributes, LineLocationReference, LocationReference, LocationReferencePoint,
+    LocationType, Offset, OpenLrError, Orientation, PathAttributes, PoiLocationReference,
     PointAlongLineLocationReference, RectangleLocationReference, SideOfRoad,
 };
 
@@ -27,7 +27,9 @@ pub fn decode_binary_openlr(data: &[u8]) -> Result<LocationReference, OpenLrErro
         LocationType::PoiWithAccessPoint => Ok(Poi(reader.read_poi()?)),
         LocationType::Circle => Ok(Circle(reader.read_circle()?)),
         LocationType::Rectangle => Ok(Rectangle(reader.read_rectangle()?)),
-        _ => unimplemented!(),
+        LocationType::Grid => Ok(Grid(reader.read_grid()?)),
+        LocationType::Polygon => unimplemented!(),
+        LocationType::ClosedLine => unimplemented!(),
     }
 }
 
@@ -182,6 +184,25 @@ impl<'a> OpenLrBinaryReader<'a> {
         })
     }
 
+    fn read_grid(&mut self) -> Result<GridLocationReference, OpenLrError> {
+        let lower_left = self.read_coordinate()?;
+
+        let upper_right = if self.len() > 15 {
+            self.read_coordinate()?
+        } else {
+            self.read_relative_coordinate(lower_left)?
+        };
+
+        let rect = RectangleLocationReference {
+            lower_left,
+            upper_right,
+        };
+
+        let size = self.read_grid_size()?;
+
+        Ok(GridLocationReference { rect, size })
+    }
+
     fn read_coordinate(&mut self) -> Result<Coordinate, OpenLrError> {
         let mut parse_coordinate = || -> Result<f32, OpenLrError> {
             let mut c = [0u8; 3];
@@ -242,6 +263,12 @@ impl<'a> OpenLrBinaryReader<'a> {
         let mut radius = [0u8; 4];
         let length = self.cursor.read(&mut radius)?;
         Ok(Length::radius_from_be_bytes(&radius[..length]))
+    }
+
+    fn read_grid_size(&mut self) -> Result<GridSize, OpenLrError> {
+        let mut size = [0u8; 4];
+        self.cursor.read_exact(&mut size)?;
+        Ok(GridSize::from_be_bytes(size))
     }
 }
 
@@ -705,6 +732,56 @@ mod tests {
                 upper_right: Coordinate {
                     lon: 5.103_99,
                     lat: 52.107_037
+                }
+            })
+        );
+    }
+
+    #[test]
+    fn openlr_grid_location_reference_001() {
+        let location = decode_base64_openlr("Q/xfwiMc5QsGuyx13wILASg=").unwrap();
+
+        assert_eq!(
+            location,
+            LocationReference::Grid(GridLocationReference {
+                rect: RectangleLocationReference {
+                    lower_left: Coordinate {
+                        lon: -5.0989758,
+                        lat: 49.377_46
+                    },
+                    upper_right: Coordinate {
+                        lon: 15.505_711,
+                        lat: 62.522_476
+                    }
+                },
+                size: GridSize {
+                    columns: 523,
+                    rows: 296
+                }
+            })
+        );
+    }
+
+    #[test]
+    fn openlr_grid_location_reference_002() {
+        let location = decode_base64_openlr("QwOgNiUM5wFVANsAAwAC").unwrap();
+
+        assert_eq!(
+            location,
+            LocationReference::Grid(GridLocationReference {
+                rect: RectangleLocationReference {
+                    lower_left: Coordinate {
+                        lon: 5.098_804,
+                        lat: 52.102_116
+                    },
+                    upper_right: Coordinate {
+                        lon: 5.1022142,
+                        lat: 52.104_305
+                    }
+                },
+                size: GridSize {
+                    columns: 3,
+                    rows: 2
                 }
             })
         );

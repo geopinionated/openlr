@@ -204,6 +204,22 @@ pub struct RectangleLocationReference {
     pub upper_right: Coordinate,
 }
 
+/// A grid location is a special instance of a rectangle location. It is given
+/// by a base rectangular shape. This base rectangle is the lower left cell of
+/// the grid and can be multiplied to the North (by defining the number of rows)
+/// and to the East (by defining the number of columns).
+#[derive(Debug, Clone, PartialEq)]
+pub struct GridLocationReference {
+    pub rect: RectangleLocationReference,
+    pub size: GridSize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GridSize {
+    pub columns: u16,
+    pub rows: u16,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u8)]
 pub enum LocationType {
@@ -226,6 +242,7 @@ pub enum LocationReference {
     Poi(PoiLocationReference),
     Circle(CircleLocationReference),
     Rectangle(RectangleLocationReference),
+    Grid(GridLocationReference),
 }
 
 impl Frc {
@@ -368,5 +385,14 @@ impl SideOfRoad {
             3 => Ok(Self::Both),
             _ => Err(OpenLrError::BinaryParseError),
         }
+    }
+}
+
+impl GridSize {
+    pub fn from_be_bytes(bytes: [u8; 4]) -> Self {
+        let [c1, c2, r1, r2] = bytes;
+        let columns = u16::from_be_bytes([c1, c2]);
+        let rows = u16::from_be_bytes([r1, r2]);
+        Self { columns, rows }
     }
 }
