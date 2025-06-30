@@ -175,6 +175,11 @@ impl Length {
         radius[4 - bytes.len()..].copy_from_slice(bytes);
         Self::from_meters(u32::from_be_bytes(radius))
     }
+
+    /// Returns the big-endian representation of a radius in 4 bytes.
+    pub(crate) fn radius_into_be_bytes(self) -> [u8; 4] {
+        u32::to_be_bytes(self.meters())
+    }
 }
 
 impl Bearing {

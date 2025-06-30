@@ -6,7 +6,7 @@ use base64::prelude::BASE64_STANDARD;
 use crate::binary::encoding::EncodedAttributes;
 use crate::model::Offsets;
 use crate::{
-    Coordinate, EncodeError, Length, Line, LocationReference, LocationType, Offset, Poi,
+    Circle, Coordinate, EncodeError, Length, Line, LocationReference, LocationType, Offset, Poi,
     PointAlongLine,
 };
 
@@ -28,7 +28,7 @@ pub fn encode_binary_openlr(location: &LocationReference) -> Result<Vec<u8>, Enc
         GeoCoordinate(coordinate) => writer.write_coordinate(coordinate)?,
         PointAlongLine(point) => writer.write_point_along_line(point)?,
         Poi(poi) => writer.write_poi(poi)?,
-        Circle(_) => unimplemented!(),
+        Circle(circle) => writer.write_circle(circle)?,
         Rectangle(_) => unimplemented!(),
         Grid(_) => unimplemented!(),
         Polygon(_) => unimplemented!(),
@@ -72,7 +72,7 @@ impl OpenLrBinaryWriter {
         let path = first_point.path.unwrap_or_default();
         let attributes = EncodedAttributes::from(first_point.line).with_lfrcnp(path.lfrcnp);
         self.write_attributes(attributes)?;
-        self.write_dnp(path.dnp)?;
+        self.write_dnp(&path.dnp)?;
 
         let relative_points = points.get(1..points.len() - 1).into_iter().flatten();
         for point in relative_points {
@@ -80,7 +80,7 @@ impl OpenLrBinaryWriter {
             let path = point.path.unwrap_or_default();
             let attributes = EncodedAttributes::from(point.line).with_lfrcnp(path.lfrcnp);
             self.write_attributes(attributes)?;
-            self.write_dnp(path.dnp)?;
+            self.write_dnp(&path.dnp)?;
         }
 
         let last_point = points.last().ok_or(EncodeError::InvalidLine)?;
@@ -112,7 +112,7 @@ impl OpenLrBinaryWriter {
             .with_lfrcnp(path.lfrcnp)
             .with_orientation(orientation);
         self.write_attributes(attributes)?;
-        self.write_dnp(path.dnp)?;
+        self.write_dnp(&path.dnp)?;
 
         self.write_relative_coordinate(last_point.coordinate, first_point.coordinate)?;
         let attributes = EncodedAttributes::from(last_point.line)
@@ -131,6 +131,13 @@ impl OpenLrBinaryWriter {
         let Poi { point, poi } = poi;
         self.write_point_along_line(point)?;
         self.write_relative_coordinate(*poi, point.points[0].coordinate)?;
+        Ok(())
+    }
+
+    fn write_circle(&mut self, circle: &Circle) -> Result<(), EncodeError> {
+        let Circle { center, radius } = circle;
+        self.write_coordinate(center)?;
+        self.write_radius(radius)?;
         Ok(())
     }
 
@@ -173,9 +180,15 @@ impl OpenLrBinaryWriter {
         Ok(())
     }
 
-    fn write_dnp(&mut self, dnp: Length) -> Result<(), EncodeError> {
+    fn write_dnp(&mut self, dnp: &Length) -> Result<(), EncodeError> {
         let dnp = dnp.dnp_into_byte();
         self.cursor.write_all(&[dnp])?;
+        Ok(())
+    }
+
+    fn write_radius(&mut self, radius: &Length) -> Result<(), EncodeError> {
+        let radius = radius.radius_into_be_bytes();
+        self.cursor.write_all(&radius)?;
         Ok(())
     }
 
@@ -568,6 +581,28 @@ mod tests {
                 lon: 5.1013007,
                 lat: 52.105_79,
             },
+        }));
+    }
+
+    #[test]
+    fn openlr_encode_circle_location_reference_001() {
+        assert_encoding_eq_decoding(LocationReference::Circle(Circle {
+            center: Coordinate {
+                lon: 5.101_851,
+                lat: 52.105_976,
+            },
+            radius: Length::from_meters(300),
+        }));
+    }
+
+    #[test]
+    fn openlr_encode_circle_location_reference_002() {
+        assert_encoding_eq_decoding(LocationReference::Circle(Circle {
+            center: Coordinate {
+                lon: -3.3115947,
+                lat: 55.945_29,
+            },
+            radius: Length::from_meters(2000),
         }));
     }
 
