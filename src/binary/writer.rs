@@ -6,7 +6,8 @@ use base64::prelude::BASE64_STANDARD;
 use crate::binary::encoding::EncodedAttributes;
 use crate::model::Offsets;
 use crate::{
-    Coordinate, EncodeError, Length, Line, LocationReference, LocationType, Offset, PointAlongLine,
+    Coordinate, EncodeError, Length, Line, LocationReference, LocationType, Offset, Poi,
+    PointAlongLine,
 };
 
 /// Encodes an OpenLR Location Reference into Base64.
@@ -26,7 +27,7 @@ pub fn encode_binary_openlr(location: &LocationReference) -> Result<Vec<u8>, Enc
         Line(line) => writer.write_line(line)?,
         GeoCoordinate(coordinate) => writer.write_coordinate(coordinate)?,
         PointAlongLine(point) => writer.write_point_along_line(point)?,
-        Poi(_) => unimplemented!(),
+        Poi(poi) => writer.write_poi(poi)?,
         Circle(_) => unimplemented!(),
         Rectangle(_) => unimplemented!(),
         Grid(_) => unimplemented!(),
@@ -123,6 +124,13 @@ impl OpenLrBinaryWriter {
             self.write_offset(*offset)?;
         }
 
+        Ok(())
+    }
+
+    fn write_poi(&mut self, poi: &Poi) -> Result<(), EncodeError> {
+        let Poi { point, poi } = poi;
+        self.write_point_along_line(point)?;
+        self.write_relative_coordinate(*poi, point.points[0].coordinate)?;
         Ok(())
     }
 
@@ -516,6 +524,50 @@ mod tests {
             offset: Offset::from_range(0.9980469),
             orientation: Orientation::Backward,
             side: SideOfRoad::Left,
+        }));
+    }
+
+    #[test]
+    fn openlr_encode_poi_location_reference_001() {
+        assert_encoding_eq_decoding(LocationReference::Poi(Poi {
+            point: PointAlongLine {
+                points: [
+                    Point {
+                        coordinate: Coordinate {
+                            lon: 5.1025807,
+                            lat: 52.106,
+                        },
+                        line: LineAttributes {
+                            frc: Frc::Frc4,
+                            fow: Fow::SingleCarriageway,
+                            bear: Bearing::from_degrees(219),
+                        },
+                        path: Some(PathAttributes {
+                            lfrcnp: Frc::Frc4,
+                            dnp: Length::from_meters(147),
+                        }),
+                    },
+                    Point {
+                        coordinate: Coordinate {
+                            lon: 5.1013307,
+                            lat: 52.104_92,
+                        },
+                        line: LineAttributes {
+                            frc: Frc::Frc4,
+                            fow: Fow::SingleCarriageway,
+                            bear: Bearing::from_degrees(39),
+                        },
+                        path: None,
+                    },
+                ],
+                offset: Offset::from_range(0.34570312),
+                orientation: Orientation::Unknown,
+                side: SideOfRoad::OnRoadOrUnknown,
+            },
+            poi: Coordinate {
+                lon: 5.1013007,
+                lat: 52.105_79,
+            },
         }));
     }
 
