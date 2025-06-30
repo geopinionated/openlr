@@ -1,6 +1,6 @@
 use approx::abs_diff_eq;
 
-use crate::OpenLrError;
+use crate::DecodeError;
 
 /// Functional Road Class.
 /// The functional road class (FRC) of a line is a road classification
@@ -10,14 +10,26 @@ use crate::OpenLrError;
 pub enum Frc {
     /// Main road, highest importance
     Frc0 = 0,
+    /// First class road.
     Frc1 = 1,
+    /// Second class road.
     Frc2 = 2,
+    /// Third class road.
     Frc3 = 3,
+    /// Fourth class road.
     Frc4 = 4,
+    /// Fifth class road.
     Frc5 = 5,
+    /// Sixth class road.
     Frc6 = 6,
     /// Other class road, lowest importance
     Frc7 = 7,
+}
+
+impl Default for Frc {
+    fn default() -> Self {
+        Self::Frc7
+    }
 }
 
 /// Form of Way.
@@ -51,6 +63,12 @@ pub enum Fow {
     Other = 7,
 }
 
+impl Default for Fow {
+    fn default() -> Self {
+        Self::Other
+    }
+}
+
 /// The side of road information (SOR) describes the relationship between the
 /// point of interest and a referenced line.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -65,6 +83,12 @@ pub enum SideOfRoad {
     Left = 2,
     /// Point is on both sides of the road.
     Both = 3,
+}
+
+impl Default for SideOfRoad {
+    fn default() -> Self {
+        Self::OnRoadOrUnknown
+    }
 }
 
 /// The orientation information (ORI) describes the relationship between the
@@ -83,8 +107,14 @@ pub enum Orientation {
     Both = 3,
 }
 
+impl Default for Orientation {
+    fn default() -> Self {
+        Self::Unknown
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
-pub struct Length(u16);
+pub struct Length(u32);
 
 /// The bearing describes the angle between the true North and the road.
 /// The physical data format defines the bearing field as an integer value between 0
@@ -95,7 +125,7 @@ pub struct Bearing(u16);
 /// Coordinate pair stands for a pair of WGS84 longitude (lon) and latitude (lat) values.
 /// This coordinate pair specifies a geometric point in a digital map.
 /// The lon and lat values are stored in decamicrodegree resolution (five decimals).
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct Coordinate {
     pub lon: f32,
     pub lat: f32,
@@ -111,7 +141,7 @@ impl PartialEq for Coordinate {
 
 /// Line attributes are part of a location reference point and consist of functional road
 /// class (FRC), form of way (FOW) and bearing (BEAR) data.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct LineAttributes {
     pub frc: Frc,
     pub fow: Fow,
@@ -121,7 +151,7 @@ pub struct LineAttributes {
 /// The path attributes are part of a location reference point (except for the last
 /// location reference point) and consists of lowest functional road class to next point
 /// (LFRCNP) and distance to next point (DNP) data.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct PathAttributes {
     /// Lowest functional road class to next point.
     pub lfrcnp: Frc,
@@ -133,8 +163,8 @@ pub struct PathAttributes {
 /// A single LRP may be bound to the road network. In such a case all values of the LRP
 /// refer to a node or line within the road network. The coordinates refer to a node of
 /// a line or a point on a line and the additional attributes refer to attributes of a line.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct LocationReferencePoint {
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct Point {
     pub coordinate: Coordinate,
     pub line: LineAttributes,
     pub path: Option<PathAttributes>,
@@ -159,9 +189,88 @@ pub struct Offsets {
 /// There must be at least one location reference point and exactly one last location
 /// reference point. The offset field is optional.
 #[derive(Debug, Clone, Default, PartialEq)]
-pub struct LineLocationReference {
-    pub points: Vec<LocationReferencePoint>,
+pub struct Line {
+    pub points: Vec<Point>,
     pub offsets: Offsets,
+}
+
+/// A closed line location references the area defined by a closed path (i.e. a circuit)
+/// in the road network. The boundary always consists of road segments.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct ClosedLine {
+    pub points: Vec<Point>,
+    pub last_line: LineAttributes,
+}
+
+/// Point along line is a point location which is defined by a line and an offset value.
+/// The line will be referenced by two location reference points and the concrete position
+/// on that line is referenced using the positive offset. Additionally information about
+/// the side of the road where the point is located and the orientation with respect
+/// to the direction of the line can be added.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct PointAlongLine {
+    pub points: [Point; 2],
+    pub offset: Offset,
+    pub orientation: Orientation,
+    pub side: SideOfRoad,
+}
+
+/// Point along line with access is a point location which is defined by a line,
+/// an offset value and a coordinate. The line will be referenced by two location reference
+/// points and the concrete position of the access point on that line is referenced using
+/// the positive offset. The point of interest is identified by the coordinate pair.
+/// Additionally information about the side of the road where the point is located and
+/// the orientation with respect to the direction of the line can be added.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Poi {
+    pub point: PointAlongLine,
+    pub poi: Coordinate,
+}
+
+/// A circle location is given by the position of the center and the radius.
+/// The center position is a geo-coordinate pair of longitude and latitude coordinate
+/// values that can be everywhere on the surface. The radius is integer-valued and
+/// given in meters.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Circle {
+    pub center: Coordinate,
+    pub radius: Length,
+}
+
+/// A rectangle location reference consists of the lower left corner point as a pair
+/// of WGS84 coordinates in absolute format and the upper right corner point, given in
+/// absolute format (large rectangle) or relative format (standard rectangle).
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Rectangle {
+    pub lower_left: Coordinate,
+    pub upper_right: Coordinate,
+}
+
+/// A grid location is a special instance of a rectangle location. It is given
+/// by a base rectangular shape. This base rectangle is the lower left cell of
+/// the grid and can be multiplied to the North (by defining the number of rows)
+/// and to the East (by defining the number of columns).
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Grid {
+    pub rect: Rectangle,
+    pub size: GridSize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct GridSize {
+    pub columns: u16,
+    pub rows: u16,
+}
+
+/// A polygon location is a non-intersecting shape defined by a sequence of
+/// geo-coordinate pairs. The coordinate pairs can be everywhere on the surface.
+/// They define the corners of the underlying geometrical polygon. The boundary
+/// of this polygon is constituted by straight lines between every pair of
+/// consecutive corners in the sequence, plus the straight line between the last and
+/// the first corner.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Polygon {
+    pub corners: Vec<Coordinate>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -178,13 +287,57 @@ pub enum LocationType {
     ClosedLine = 8,
 }
 
+/// Locations are objects in a digital map, like points, paths and areas.
+/// OpenLR standard can handle line locations (e.g. paths), point locations (e.g. POIs)
+/// and area locations (e.g. regions) in a digital map.
+/// OpenLR can handle locations which are bound to the road network but also locations
+/// which can be everywhere on earth (not bound to the road network). A line location is
+/// an example for a location which is bound to the road network and a simple geo-coordinate
+/// is an example for a location which is not bound to the road network.
+/// The main idea for locations which are bound to the road network is covering the location with a
+/// concatenation of (several) shortest-paths. The concatenation of such shortest-paths shall cover the
+/// location completely. Each shortest-path is specified by information about its start line and its end line.
+/// This information is combined in the location reference points (LRPs). The LRPs are ordered from the
+/// start of the location to the end of the location and the shortest-path between two subsequent LRPs
+/// covers a part of the location. The concatenation of all these shortest-paths covers the location
+/// completely and this path is called the location reference path. The location reference path may be
+/// longer than the original location and offsets trim this path down to the size of the location path.
+/// Offsets are also used to define a location on a line more precisely (e.g. point locations along a line)
+/// than using the start and end node of that line.
 #[derive(Debug, Clone, PartialEq)]
 pub enum LocationReference {
-    Line(LineLocationReference),
+    // Line Locations
+    Line(Line),
+    // Point Locations
+    GeoCoordinate(Coordinate),
+    PointAlongLine(PointAlongLine),
+    Poi(Poi),
+    // Area Locations
+    Circle(Circle),
+    Rectangle(Rectangle),
+    Grid(Grid),
+    Polygon(Polygon),
+    ClosedLine(ClosedLine),
+}
+
+impl LocationReference {
+    pub const fn location_type(&self) -> LocationType {
+        match self {
+            Self::Line(_) => LocationType::Line,
+            Self::GeoCoordinate(_) => LocationType::GeoCoordinate,
+            Self::PointAlongLine(_) => LocationType::PointAlongLine,
+            Self::Poi(_) => LocationType::PoiWithAccessPoint,
+            Self::Circle(_) => LocationType::Circle,
+            Self::Rectangle(_) => LocationType::Rectangle,
+            Self::Grid(_) => LocationType::Grid,
+            Self::Polygon(_) => LocationType::Polygon,
+            Self::ClosedLine(_) => LocationType::ClosedLine,
+        }
+    }
 }
 
 impl Frc {
-    pub const fn try_from_byte(byte: u8) -> Result<Self, OpenLrError> {
+    pub(crate) const fn try_from_byte(byte: u8) -> Result<Self, DecodeError> {
         match byte {
             0 => Ok(Self::Frc0),
             1 => Ok(Self::Frc1),
@@ -194,13 +347,13 @@ impl Frc {
             5 => Ok(Self::Frc5),
             6 => Ok(Self::Frc6),
             7 => Ok(Self::Frc7),
-            _ => Err(OpenLrError::BinaryParseError),
+            _ => Err(DecodeError::InvalidFrc(byte)),
         }
     }
 }
 
 impl Fow {
-    pub const fn try_from_byte(byte: u8) -> Result<Self, OpenLrError> {
+    pub(crate) const fn try_from_byte(byte: u8) -> Result<Self, DecodeError> {
         match byte {
             0 => Ok(Self::Undefined),
             1 => Ok(Self::Motorway),
@@ -210,13 +363,13 @@ impl Fow {
             5 => Ok(Self::TrafficSquare),
             6 => Ok(Self::SlipRoad),
             7 => Ok(Self::Other),
-            _ => Err(OpenLrError::BinaryParseError),
+            _ => Err(DecodeError::InvalidFow(byte)),
         }
     }
 }
 
-impl LineLocationReference {
-    pub fn with_capacity(capacity: usize) -> Self {
+impl Line {
+    pub(crate) fn with_capacity(capacity: usize) -> Self {
         Self {
             points: Vec::with_capacity(capacity),
             offsets: Offsets::default(),
@@ -224,38 +377,64 @@ impl LineLocationReference {
     }
 }
 
+impl ClosedLine {
+    pub(crate) fn with_capacity(capacity: usize) -> Self {
+        Self {
+            points: Vec::with_capacity(capacity),
+            last_line: LineAttributes::default(),
+        }
+    }
+}
+
+impl Polygon {
+    pub(crate) fn with_capacity(capacity: usize) -> Self {
+        Self {
+            corners: Vec::with_capacity(capacity),
+        }
+    }
+}
+
 impl Coordinate {
     /// Returns degrees from a big-endian coordinate representation in a 24-bit resolution.
-    pub fn degrees_from_be_bytes(bytes: [u8; 3]) -> f32 {
+    pub(crate) fn degrees_from_be_bytes(bytes: [u8; 3]) -> f32 {
         const RESOLUTION: usize = 24;
-        let value = i32::from_be_bytes([0, bytes[0], bytes[1], bytes[2]]) as f32;
-        ((value - value.signum() * 0.5) * 360.0) / (1 << RESOLUTION) as f32
+        let is_negative = bytes[0] & 0x80 != 0;
+        let sign = if is_negative { 0xFF } else { 0 };
+        let degrees = i32::from_be_bytes([sign, bytes[0], bytes[1], bytes[2]]) as f32;
+        ((degrees - degrees.signum() * 0.5) * 360.0) / (1 << RESOLUTION) as f32
     }
 
     /// Returns degrees from a big-endian relative coordinate representation in a 16-bit resolution.
-    pub fn degrees_from_be_bytes_relative(bytes: [u8; 2], previous_value: f32) -> f32 {
+    pub(crate) fn degrees_from_be_bytes_relative(bytes: [u8; 2], previous_degrees: f32) -> f32 {
         const DECA_MICRO_DEG_FACTOR: f32 = 100000.0;
-        let value = i16::from_be_bytes(bytes) as f32;
-        previous_value + value / DECA_MICRO_DEG_FACTOR
+        let degrees = i16::from_be_bytes(bytes) as f32;
+        previous_degrees + degrees / DECA_MICRO_DEG_FACTOR
     }
 }
 
 impl Length {
-    pub const fn from_meters(meters: u16) -> Self {
+    pub const fn from_meters(meters: u32) -> Self {
         Self(meters)
     }
 
-    pub const fn meters(&self) -> u16 {
+    pub const fn meters(&self) -> u32 {
         self.0
     }
 
     /// Returns the distance to next LR-point in meters from a byte.
     /// This representation defines 256 intervals and each interval has a length of approximately 58.6 meters.
     /// Maximum length between two consecutive LR-points is limited by 15000m.
-    pub fn dnp_from_byte(byte: u8) -> Length {
+    pub(crate) fn dnp_from_byte(byte: u8) -> Self {
         const DISTANCE_PER_INTERVAL: f32 = 58.6;
-        let dnp = ((byte as f32 + 0.5) * DISTANCE_PER_INTERVAL).round();
-        Length(dnp as u16)
+        let meters = ((byte as f32 + 0.5) * DISTANCE_PER_INTERVAL).round() as u32;
+        Self::from_meters(meters)
+    }
+
+    /// Returns the length of a radius in meters from big-endian slice of (up to 4) bytes.
+    pub(crate) fn radius_from_be_bytes(bytes: &[u8]) -> Self {
+        let mut radius = [0u8; 4];
+        radius[4 - bytes.len()..].copy_from_slice(bytes);
+        Self::from_meters(u32::from_be_bytes(radius))
     }
 }
 
@@ -270,10 +449,10 @@ impl Bearing {
 
     /// The bearing describes the angle between the true North and the road.
     /// The data format defines 32 sectors whereby each sector covers 11.25° of the circle.
-    pub fn from_byte(byte: u8) -> Self {
+    pub(crate) fn from_byte(byte: u8) -> Self {
         const BEAR_SECTOR: f32 = 11.25;
-        let bear = (byte as f32 * BEAR_SECTOR + BEAR_SECTOR / 2.0).round();
-        Self(bear as u16)
+        let degrees = (byte as f32 * BEAR_SECTOR + BEAR_SECTOR / 2.0).round() as u16;
+        Self::from_degrees(degrees)
     }
 }
 
@@ -288,7 +467,40 @@ impl Offset {
     /// The relative value (or percentage) will then be equally distributed over the available
     /// 256 buckets so that every bucket covers 0.390625% of the LRP length.
     /// Returns the offset in [0, 1] range.
-    pub fn from_byte(bucket: u8) -> Self {
-        Self((bucket as f32 + 0.5) / 256.0)
+    pub(crate) fn from_byte(bucket: u8) -> Self {
+        Self::from_range((bucket as f32 + 0.5) / 256.0)
+    }
+}
+
+impl Orientation {
+    pub(crate) const fn try_from_byte(byte: u8) -> Result<Self, DecodeError> {
+        match byte {
+            0 => Ok(Self::Unknown),
+            1 => Ok(Self::Forward),
+            2 => Ok(Self::Backward),
+            3 => Ok(Self::Both),
+            _ => Err(DecodeError::InvalidOrientation(byte)),
+        }
+    }
+}
+
+impl SideOfRoad {
+    pub(crate) const fn try_from_byte(byte: u8) -> Result<Self, DecodeError> {
+        match byte {
+            0 => Ok(Self::OnRoadOrUnknown),
+            1 => Ok(Self::Right),
+            2 => Ok(Self::Left),
+            3 => Ok(Self::Both),
+            _ => Err(DecodeError::InvalidSideOfRoad(byte)),
+        }
+    }
+}
+
+impl GridSize {
+    pub(crate) fn from_be_bytes(bytes: [u8; 4]) -> Self {
+        let [c1, c2, r1, r2] = bytes;
+        let columns = u16::from_be_bytes([c1, c2]);
+        let rows = u16::from_be_bytes([r1, r2]);
+        Self { columns, rows }
     }
 }
