@@ -4,7 +4,10 @@ use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 
 use crate::binary::encoding::EncodedAttributes;
-use crate::{Coordinate, EncodeError, Length, Line, LocationReference, LocationType, Offset};
+use crate::model::Offsets;
+use crate::{
+    Coordinate, EncodeError, Length, Line, LocationReference, LocationType, Offset, PointAlongLine,
+};
 
 /// Encodes an OpenLR Location Reference into Base64.
 pub fn encode_base64_openlr(location: &LocationReference) -> Result<String, EncodeError> {
@@ -22,7 +25,7 @@ pub fn encode_binary_openlr(location: &LocationReference) -> Result<Vec<u8>, Enc
     match location {
         Line(line) => writer.write_line(line)?,
         GeoCoordinate(coordinate) => writer.write_coordinate(coordinate)?,
-        PointAlongLine(_) => unimplemented!(),
+        PointAlongLine(point) => writer.write_point_along_line(point)?,
         Poi(_) => unimplemented!(),
         Circle(_) => unimplemented!(),
         Rectangle(_) => unimplemented!(),
@@ -84,11 +87,40 @@ impl OpenLrBinaryWriter {
         let attributes = EncodedAttributes::from(last_point.line).with_offsets(offsets);
         self.write_attributes(attributes)?;
 
-        if offsets.pos.range() > 0.0 {
+        if attributes.pos_offset_flag() {
             self.write_offset(offsets.pos)?;
         }
-        if offsets.neg.range() > 0.0 {
+        if attributes.neg_offset_flag() {
             self.write_offset(offsets.neg)?;
+        }
+
+        Ok(())
+    }
+
+    fn write_point_along_line(&mut self, point: &PointAlongLine) -> Result<(), EncodeError> {
+        let PointAlongLine {
+            points: [first_point, last_point],
+            offset,
+            orientation,
+            side,
+        } = point;
+
+        self.write_coordinate(&first_point.coordinate)?;
+        let path = first_point.path.unwrap_or_default();
+        let attributes = EncodedAttributes::from(first_point.line)
+            .with_lfrcnp(path.lfrcnp)
+            .with_orientation(orientation);
+        self.write_attributes(attributes)?;
+        self.write_dnp(path.dnp)?;
+
+        self.write_relative_coordinate(last_point.coordinate, first_point.coordinate)?;
+        let attributes = EncodedAttributes::from(last_point.line)
+            .with_offsets(&Offsets::positive(*offset))
+            .with_side(side);
+        self.write_attributes(attributes)?;
+
+        if attributes.pos_offset_flag() {
+            self.write_offset(*offset)?;
         }
 
         Ok(())
@@ -150,7 +182,10 @@ impl OpenLrBinaryWriter {
 mod tests {
     use super::*;
     use crate::model::Offsets;
-    use crate::{Bearing, Fow, Frc, LineAttributes, PathAttributes, Point, decode_base64_openlr};
+    use crate::{
+        Bearing, Fow, Frc, LineAttributes, Orientation, PathAttributes, Point, SideOfRoad,
+        decode_base64_openlr,
+    };
 
     #[test]
     fn openlr_encode_line_location_reference_001() {
@@ -405,6 +440,82 @@ mod tests {
         assert_encoding_eq_decoding(LocationReference::GeoCoordinate(Coordinate {
             lon: -52.495_22,
             lat: 13.461_675,
+        }));
+    }
+
+    #[test]
+    fn openlr_encode_point_along_line_location_reference_001() {
+        assert_encoding_eq_decoding(LocationReference::PointAlongLine(PointAlongLine {
+            points: [
+                Point {
+                    coordinate: Coordinate {
+                        lon: -2.0216238,
+                        lat: 48.618_44,
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc2,
+                        fow: Fow::MultipleCarriageway,
+                        bear: Bearing::from_degrees(73),
+                    },
+                    path: Some(PathAttributes {
+                        lfrcnp: Frc::Frc2,
+                        dnp: Length::from_meters(1436),
+                    }),
+                },
+                Point {
+                    coordinate: Coordinate {
+                        lon: -2.0084338,
+                        lat: 48.616_76,
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc2,
+                        fow: Fow::MultipleCarriageway,
+                        bear: Bearing::from_degrees(219),
+                    },
+                    path: None,
+                },
+            ],
+            offset: Offset::from_range(0.138_671_88),
+            orientation: Orientation::Forward,
+            side: SideOfRoad::Both,
+        }));
+    }
+
+    #[test]
+    fn openlr_encode_point_along_line_location_reference_002() {
+        assert_encoding_eq_decoding(LocationReference::PointAlongLine(PointAlongLine {
+            points: [
+                Point {
+                    coordinate: Coordinate {
+                        lon: 0.4710495,
+                        lat: 45.889_732,
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc2,
+                        fow: Fow::Roundabout,
+                        bear: Bearing::from_degrees(264),
+                    },
+                    path: Some(PathAttributes {
+                        lfrcnp: Frc::Frc4,
+                        dnp: Length::from_meters(88),
+                    }),
+                },
+                Point {
+                    coordinate: Coordinate {
+                        lon: 0.4707495,
+                        lat: 45.889_25,
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc2,
+                        fow: Fow::Roundabout,
+                        bear: Bearing::from_degrees(321),
+                    },
+                    path: None,
+                },
+            ],
+            offset: Offset::from_range(0.9980469),
+            orientation: Orientation::Backward,
+            side: SideOfRoad::Left,
         }));
     }
 

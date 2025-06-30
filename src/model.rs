@@ -212,6 +212,15 @@ pub struct Offsets {
     pub neg: Offset,
 }
 
+impl Offsets {
+    pub fn positive(offset: Offset) -> Self {
+        Self {
+            pos: offset,
+            neg: Offset::default(),
+        }
+    }
+}
+
 /// A line location reference describes a path within a map and consists of location
 /// reference point(s), a last location reference point and offset data.
 /// There must be at least one location reference point and exactly one last location

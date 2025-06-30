@@ -32,6 +32,16 @@ impl EncodedAttributes {
         self
     }
 
+    pub(crate) const fn with_orientation(mut self, orientation: &Orientation) -> Self {
+        self.orientation_or_side = orientation.into_byte();
+        self
+    }
+
+    pub(crate) const fn with_side(mut self, side: &SideOfRoad) -> Self {
+        self.orientation_or_side = side.into_byte();
+        self
+    }
+
     pub(crate) const fn lfrcnp(&self) -> Result<Frc, DecodeError> {
         Frc::try_from_byte(self.lfrcnp_or_flags)
     }
@@ -234,6 +244,15 @@ impl Orientation {
             _ => Err(DecodeError::InvalidOrientation(byte)),
         }
     }
+
+    pub(crate) const fn into_byte(self) -> u8 {
+        match self {
+            Self::Unknown => 0,
+            Self::Forward => 1,
+            Self::Backward => 2,
+            Self::Both => 3,
+        }
+    }
 }
 
 impl SideOfRoad {
@@ -244,6 +263,15 @@ impl SideOfRoad {
             2 => Ok(Self::Left),
             3 => Ok(Self::Both),
             _ => Err(DecodeError::InvalidSideOfRoad(byte)),
+        }
+    }
+
+    pub(crate) const fn into_byte(self) -> u8 {
+        match self {
+            Self::OnRoadOrUnknown => 0,
+            Self::Right => 1,
+            Self::Left => 2,
+            Self::Both => 3,
         }
     }
 }
