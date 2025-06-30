@@ -21,7 +21,7 @@ pub fn encode_binary_openlr(location: &LocationReference) -> Result<Vec<u8>, Enc
 
     match location {
         Line(line) => writer.write_line(line)?,
-        GeoCoordinate(_) => unimplemented!(),
+        GeoCoordinate(coordinate) => writer.write_coordinate(coordinate)?,
         PointAlongLine(_) => unimplemented!(),
         Poi(_) => unimplemented!(),
         Circle(_) => unimplemented!(),
@@ -63,7 +63,7 @@ impl OpenLrBinaryWriter {
 
         let first_point = points.first().ok_or(EncodeError::InvalidLine)?;
         let mut coordinate = first_point.coordinate;
-        self.write_coordinate(coordinate)?;
+        self.write_coordinate(&coordinate)?;
 
         let path = first_point.path.unwrap_or_default();
         let attributes = EncodedAttributes::from(first_point.line).with_lfrcnp(path.lfrcnp);
@@ -94,7 +94,7 @@ impl OpenLrBinaryWriter {
         Ok(())
     }
 
-    fn write_coordinate(&mut self, coordinate: Coordinate) -> Result<(), EncodeError> {
+    fn write_coordinate(&mut self, coordinate: &Coordinate) -> Result<(), EncodeError> {
         let mut write_degrees = |degrees| -> Result<(), EncodeError> {
             let bytes = Coordinate::degrees_into_be_bytes(degrees);
             self.cursor.write_all(&bytes)?;
@@ -150,11 +150,11 @@ impl OpenLrBinaryWriter {
 mod tests {
     use super::*;
     use crate::model::Offsets;
-    use crate::{Bearing, Fow, Frc, LineAttributes, PathAttributes, Point, decode_binary_openlr};
+    use crate::{Bearing, Fow, Frc, LineAttributes, PathAttributes, Point, decode_base64_openlr};
 
     #[test]
     fn openlr_encode_line_location_reference_001() {
-        let line = LocationReference::Line(Line {
+        assert_encoding_eq_decoding(LocationReference::Line(Line {
             points: vec![
                 Point {
                     coordinate: Coordinate {
@@ -203,16 +203,12 @@ mod tests {
                 pos: Offset::from_range(0.26757812),
                 neg: Offset::default(),
             },
-        });
-
-        let encoded = encode_binary_openlr(&line).unwrap();
-        let decoded_line = decode_binary_openlr(&encoded).unwrap();
-        assert_eq!(line, decoded_line);
+        }));
     }
 
     #[test]
     fn openlr_encode_line_location_reference_002() {
-        let line = LocationReference::Line(Line {
+        assert_encoding_eq_decoding(LocationReference::Line(Line {
             points: vec![
                 Point {
                     coordinate: Coordinate {
@@ -246,16 +242,12 @@ mod tests {
                 pos: Offset::default(),
                 neg: Offset::from_range(0.45898438),
             },
-        });
-
-        let encoded = encode_binary_openlr(&line).unwrap();
-        let decoded_line = decode_binary_openlr(&encoded).unwrap();
-        assert_eq!(line, decoded_line);
+        }));
     }
 
     #[test]
     fn openlr_encode_line_location_reference_003() {
-        let line = LocationReference::Line(Line {
+        assert_encoding_eq_decoding(LocationReference::Line(Line {
             points: vec![
                 Point {
                     coordinate: Coordinate {
@@ -286,16 +278,12 @@ mod tests {
                 },
             ],
             offsets: Offsets::default(),
-        });
-
-        let encoded = encode_binary_openlr(&line).unwrap();
-        let decoded_line = decode_binary_openlr(&encoded).unwrap();
-        assert_eq!(line, decoded_line);
+        }));
     }
 
     #[test]
     fn openlr_encode_line_location_reference_004() {
-        let line = LocationReference::Line(Line {
+        assert_encoding_eq_decoding(LocationReference::Line(Line {
             points: vec![
                 Point {
                     coordinate: Coordinate {
@@ -341,16 +329,12 @@ mod tests {
                 },
             ],
             offsets: Offsets::default(),
-        });
-
-        let encoded = encode_binary_openlr(&line).unwrap();
-        let decoded_line = decode_binary_openlr(&encoded).unwrap();
-        assert_eq!(line, decoded_line);
+        }));
     }
 
     #[test]
     fn openlr_encode_line_location_reference_005() {
-        let line = LocationReference::Line(Line {
+        assert_encoding_eq_decoding(LocationReference::Line(Line {
             points: vec![
                 Point {
                     coordinate: Coordinate {
@@ -381,10 +365,52 @@ mod tests {
                 },
             ],
             offsets: Offsets::default(),
-        });
+        }));
+    }
 
-        let encoded = encode_binary_openlr(&line).unwrap();
-        let decoded_line = decode_binary_openlr(&encoded).unwrap();
-        assert_eq!(line, decoded_line);
+    #[test]
+    fn openlr_encode_coordinate_location_reference_001() {
+        assert_encoding_eq_decoding(LocationReference::GeoCoordinate(Coordinate {
+            lon: -34.608_94,
+            lat: -58.373_27,
+        }));
+    }
+
+    #[test]
+    fn openlr_encode_coordinate_location_reference_002() {
+        assert_encoding_eq_decoding(LocationReference::GeoCoordinate(Coordinate {
+            lon: 52.495_22,
+            lat: 13.461_675,
+        }));
+    }
+
+    #[test]
+    fn openlr_encode_coordinate_location_reference_003() {
+        assert_encoding_eq_decoding(LocationReference::GeoCoordinate(Coordinate {
+            lon: 0.0,
+            lat: 0.0,
+        }));
+    }
+
+    #[test]
+    fn openlr_encode_coordinate_location_reference_004() {
+        assert_encoding_eq_decoding(LocationReference::GeoCoordinate(Coordinate {
+            lon: 52.495_22,
+            lat: -13.461_675,
+        }));
+    }
+
+    #[test]
+    fn openlr_encode_coordinate_location_reference_005() {
+        assert_encoding_eq_decoding(LocationReference::GeoCoordinate(Coordinate {
+            lon: -52.495_22,
+            lat: 13.461_675,
+        }));
+    }
+
+    fn assert_encoding_eq_decoding(location: LocationReference) {
+        let encoded = encode_base64_openlr(&location).unwrap();
+        let decoded_location = decode_base64_openlr(&encoded).unwrap();
+        assert_eq!(location, decoded_location);
     }
 }
