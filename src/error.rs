@@ -2,7 +2,7 @@ use std::io::ErrorKind;
 
 use thiserror::Error;
 
-#[derive(Error, Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Error, Debug, PartialEq, Clone, Copy)]
 pub enum DecodeError {
     #[error("OpenLR invalid Base 64")]
     InvalidBase64,
@@ -22,6 +22,18 @@ pub enum DecodeError {
     InvalidSideOfRoad(u8),
 }
 
+#[derive(Error, Debug, PartialEq, Clone, Copy)]
+pub enum EncodeError {
+    #[error("OpenLR buffer I/O error: {0:?}")]
+    IO(ErrorKind),
+    #[error("OpenLR Bearing is not valid, expected [0, 360): {0}")]
+    InvalidBearing(u16),
+    #[error("OpenLR Offset is not valid, expected [0, 1): {0}")]
+    InvalidOffset(f32),
+    #[error("OpenLR line consists of at least 2 LR-points")]
+    InvalidLine,
+}
+
 impl From<base64::DecodeError> for DecodeError {
     fn from(_: base64::DecodeError) -> Self {
         Self::InvalidBase64
@@ -29,6 +41,12 @@ impl From<base64::DecodeError> for DecodeError {
 }
 
 impl From<std::io::Error> for DecodeError {
+    fn from(error: std::io::Error) -> Self {
+        Self::IO(error.kind())
+    }
+}
+
+impl From<std::io::Error> for EncodeError {
     fn from(error: std::io::Error) -> Self {
         Self::IO(error.kind())
     }

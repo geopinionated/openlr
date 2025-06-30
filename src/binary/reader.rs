@@ -3,10 +3,11 @@ use std::io::{Cursor, Read};
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 
+use crate::binary::encoding::EncodedAttributes;
 use crate::{
     Bearing, Circle, ClosedLine, Coordinate, DecodeError, Fow, Frc, Grid, GridSize, Length, Line,
-    LineAttributes, LocationReference, LocationType, Offset, Orientation, PathAttributes, Poi,
-    Point, PointAlongLine, Polygon, Rectangle, SideOfRoad,
+    LineAttributes, LocationReference, LocationType, Offset, PathAttributes, Poi, Point,
+    PointAlongLine, Polygon, Rectangle,
 };
 
 /// Decodes an OpenLR Location Reference encoded in Base64.
@@ -257,14 +258,14 @@ impl<'a> OpenLrBinaryReader<'a> {
     }
 
     fn read_coordinate(&mut self) -> Result<Coordinate, DecodeError> {
-        let mut read_coordinate = || -> Result<f32, DecodeError> {
+        let mut read_degrees = || -> Result<f32, DecodeError> {
             let mut c = [0u8; 3];
             self.cursor.read_exact(&mut c)?;
             Ok(Coordinate::degrees_from_be_bytes(c))
         };
 
-        let lon = read_coordinate()?;
-        let lat = read_coordinate()?;
+        let lon = read_degrees()?;
+        let lat = read_degrees()?;
         Ok(Coordinate { lon, lat })
     }
 
@@ -272,14 +273,14 @@ impl<'a> OpenLrBinaryReader<'a> {
         &mut self,
         previous: Coordinate,
     ) -> Result<Coordinate, DecodeError> {
-        let mut read_coordinate = |previous| -> Result<f32, DecodeError> {
+        let mut read_degrees = |previous| -> Result<f32, DecodeError> {
             let mut c = [0u8; 2];
             self.cursor.read_exact(&mut c)?;
             Ok(Coordinate::degrees_from_be_bytes_relative(c, previous))
         };
 
-        let lon = read_coordinate(previous.lon)?;
-        let lat = read_coordinate(previous.lat)?;
+        let lon = read_degrees(previous.lon)?;
+        let lat = read_degrees(previous.lat)?;
         Ok(Coordinate { lon, lat })
     }
 
@@ -325,42 +326,14 @@ impl<'a> OpenLrBinaryReader<'a> {
     }
 }
 
-#[derive(Debug)]
-struct EncodedAttributes {
-    line: LineAttributes,
-    lfrcnp_or_flags: u8,
-    orientation_or_side: u8,
-}
-
-impl EncodedAttributes {
-    const fn lfrcnp(&self) -> Result<Frc, DecodeError> {
-        Frc::try_from_byte(self.lfrcnp_or_flags)
-    }
-
-    const fn pos_offset_flag(&self) -> bool {
-        self.lfrcnp_or_flags & 0b10 != 0
-    }
-
-    const fn neg_offset_flag(&self) -> bool {
-        self.lfrcnp_or_flags & 0b01 != 0
-    }
-
-    const fn orientation(&self) -> Result<Orientation, DecodeError> {
-        Orientation::try_from_byte(self.orientation_or_side)
-    }
-
-    const fn side(&self) -> Result<SideOfRoad, DecodeError> {
-        SideOfRoad::try_from_byte(self.orientation_or_side)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::model::Offsets;
+    use crate::{Orientation, SideOfRoad};
 
     #[test]
-    fn openlr_version_1_not_supported() {
+    fn openlr_decode_version_1_not_supported() {
         assert_eq!(
             decode_base64_openlr("CQcm6yX4vTPGFwM7AskzCw==").unwrap_err(),
             DecodeError::VersionNotSupported(1)
@@ -368,7 +341,7 @@ mod tests {
     }
 
     #[test]
-    fn openlr_version_2_not_supported() {
+    fn openlr_decode_version_2_not_supported() {
         assert_eq!(
             decode_base64_openlr("CgRbWyNG9BpsCQCb/jsbtAT/6/+jK1kC").unwrap_err(),
             DecodeError::VersionNotSupported(2)
@@ -376,7 +349,7 @@ mod tests {
     }
 
     #[test]
-    fn openlr_invalid_header() {
+    fn openlr_decode_invalid_header() {
         assert_eq!(
             decode_base64_openlr("ewGkNSK5Wg==").unwrap_err(),
             DecodeError::InvalidHeader(0b01111011)
@@ -384,7 +357,7 @@ mod tests {
     }
 
     #[test]
-    fn openlr_line_location_reference_001() {
+    fn openlr_decode_line_location_reference_001() {
         let location = decode_base64_openlr("CwRbWyNG9RpsCQCb/jsbtAT/6/+jK1lE").unwrap();
 
         assert_eq!(
@@ -443,7 +416,7 @@ mod tests {
     }
 
     #[test]
-    fn openlr_line_location_reference_002() {
+    fn openlr_decode_line_location_reference_002() {
         let location = decode_base64_openlr("CwB67CGukRxiCACyAbwaMXU=").unwrap();
 
         assert_eq!(
@@ -487,7 +460,7 @@ mod tests {
     }
 
     #[test]
-    fn openlr_line_location_reference_003() {
+    fn openlr_decode_line_location_reference_003() {
         let location = decode_base64_openlr("CwcX6CItqAs6AQAAAAALGg==").unwrap();
 
         assert_eq!(
@@ -528,7 +501,7 @@ mod tests {
     }
 
     #[test]
-    fn openlr_line_location_reference_004() {
+    fn openlr_decode_line_location_reference_004() {
         let location = decode_base64_openlr("CwRbWyNG9BpgAACa/jsboAD/6/+kKwA=").unwrap();
 
         assert_eq!(
@@ -584,7 +557,7 @@ mod tests {
     }
 
     #[test]
-    fn openlr_coordinate_location_reference_001() {
+    fn openlr_decode_coordinate_location_reference_001() {
         let location = decode_base64_openlr("I+djotZ9eA==").unwrap();
 
         assert_eq!(
@@ -597,7 +570,7 @@ mod tests {
     }
 
     #[test]
-    fn openlr_coordinate_location_reference_002() {
+    fn openlr_decode_coordinate_location_reference_002() {
         let location = decode_base64_openlr("IyVUdwmSoA==").unwrap();
 
         assert_eq!(
@@ -610,7 +583,7 @@ mod tests {
     }
 
     #[test]
-    fn openlr_point_along_line_location_reference_001() {
+    fn openlr_decode_point_along_line_location_reference_001() {
         let location = decode_base64_openlr("K/6P+SKSuBJGGAUn/1gSUyM=").unwrap();
 
         assert_eq!(
@@ -653,7 +626,7 @@ mod tests {
     }
 
     #[test]
-    fn openlr_point_along_line_location_reference_002() {
+    fn openlr_decode_point_along_line_location_reference_002() {
         let location = decode_base64_openlr("KwBVwSCh+RRXAf/i/9AUXP8=").unwrap();
 
         assert_eq!(
@@ -696,7 +669,7 @@ mod tests {
     }
 
     #[test]
-    fn openlr_poi_location_reference_001() {
+    fn openlr_decode_poi_location_reference_001() {
         let location = decode_base64_openlr("KwOg5iUNnCOTAv+D/5QjQ1j/gP/r").unwrap();
 
         assert_eq!(
@@ -745,7 +718,7 @@ mod tests {
     }
 
     #[test]
-    fn openlr_circle_location_reference_001() {
+    fn openlr_decode_circle_location_reference_001() {
         let location = decode_base64_openlr("AwOgxCUNmwEs").unwrap();
 
         assert_eq!(
@@ -761,7 +734,7 @@ mod tests {
     }
 
     #[test]
-    fn openlr_circle_location_reference_002() {
+    fn openlr_decode_circle_location_reference_002() {
         let location = decode_base64_openlr("A/2lJCfIiAfQ").unwrap();
 
         assert_eq!(
@@ -777,7 +750,7 @@ mod tests {
     }
 
     #[test]
-    fn openlr_rectangle_location_reference_001() {
+    fn openlr_decode_rectangle_location_reference_001() {
         let location = decode_base64_openlr("Qxl5HRKFDR33oB/agA==").unwrap();
 
         assert_eq!(
@@ -796,7 +769,7 @@ mod tests {
     }
 
     #[test]
-    fn openlr_rectangle_location_reference_002() {
+    fn openlr_decode_rectangle_location_reference_002() {
         let location = decode_base64_openlr("QwOgcSUNGgGIAX8=").unwrap();
 
         assert_eq!(
@@ -815,7 +788,7 @@ mod tests {
     }
 
     #[test]
-    fn openlr_grid_location_reference_001() {
+    fn openlr_decode_grid_location_reference_001() {
         let location = decode_base64_openlr("Q/xfwiMc5QsGuyx13wILASg=").unwrap();
 
         assert_eq!(
@@ -840,7 +813,7 @@ mod tests {
     }
 
     #[test]
-    fn openlr_grid_location_reference_002() {
+    fn openlr_decode_grid_location_reference_002() {
         let location = decode_base64_openlr("QwOgNiUM5wFVANsAAwAC").unwrap();
 
         assert_eq!(
@@ -865,7 +838,7 @@ mod tests {
     }
 
     #[test]
-    fn openlr_polygon_location_reference_001() {
+    fn openlr_decode_polygon_location_reference_001() {
         let location = decode_base64_openlr("EwOgUCUNEwJFAH//yAEv/vIAxw==").unwrap();
 
         assert_eq!(
@@ -894,7 +867,7 @@ mod tests {
     }
 
     #[test]
-    fn openlr_closed_line_location_reference_001() {
+    fn openlr_decode_closed_line_location_reference_001() {
         let location = decode_base64_openlr("WwRboCNGfhJrBAAJ/zkb9AgTFQ==").unwrap();
 
         assert_eq!(
