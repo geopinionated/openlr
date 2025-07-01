@@ -7,7 +7,7 @@ use crate::binary::encoding::EncodedAttributes;
 use crate::model::Offsets;
 use crate::{
     Circle, Coordinate, EncodeError, Grid, GridSize, Length, Line, LocationReference, LocationType,
-    Offset, Poi, PointAlongLine, Rectangle,
+    Offset, Poi, PointAlongLine, Polygon, Rectangle,
 };
 
 /// Encodes an OpenLR Location Reference into Base64.
@@ -31,7 +31,7 @@ pub fn encode_binary_openlr(location: &LocationReference) -> Result<Vec<u8>, Enc
         Circle(circle) => writer.write_circle(circle)?,
         Rectangle(rectangle) => writer.write_rectangle(rectangle)?,
         Grid(grid) => writer.write_grid(grid)?,
-        Polygon(_) => unimplemented!(),
+        Polygon(polygon) => writer.write_polygon(polygon)?,
         ClosedLine(_) => unimplemented!(),
     };
 
@@ -64,6 +64,9 @@ impl OpenLrBinaryWriter {
 
     fn write_line(&mut self, line: &Line) -> Result<(), EncodeError> {
         let Line { points, offsets } = line;
+        if points.len() < 2 {
+            return Err(EncodeError::InvalidLine);
+        }
 
         let first_point = points.first().ok_or(EncodeError::InvalidLine)?;
         let mut coordinate = first_point.coordinate;
@@ -153,6 +156,23 @@ impl OpenLrBinaryWriter {
         let Grid { rect, size } = grid;
         self.write_rectangle(rect)?;
         self.write_grid_size(size)
+    }
+
+    fn write_polygon(&mut self, polygon: &Polygon) -> Result<(), EncodeError> {
+        let Polygon { corners } = polygon;
+        if corners.len() < 3 {
+            return Err(EncodeError::InvalidPolygon);
+        }
+
+        let mut coordinate = *corners.first().ok_or(EncodeError::InvalidPolygon)?;
+        self.write_coordinate(&coordinate)?;
+
+        let relative_corners = corners.get(1..).into_iter().flatten();
+        for relative_coordinate in relative_corners {
+            coordinate = self.write_relative_coordinate(*relative_coordinate, coordinate)?;
+        }
+
+        Ok(())
     }
 
     fn write_coordinate(&mut self, coordinate: &Coordinate) -> Result<(), EncodeError> {
@@ -690,6 +710,30 @@ mod tests {
                 columns: 3,
                 rows: 2,
             },
+        }));
+    }
+
+    #[test]
+    fn openlr_encode_polygon_location_reference_001() {
+        assert_encoding_eq_decoding(LocationReference::Polygon(Polygon {
+            corners: vec![
+                Coordinate {
+                    lon: 5.0993621,
+                    lat: 52.1030580,
+                },
+                Coordinate {
+                    lon: 5.1051721,
+                    lat: 52.1043280,
+                },
+                Coordinate {
+                    lon: 5.1046171,
+                    lat: 52.1073541,
+                },
+                Coordinate {
+                    lon: 5.1019192,
+                    lat: 52.1093396,
+                },
+            ],
         }));
     }
 

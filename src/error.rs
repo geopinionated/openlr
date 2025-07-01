@@ -30,8 +30,10 @@ pub enum EncodeError {
     InvalidBearing(u16),
     #[error("OpenLR Offset is not valid, expected [0, 1): {0}")]
     InvalidOffset(f64),
-    #[error("OpenLR line consists of at least 2 LR-points")]
+    #[error("OpenLR Line consists of at least 2 LR-points")]
     InvalidLine,
+    #[error("OpenLR Polygon consists of at least 3 LR-points")]
+    InvalidPolygon,
 }
 
 impl From<base64::DecodeError> for DecodeError {

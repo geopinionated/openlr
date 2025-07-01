@@ -336,6 +336,7 @@ pub struct GridSize {
 /// of this polygon is constituted by straight lines between every pair of
 /// consecutive corners in the sequence, plus the straight line between the last and
 /// the first corner.
+/// The minimum number of coordinate pairs is three and there exists no maximum number.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Polygon {
     pub corners: Vec<Coordinate>,
