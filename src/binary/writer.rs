@@ -148,6 +148,11 @@ impl OpenLrBinaryWriter {
             lower_left,
             upper_right,
         } = rectangle;
+
+        if lower_left == upper_right {
+            return Err(EncodeError::InvalidRectangle);
+        }
+
         self.write_coordinate(lower_left)?;
         self.write_coordinate(upper_right)
     }
@@ -259,7 +264,7 @@ impl OpenLrBinaryWriter {
     }
 
     fn write_grid_size(&mut self, size: &GridSize) -> Result<(), EncodeError> {
-        let size = size.into_be_bytes();
+        let size = size.try_into_be_bytes()?;
         self.cursor.write_all(&size)?;
         Ok(())
     }
@@ -281,7 +286,7 @@ mod tests {
                 Point {
                     coordinate: Coordinate {
                         lon: 6.1268198,
-                        lat: 49.608_517,
+                        lat: 49.6085178,
                     },
                     line: LineAttributes {
                         frc: Frc::Frc3,
@@ -295,8 +300,8 @@ mod tests {
                 },
                 Point {
                     coordinate: Coordinate {
-                        lon: 6.128_37,
-                        lat: 49.603_99,
+                        lon: 6.1283698,
+                        lat: 49.6039878,
                     },
                     line: LineAttributes {
                         frc: Frc::Frc3,
@@ -310,8 +315,8 @@ mod tests {
                 },
                 Point {
                     coordinate: Coordinate {
-                        lon: 6.128_16,
-                        lat: 49.603_058,
+                        lon: 6.1281598,
+                        lat: 49.6030578,
                     },
                     line: LineAttributes {
                         frc: Frc::Frc5,
@@ -334,8 +339,8 @@ mod tests {
             points: vec![
                 Point {
                     coordinate: Coordinate {
-                        lon: -0.6752192,
-                        lat: -47.365_16,
+                        lon: 0.6752192,
+                        lat: 47.3651611,
                     },
                     line: LineAttributes {
                         frc: Frc::Frc3,
@@ -349,8 +354,8 @@ mod tests {
                 },
                 Point {
                     coordinate: Coordinate {
-                        lon: -0.6769992,
-                        lat: -47.369_602,
+                        lon: 0.6769992,
+                        lat: 47.3696011,
                     },
                     line: LineAttributes {
                         frc: Frc::Frc3,
@@ -373,8 +378,8 @@ mod tests {
             points: vec![
                 Point {
                     coordinate: Coordinate {
-                        lon: 9.975_06,
-                        lat: 48.063_286,
+                        lon: 9.9750602,
+                        lat: 48.0632865,
                     },
                     line: LineAttributes {
                         frc: Frc::Frc1,
@@ -388,8 +393,8 @@ mod tests {
                 },
                 Point {
                     coordinate: Coordinate {
-                        lon: 9.975_06,
-                        lat: 48.063_286,
+                        lon: 9.9750602,
+                        lat: 48.0632865,
                     },
                     line: LineAttributes {
                         frc: Frc::Frc1,
@@ -410,7 +415,7 @@ mod tests {
                 Point {
                     coordinate: Coordinate {
                         lon: 6.1268198,
-                        lat: 49.608_498,
+                        lat: 49.6084964,
                     },
                     line: LineAttributes {
                         frc: Frc::Frc3,
@@ -424,8 +429,8 @@ mod tests {
                 },
                 Point {
                     coordinate: Coordinate {
-                        lon: 6.128_36,
-                        lat: 49.603_966,
+                        lon: 6.1283598,
+                        lat: 49.6039664,
                     },
                     line: LineAttributes {
                         frc: Frc::Frc3,
@@ -439,8 +444,8 @@ mod tests {
                 },
                 Point {
                     coordinate: Coordinate {
-                        lon: 6.128_15,
-                        lat: 49.603_046,
+                        lon: 6.1281498,
+                        lat: 49.6030464,
                     },
                     line: LineAttributes {
                         frc: Frc::Frc5,
@@ -493,16 +498,16 @@ mod tests {
     #[test]
     fn openlr_encode_coordinate_location_reference_001() {
         assert_encoding_eq_decoding(LocationReference::GeoCoordinate(Coordinate {
-            lon: -34.608_94,
-            lat: -58.373_27,
+            lon: -34.6089398,
+            lat: -58.3732688,
         }));
     }
 
     #[test]
     fn openlr_encode_coordinate_location_reference_002() {
         assert_encoding_eq_decoding(LocationReference::GeoCoordinate(Coordinate {
-            lon: 52.495_22,
-            lat: 13.461_675,
+            lon: 52.4952185,
+            lat: 13.4616744,
         }));
     }
 
@@ -517,16 +522,16 @@ mod tests {
     #[test]
     fn openlr_encode_coordinate_location_reference_004() {
         assert_encoding_eq_decoding(LocationReference::GeoCoordinate(Coordinate {
-            lon: 52.495_22,
-            lat: -13.461_675,
+            lon: 52.49522,
+            lat: -13.461675,
         }));
     }
 
     #[test]
     fn openlr_encode_coordinate_location_reference_005() {
         assert_encoding_eq_decoding(LocationReference::GeoCoordinate(Coordinate {
-            lon: -52.495_22,
-            lat: 13.461_675,
+            lon: -52.49522,
+            lat: 13.461675,
         }));
     }
 
@@ -537,7 +542,7 @@ mod tests {
                 Point {
                     coordinate: Coordinate {
                         lon: -2.0216238,
-                        lat: 48.618_44,
+                        lat: 48.6184394,
                     },
                     line: LineAttributes {
                         frc: Frc::Frc2,
@@ -552,7 +557,7 @@ mod tests {
                 Point {
                     coordinate: Coordinate {
                         lon: -2.0084338,
-                        lat: 48.616_76,
+                        lat: 48.6167594,
                     },
                     line: LineAttributes {
                         frc: Frc::Frc2,
@@ -562,7 +567,7 @@ mod tests {
                     path: None,
                 },
             ],
-            offset: Offset::from_range(0.138_671_88),
+            offset: Offset::from_range(0.138671875),
             orientation: Orientation::Forward,
             side: SideOfRoad::Both,
         }));
@@ -575,7 +580,7 @@ mod tests {
                 Point {
                     coordinate: Coordinate {
                         lon: 0.4710495,
-                        lat: 45.889_732,
+                        lat: 45.8897316,
                     },
                     line: LineAttributes {
                         frc: Frc::Frc2,
@@ -590,7 +595,7 @@ mod tests {
                 Point {
                     coordinate: Coordinate {
                         lon: 0.4707495,
-                        lat: 45.889_25,
+                        lat: 45.8892516,
                     },
                     line: LineAttributes {
                         frc: Frc::Frc2,
@@ -614,7 +619,7 @@ mod tests {
                     Point {
                         coordinate: Coordinate {
                             lon: 5.1025807,
-                            lat: 52.106,
+                            lat: 52.1059978,
                         },
                         line: LineAttributes {
                             frc: Frc::Frc4,
@@ -629,7 +634,7 @@ mod tests {
                     Point {
                         coordinate: Coordinate {
                             lon: 5.1013307,
-                            lat: 52.104_92,
+                            lat: 52.1049178,
                         },
                         line: LineAttributes {
                             frc: Frc::Frc4,
@@ -645,7 +650,7 @@ mod tests {
             },
             poi: Coordinate {
                 lon: 5.1013007,
-                lat: 52.105_79,
+                lat: 52.1057878,
             },
         }));
     }
@@ -654,8 +659,8 @@ mod tests {
     fn openlr_encode_circle_location_reference_001() {
         assert_encoding_eq_decoding(LocationReference::Circle(Circle {
             center: Coordinate {
-                lon: 5.101_851,
-                lat: 52.105_976,
+                lon: 5.1018512,
+                lat: 52.1059763,
             },
             radius: Length::from_meters(300),
         }));
@@ -666,7 +671,7 @@ mod tests {
         assert_encoding_eq_decoding(LocationReference::Circle(Circle {
             center: Coordinate {
                 lon: -3.3115947,
-                lat: 55.945_29,
+                lat: 55.9452903,
             },
             radius: Length::from_meters(2000),
         }));

@@ -219,6 +219,11 @@ impl Offset {
     }
 }
 
+/// A positive offset (POFF) is used to locate the precise start of a location.
+/// The POFF defines the distance between the start of the location reference path
+/// and the start of the location. The negative offset (NOFF) is used to locate the
+/// precise end of the location and it defines the distance between the end of the
+/// location and the end of the location reference path.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct Offsets {
     pub pos: Offset,
@@ -318,13 +323,13 @@ pub struct Rectangle {
 /// by a base rectangular shape. This base rectangle is the lower left cell of
 /// the grid and can be multiplied to the North (by defining the number of rows)
 /// and to the East (by defining the number of columns).
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Grid {
     pub rect: Rectangle,
     pub size: GridSize,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct GridSize {
     pub columns: u16,
     pub rows: u16,

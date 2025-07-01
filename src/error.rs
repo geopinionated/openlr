@@ -34,6 +34,10 @@ pub enum EncodeError {
     InvalidLine,
     #[error("OpenLR Polygon consists of at least 3 LR-points")]
     InvalidPolygon,
+    #[error("OpenLR Rectangle consists of 2 different coordinates")]
+    InvalidRectangle,
+    #[error("OpenLR Grid size must have number of columns and rows > 1")]
+    InvalidGridSize,
 }
 
 impl From<base64::DecodeError> for DecodeError {

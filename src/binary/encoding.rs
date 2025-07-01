@@ -289,10 +289,14 @@ impl GridSize {
         Self { columns, rows }
     }
 
-    pub(crate) fn into_be_bytes(self) -> [u8; 4] {
+    pub(crate) fn try_into_be_bytes(self) -> Result<[u8; 4], EncodeError> {
+        if self.columns < 2 || self.rows < 2 {
+            return Err(EncodeError::InvalidGridSize);
+        }
+
         let columns = u16::to_be_bytes(self.columns);
         let rows = u16::to_be_bytes(self.rows);
-        [columns[0], columns[1], rows[0], rows[1]]
+        Ok([columns[0], columns[1], rows[0], rows[1]])
     }
 }
 
