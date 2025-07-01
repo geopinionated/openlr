@@ -288,6 +288,12 @@ impl GridSize {
         let rows = u16::from_be_bytes([r1, r2]);
         Self { columns, rows }
     }
+
+    pub(crate) fn into_be_bytes(self) -> [u8; 4] {
+        let columns = u16::to_be_bytes(self.columns);
+        let rows = u16::to_be_bytes(self.rows);
+        [columns[0], columns[1], rows[0], rows[1]]
+    }
 }
 
 const fn signum(value: f64) -> f64 {

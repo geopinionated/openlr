@@ -6,8 +6,8 @@ use base64::prelude::BASE64_STANDARD;
 use crate::binary::encoding::EncodedAttributes;
 use crate::model::Offsets;
 use crate::{
-    Circle, Coordinate, EncodeError, Length, Line, LocationReference, LocationType, Offset, Poi,
-    PointAlongLine, Rectangle,
+    Circle, Coordinate, EncodeError, Grid, GridSize, Length, Line, LocationReference, LocationType,
+    Offset, Poi, PointAlongLine, Rectangle,
 };
 
 /// Encodes an OpenLR Location Reference into Base64.
@@ -30,7 +30,7 @@ pub fn encode_binary_openlr(location: &LocationReference) -> Result<Vec<u8>, Enc
         Poi(poi) => writer.write_poi(poi)?,
         Circle(circle) => writer.write_circle(circle)?,
         Rectangle(rectangle) => writer.write_rectangle(rectangle)?,
-        Grid(_) => unimplemented!(),
+        Grid(grid) => writer.write_grid(grid)?,
         Polygon(_) => unimplemented!(),
         ClosedLine(_) => unimplemented!(),
     };
@@ -149,6 +149,12 @@ impl OpenLrBinaryWriter {
         self.write_coordinate(upper_right)
     }
 
+    fn write_grid(&mut self, grid: &Grid) -> Result<(), EncodeError> {
+        let Grid { rect, size } = grid;
+        self.write_rectangle(rect)?;
+        self.write_grid_size(size)
+    }
+
     fn write_coordinate(&mut self, coordinate: &Coordinate) -> Result<(), EncodeError> {
         let mut write_degrees = |degrees| -> Result<(), EncodeError> {
             let bytes = Coordinate::degrees_into_be_bytes(degrees);
@@ -202,6 +208,12 @@ impl OpenLrBinaryWriter {
     fn write_offset(&mut self, offset: Offset) -> Result<(), EncodeError> {
         let offset = offset.try_into_byte()?;
         self.cursor.write_all(&[offset])?;
+        Ok(())
+    }
+
+    fn write_grid_size(&mut self, size: &GridSize) -> Result<(), EncodeError> {
+        let size = size.into_be_bytes();
+        self.cursor.write_all(&size)?;
         Ok(())
     }
 }
@@ -637,6 +649,46 @@ mod tests {
             upper_right: Coordinate {
                 lon: 5.1039902,
                 lat: 52.1070383,
+            },
+        }));
+    }
+
+    #[test]
+    fn openlr_encode_grid_location_reference_001() {
+        assert_encoding_eq_decoding(LocationReference::Grid(Grid {
+            rect: Rectangle {
+                lower_left: Coordinate {
+                    lon: -5.0989758,
+                    lat: 49.3774616,
+                },
+                upper_right: Coordinate {
+                    lon: 15.5057108,
+                    lat: 62.5224745,
+                },
+            },
+            size: GridSize {
+                columns: 523,
+                rows: 296,
+            },
+        }));
+    }
+
+    #[test]
+    fn openlr_encode_grid_location_reference_002() {
+        assert_encoding_eq_decoding(LocationReference::Grid(Grid {
+            rect: Rectangle {
+                lower_left: Coordinate {
+                    lon: 5.0988042,
+                    lat: 52.1021139,
+                },
+                upper_right: Coordinate {
+                    lon: 5.1022142,
+                    lat: 52.1043039,
+                },
+            },
+            size: GridSize {
+                columns: 3,
+                rows: 2,
             },
         }));
     }
