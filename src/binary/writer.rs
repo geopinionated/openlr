@@ -7,7 +7,7 @@ use crate::binary::encoding::EncodedAttributes;
 use crate::model::Offsets;
 use crate::{
     Circle, Coordinate, EncodeError, Length, Line, LocationReference, LocationType, Offset, Poi,
-    PointAlongLine,
+    PointAlongLine, Rectangle,
 };
 
 /// Encodes an OpenLR Location Reference into Base64.
@@ -29,7 +29,7 @@ pub fn encode_binary_openlr(location: &LocationReference) -> Result<Vec<u8>, Enc
         PointAlongLine(point) => writer.write_point_along_line(point)?,
         Poi(poi) => writer.write_poi(poi)?,
         Circle(circle) => writer.write_circle(circle)?,
-        Rectangle(_) => unimplemented!(),
+        Rectangle(rectangle) => writer.write_rectangle(rectangle)?,
         Grid(_) => unimplemented!(),
         Polygon(_) => unimplemented!(),
         ClosedLine(_) => unimplemented!(),
@@ -138,6 +138,15 @@ impl OpenLrBinaryWriter {
         let Circle { center, radius } = circle;
         self.write_coordinate(center)?;
         self.write_radius(radius)
+    }
+
+    fn write_rectangle(&mut self, rectangle: &Rectangle) -> Result<(), EncodeError> {
+        let Rectangle {
+            lower_left,
+            upper_right,
+        } = rectangle;
+        self.write_coordinate(lower_left)?;
+        self.write_coordinate(upper_right)
     }
 
     fn write_coordinate(&mut self, coordinate: &Coordinate) -> Result<(), EncodeError> {
@@ -601,6 +610,34 @@ mod tests {
                 lat: 55.945_29,
             },
             radius: Length::from_meters(2000),
+        }));
+    }
+
+    #[test]
+    fn openlr_encode_rectangle_location_reference_001() {
+        assert_encoding_eq_decoding(LocationReference::Rectangle(Rectangle {
+            lower_left: Coordinate {
+                lon: 35.8215343,
+                lat: 26.0433590,
+            },
+            upper_right: Coordinate {
+                lon: 42.1414840,
+                lat: 44.7939956,
+            },
+        }));
+    }
+
+    #[test]
+    fn openlr_encode_rectangle_location_reference_002() {
+        assert_encoding_eq_decoding(LocationReference::Rectangle(Rectangle {
+            lower_left: Coordinate {
+                lon: 5.1000702,
+                lat: 52.1032083,
+            },
+            upper_right: Coordinate {
+                lon: 5.1039902,
+                lat: 52.1070383,
+            },
         }));
     }
 
