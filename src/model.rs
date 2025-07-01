@@ -145,15 +145,18 @@ impl Bearing {
 /// The lon and lat values are stored in decamicrodegree resolution (five decimals).
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Coordinate {
-    pub lon: f32,
-    pub lat: f32,
+    pub lon: f64,
+    pub lat: f64,
+}
+
+impl Coordinate {
+    pub const EPSILON: f64 = 180.0 / (1 << 24) as f64;
 }
 
 impl PartialEq for Coordinate {
     fn eq(&self, other: &Self) -> bool {
-        const EPSILON: f32 = 1e-5;
-        abs_diff_eq!(self.lon, other.lon, epsilon = EPSILON)
-            && abs_diff_eq!(self.lat, other.lat, epsilon = EPSILON)
+        abs_diff_eq!(self.lon, other.lon, epsilon = Self::EPSILON)
+            && abs_diff_eq!(self.lat, other.lat, epsilon = Self::EPSILON)
     }
 }
 
@@ -193,15 +196,25 @@ pub struct Point {
 /// one at the start of the location and one at the end of the location.
 /// Both offsets operate along the lines of the location and are measured in meters.
 // The offset values are optional and a missing offset value means an offset of 0 meters.
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
-pub struct Offset(f32);
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Offset(f64);
 
 impl Offset {
-    pub const fn from_range(range: f32) -> Self {
+    pub const EPSILON: f64 = 0.5 / (1 << 8) as f64;
+}
+
+impl PartialEq for Offset {
+    fn eq(&self, other: &Self) -> bool {
+        abs_diff_eq!(self.0, other.0, epsilon = Self::EPSILON)
+    }
+}
+
+impl Offset {
+    pub const fn from_range(range: f64) -> Self {
         Self(range)
     }
 
-    pub const fn range(&self) -> f32 {
+    pub const fn range(&self) -> f64 {
         self.0
     }
 }

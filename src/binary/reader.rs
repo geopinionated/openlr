@@ -258,7 +258,7 @@ impl<'a> OpenLrBinaryReader<'a> {
     }
 
     fn read_coordinate(&mut self) -> Result<Coordinate, DecodeError> {
-        let mut read_degrees = || -> Result<f32, DecodeError> {
+        let mut read_degrees = || -> Result<f64, DecodeError> {
             let mut c = [0u8; 3];
             self.cursor.read_exact(&mut c)?;
             Ok(Coordinate::degrees_from_be_bytes(c))
@@ -273,7 +273,7 @@ impl<'a> OpenLrBinaryReader<'a> {
         &mut self,
         previous: Coordinate,
     ) -> Result<Coordinate, DecodeError> {
-        let mut read_degrees = |previous| -> Result<f32, DecodeError> {
+        let mut read_degrees = |previous| -> Result<f64, DecodeError> {
             let mut c = [0u8; 2];
             self.cursor.read_exact(&mut c)?;
             Ok(Coordinate::degrees_from_be_bytes_relative(c, previous))

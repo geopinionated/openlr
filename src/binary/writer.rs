@@ -137,8 +137,7 @@ impl OpenLrBinaryWriter {
     fn write_circle(&mut self, circle: &Circle) -> Result<(), EncodeError> {
         let Circle { center, radius } = circle;
         self.write_coordinate(center)?;
-        self.write_radius(radius)?;
-        Ok(())
+        self.write_radius(radius)
     }
 
     fn write_coordinate(&mut self, coordinate: &Coordinate) -> Result<(), EncodeError> {
@@ -176,7 +175,6 @@ impl OpenLrBinaryWriter {
         let first_byte = fow + (frc << 3) + (attributes.orientation_or_side << 6);
         let second_byte = bear + (attributes.lfrcnp_or_flags << 5);
         self.cursor.write_all(&[first_byte, second_byte])?;
-
         Ok(())
     }
 

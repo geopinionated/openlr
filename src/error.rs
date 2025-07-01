@@ -29,7 +29,7 @@ pub enum EncodeError {
     #[error("OpenLR Bearing is not valid, expected [0, 360): {0}")]
     InvalidBearing(u16),
     #[error("OpenLR Offset is not valid, expected [0, 1): {0}")]
-    InvalidOffset(f32),
+    InvalidOffset(f64),
     #[error("OpenLR line consists of at least 2 LR-points")]
     InvalidLine,
 }
