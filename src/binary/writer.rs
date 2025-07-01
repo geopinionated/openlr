@@ -6,8 +6,8 @@ use base64::prelude::BASE64_STANDARD;
 use crate::binary::encoding::EncodedAttributes;
 use crate::model::Offsets;
 use crate::{
-    Circle, Coordinate, EncodeError, Grid, GridSize, Length, Line, LocationReference, LocationType,
-    Offset, Poi, PointAlongLine, Polygon, Rectangle,
+    Circle, ClosedLine, Coordinate, EncodeError, Grid, GridSize, Length, Line, LocationReference,
+    LocationType, Offset, Poi, PointAlongLine, Polygon, Rectangle,
 };
 
 /// Encodes an OpenLR Location Reference into Base64.
@@ -32,7 +32,7 @@ pub fn encode_binary_openlr(location: &LocationReference) -> Result<Vec<u8>, Enc
         Rectangle(rectangle) => writer.write_rectangle(rectangle)?,
         Grid(grid) => writer.write_grid(grid)?,
         Polygon(polygon) => writer.write_polygon(polygon)?,
-        ClosedLine(_) => unimplemented!(),
+        ClosedLine(line) => writer.write_closed_line(line)?,
     };
 
     Ok(writer.cursor.into_inner())
@@ -173,6 +173,33 @@ impl OpenLrBinaryWriter {
         }
 
         Ok(())
+    }
+
+    fn write_closed_line(&mut self, line: &ClosedLine) -> Result<(), EncodeError> {
+        let ClosedLine { points, last_line } = line;
+        if points.len() < 2 {
+            return Err(EncodeError::InvalidLine);
+        }
+
+        let first_point = points.first().ok_or(EncodeError::InvalidLine)?;
+        let mut coordinate = first_point.coordinate;
+        self.write_coordinate(&coordinate)?;
+
+        let path = first_point.path.unwrap_or_default();
+        let attributes = EncodedAttributes::from(first_point.line).with_lfrcnp(path.lfrcnp);
+        self.write_attributes(attributes)?;
+        self.write_dnp(&path.dnp)?;
+
+        let relative_points = points.get(1..).into_iter().flatten();
+        for point in relative_points {
+            coordinate = self.write_relative_coordinate(point.coordinate, coordinate)?;
+            let path = point.path.unwrap_or_default();
+            let attributes = EncodedAttributes::from(point.line).with_lfrcnp(path.lfrcnp);
+            self.write_attributes(attributes)?;
+            self.write_dnp(&path.dnp)?;
+        }
+
+        self.write_attributes(EncodedAttributes::from(*last_line))
     }
 
     fn write_coordinate(&mut self, coordinate: &Coordinate) -> Result<(), EncodeError> {
@@ -734,6 +761,49 @@ mod tests {
                     lat: 52.1093396,
                 },
             ],
+        }));
+    }
+
+    #[test]
+    fn openlr_encode_closed_line_location_reference_001() {
+        assert_encoding_eq_decoding(LocationReference::ClosedLine(ClosedLine {
+            points: vec![
+                Point {
+                    coordinate: Coordinate {
+                        lon: 6.1283004,
+                        lat: 49.6059644,
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc2,
+                        fow: Fow::MultipleCarriageway,
+                        bear: Bearing::from_degrees(129),
+                    },
+                    path: Some(PathAttributes {
+                        lfrcnp: Frc::Frc3,
+                        dnp: Length::from_meters(264),
+                    }),
+                },
+                Point {
+                    coordinate: Coordinate {
+                        lon: 6.1283904,
+                        lat: 49.6039744,
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc3,
+                        fow: Fow::SingleCarriageway,
+                        bear: Bearing::from_degrees(231),
+                    },
+                    path: Some(PathAttributes {
+                        lfrcnp: Frc::Frc7,
+                        dnp: Length::from_meters(498),
+                    }),
+                },
+            ],
+            last_line: LineAttributes {
+                frc: Frc::Frc2,
+                fow: Fow::SingleCarriageway,
+                bear: Bearing::from_degrees(242),
+            },
         }));
     }
 
