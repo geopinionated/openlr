@@ -1,7 +1,5 @@
 use approx::abs_diff_eq;
 
-use crate::DecodeError;
-
 /// Functional Road Class.
 /// The functional road class (FRC) of a line is a road classification
 /// based on the importance of the road represented by the line.
@@ -116,26 +114,49 @@ impl Default for Orientation {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct Length(u32);
 
+impl Length {
+    pub const fn from_meters(meters: u32) -> Self {
+        Self(meters)
+    }
+
+    pub const fn meters(&self) -> u32 {
+        self.0
+    }
+}
+
 /// The bearing describes the angle between the true North and the road.
 /// The physical data format defines the bearing field as an integer value between 0
 /// and 360 whereby “0” is included and “360” is excluded from that range.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct Bearing(u16);
 
+impl Bearing {
+    pub const fn from_degrees(degrees: u16) -> Self {
+        Self(degrees)
+    }
+
+    pub const fn degrees(&self) -> u16 {
+        self.0
+    }
+}
+
 /// Coordinate pair stands for a pair of WGS84 longitude (lon) and latitude (lat) values.
 /// This coordinate pair specifies a geometric point in a digital map.
 /// The lon and lat values are stored in decamicrodegree resolution (five decimals).
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Coordinate {
-    pub lon: f32,
-    pub lat: f32,
+    pub lon: f64,
+    pub lat: f64,
+}
+
+impl Coordinate {
+    pub const EPSILON: f64 = 180.0 / (1 << 24) as f64;
 }
 
 impl PartialEq for Coordinate {
     fn eq(&self, other: &Self) -> bool {
-        const EPSILON: f32 = 1e-5;
-        abs_diff_eq!(self.lon, other.lon, epsilon = EPSILON)
-            && abs_diff_eq!(self.lat, other.lat, epsilon = EPSILON)
+        abs_diff_eq!(self.lon, other.lon, epsilon = Self::EPSILON)
+            && abs_diff_eq!(self.lat, other.lat, epsilon = Self::EPSILON)
     }
 }
 
@@ -175,13 +196,47 @@ pub struct Point {
 /// one at the start of the location and one at the end of the location.
 /// Both offsets operate along the lines of the location and are measured in meters.
 // The offset values are optional and a missing offset value means an offset of 0 meters.
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
-pub struct Offset(f32);
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Offset(f64);
 
+impl Offset {
+    pub const EPSILON: f64 = 0.5 / (1 << 8) as f64;
+}
+
+impl PartialEq for Offset {
+    fn eq(&self, other: &Self) -> bool {
+        abs_diff_eq!(self.0, other.0, epsilon = Self::EPSILON)
+    }
+}
+
+impl Offset {
+    pub const fn from_range(range: f64) -> Self {
+        Self(range)
+    }
+
+    pub const fn range(&self) -> f64 {
+        self.0
+    }
+}
+
+/// A positive offset (POFF) is used to locate the precise start of a location.
+/// The POFF defines the distance between the start of the location reference path
+/// and the start of the location. The negative offset (NOFF) is used to locate the
+/// precise end of the location and it defines the distance between the end of the
+/// location and the end of the location reference path.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct Offsets {
     pub pos: Offset,
     pub neg: Offset,
+}
+
+impl Offsets {
+    pub fn positive(offset: Offset) -> Self {
+        Self {
+            pos: offset,
+            neg: Offset::default(),
+        }
+    }
 }
 
 /// A line location reference describes a path within a map and consists of location
@@ -194,12 +249,30 @@ pub struct Line {
     pub offsets: Offsets,
 }
 
+impl Line {
+    pub(crate) fn with_capacity(capacity: usize) -> Self {
+        Self {
+            points: Vec::with_capacity(capacity),
+            offsets: Offsets::default(),
+        }
+    }
+}
+
 /// A closed line location references the area defined by a closed path (i.e. a circuit)
 /// in the road network. The boundary always consists of road segments.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct ClosedLine {
     pub points: Vec<Point>,
     pub last_line: LineAttributes,
+}
+
+impl ClosedLine {
+    pub(crate) fn with_capacity(capacity: usize) -> Self {
+        Self {
+            points: Vec::with_capacity(capacity),
+            last_line: LineAttributes::default(),
+        }
+    }
 }
 
 /// Point along line is a point location which is defined by a line and an offset value.
@@ -250,13 +323,13 @@ pub struct Rectangle {
 /// by a base rectangular shape. This base rectangle is the lower left cell of
 /// the grid and can be multiplied to the North (by defining the number of rows)
 /// and to the East (by defining the number of columns).
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Grid {
     pub rect: Rectangle,
     pub size: GridSize,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct GridSize {
     pub columns: u16,
     pub rows: u16,
@@ -268,9 +341,18 @@ pub struct GridSize {
 /// of this polygon is constituted by straight lines between every pair of
 /// consecutive corners in the sequence, plus the straight line between the last and
 /// the first corner.
+/// The minimum number of coordinate pairs is three and there exists no maximum number.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Polygon {
     pub corners: Vec<Coordinate>,
+}
+
+impl Polygon {
+    pub(crate) fn with_capacity(capacity: usize) -> Self {
+        Self {
+            corners: Vec::with_capacity(capacity),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -333,174 +415,5 @@ impl LocationReference {
             Self::Polygon(_) => LocationType::Polygon,
             Self::ClosedLine(_) => LocationType::ClosedLine,
         }
-    }
-}
-
-impl Frc {
-    pub(crate) const fn try_from_byte(byte: u8) -> Result<Self, DecodeError> {
-        match byte {
-            0 => Ok(Self::Frc0),
-            1 => Ok(Self::Frc1),
-            2 => Ok(Self::Frc2),
-            3 => Ok(Self::Frc3),
-            4 => Ok(Self::Frc4),
-            5 => Ok(Self::Frc5),
-            6 => Ok(Self::Frc6),
-            7 => Ok(Self::Frc7),
-            _ => Err(DecodeError::InvalidFrc(byte)),
-        }
-    }
-}
-
-impl Fow {
-    pub(crate) const fn try_from_byte(byte: u8) -> Result<Self, DecodeError> {
-        match byte {
-            0 => Ok(Self::Undefined),
-            1 => Ok(Self::Motorway),
-            2 => Ok(Self::MultipleCarriageway),
-            3 => Ok(Self::SingleCarriageway),
-            4 => Ok(Self::Roundabout),
-            5 => Ok(Self::TrafficSquare),
-            6 => Ok(Self::SlipRoad),
-            7 => Ok(Self::Other),
-            _ => Err(DecodeError::InvalidFow(byte)),
-        }
-    }
-}
-
-impl Line {
-    pub(crate) fn with_capacity(capacity: usize) -> Self {
-        Self {
-            points: Vec::with_capacity(capacity),
-            offsets: Offsets::default(),
-        }
-    }
-}
-
-impl ClosedLine {
-    pub(crate) fn with_capacity(capacity: usize) -> Self {
-        Self {
-            points: Vec::with_capacity(capacity),
-            last_line: LineAttributes::default(),
-        }
-    }
-}
-
-impl Polygon {
-    pub(crate) fn with_capacity(capacity: usize) -> Self {
-        Self {
-            corners: Vec::with_capacity(capacity),
-        }
-    }
-}
-
-impl Coordinate {
-    /// Returns degrees from a big-endian coordinate representation in a 24-bit resolution.
-    pub(crate) fn degrees_from_be_bytes(bytes: [u8; 3]) -> f32 {
-        const RESOLUTION: usize = 24;
-        let is_negative = bytes[0] & 0x80 != 0;
-        let sign = if is_negative { 0xFF } else { 0 };
-        let degrees = i32::from_be_bytes([sign, bytes[0], bytes[1], bytes[2]]) as f32;
-        ((degrees - degrees.signum() * 0.5) * 360.0) / (1 << RESOLUTION) as f32
-    }
-
-    /// Returns degrees from a big-endian relative coordinate representation in a 16-bit resolution.
-    pub(crate) fn degrees_from_be_bytes_relative(bytes: [u8; 2], previous_degrees: f32) -> f32 {
-        const DECA_MICRO_DEG_FACTOR: f32 = 100000.0;
-        let degrees = i16::from_be_bytes(bytes) as f32;
-        previous_degrees + degrees / DECA_MICRO_DEG_FACTOR
-    }
-}
-
-impl Length {
-    pub const fn from_meters(meters: u32) -> Self {
-        Self(meters)
-    }
-
-    pub const fn meters(&self) -> u32 {
-        self.0
-    }
-
-    /// Returns the distance to next LR-point in meters from a byte.
-    /// This representation defines 256 intervals and each interval has a length of approximately 58.6 meters.
-    /// Maximum length between two consecutive LR-points is limited by 15000m.
-    pub(crate) fn dnp_from_byte(byte: u8) -> Self {
-        const DISTANCE_PER_INTERVAL: f32 = 58.6;
-        let meters = ((byte as f32 + 0.5) * DISTANCE_PER_INTERVAL).round() as u32;
-        Self::from_meters(meters)
-    }
-
-    /// Returns the length of a radius in meters from big-endian slice of (up to 4) bytes.
-    pub(crate) fn radius_from_be_bytes(bytes: &[u8]) -> Self {
-        let mut radius = [0u8; 4];
-        radius[4 - bytes.len()..].copy_from_slice(bytes);
-        Self::from_meters(u32::from_be_bytes(radius))
-    }
-}
-
-impl Bearing {
-    pub const fn from_degrees(degrees: u16) -> Self {
-        Self(degrees)
-    }
-
-    pub const fn degrees(&self) -> u16 {
-        self.0
-    }
-
-    /// The bearing describes the angle between the true North and the road.
-    /// The data format defines 32 sectors whereby each sector covers 11.25° of the circle.
-    pub(crate) fn from_byte(byte: u8) -> Self {
-        const BEAR_SECTOR: f32 = 11.25;
-        let degrees = (byte as f32 * BEAR_SECTOR + BEAR_SECTOR / 2.0).round() as u16;
-        Self::from_degrees(degrees)
-    }
-}
-
-impl Offset {
-    pub const fn from_range(range: f32) -> Self {
-        Self(range)
-    }
-
-    /// The value used here is the relation of the offset length to the length of the path
-    /// between the first two location reference points (last two location reference points
-    /// for the negative offset). The length between these two LR-points shall be called LRP length.
-    /// The relative value (or percentage) will then be equally distributed over the available
-    /// 256 buckets so that every bucket covers 0.390625% of the LRP length.
-    /// Returns the offset in [0, 1] range.
-    pub(crate) fn from_byte(bucket: u8) -> Self {
-        Self::from_range((bucket as f32 + 0.5) / 256.0)
-    }
-}
-
-impl Orientation {
-    pub(crate) const fn try_from_byte(byte: u8) -> Result<Self, DecodeError> {
-        match byte {
-            0 => Ok(Self::Unknown),
-            1 => Ok(Self::Forward),
-            2 => Ok(Self::Backward),
-            3 => Ok(Self::Both),
-            _ => Err(DecodeError::InvalidOrientation(byte)),
-        }
-    }
-}
-
-impl SideOfRoad {
-    pub(crate) const fn try_from_byte(byte: u8) -> Result<Self, DecodeError> {
-        match byte {
-            0 => Ok(Self::OnRoadOrUnknown),
-            1 => Ok(Self::Right),
-            2 => Ok(Self::Left),
-            3 => Ok(Self::Both),
-            _ => Err(DecodeError::InvalidSideOfRoad(byte)),
-        }
-    }
-}
-
-impl GridSize {
-    pub(crate) fn from_be_bytes(bytes: [u8; 4]) -> Self {
-        let [c1, c2, r1, r2] = bytes;
-        let columns = u16::from_be_bytes([c1, c2]);
-        let rows = u16::from_be_bytes([r1, r2]);
-        Self { columns, rows }
     }
 }
