@@ -5,6 +5,9 @@ edition = "2024"
 description = "OpenLR Rust implementation"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/geopinionated/openlr"
+readme = "README.md"
+keywords = ["openlr", "routing", "routing-engine"]
+categories = ["encoding"]
 
 [dependencies]
 approx = "0.5"
