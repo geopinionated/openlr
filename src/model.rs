@@ -1,9 +1,11 @@
+use std::ops::Add;
+
 use approx::abs_diff_eq;
 
 /// Functional Road Class.
 /// The functional road class (FRC) of a line is a road classification
 /// based on the importance of the road represented by the line.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, strum::EnumIter)]
 #[repr(u8)]
 pub enum Frc {
     /// Main road, highest importance
@@ -32,7 +34,7 @@ impl Default for Frc {
 
 /// Form of Way.
 /// The form of way (FOW) describes the physical road type of a line.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, strum::EnumIter)]
 #[repr(u8)]
 pub enum Fow {
     /// The physical road type is unknown.
@@ -115,12 +117,22 @@ impl Default for Orientation {
 pub struct Length(u32);
 
 impl Length {
+    pub const MAX: Self = Self(u32::MAX);
+
     pub const fn from_meters(meters: u32) -> Self {
         Self(meters)
     }
 
     pub const fn meters(&self) -> u32 {
         self.0
+    }
+}
+
+impl Add for Length {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self {
+        Self(self.meters().saturating_add(other.meters()))
     }
 }
 

@@ -13,3 +13,11 @@ categories = ["encoding"]
 approx = "0.5"
 base64 = "0.22"
 thiserror = "2.0"
+
+
+# dev-dependencies
+geo = "0.30"
+geojson = "0.24"
+rstar = "0.12"
+strum = { version = "0.27", features = ["derive"] }
+typed-index-collections = "3.3"
