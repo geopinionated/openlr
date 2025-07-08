@@ -1,9 +1,11 @@
+use std::fmt::Debug;
+
 use crate::{Coordinate, Length};
 
 /// TODO
 /// Geo-spatial index + Road Network Graph
 pub trait Graph {
-    type Node;
+    type Node: Debug;
 
     fn nearest_neighbours_within_distance(
         &self,

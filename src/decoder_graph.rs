@@ -56,8 +56,8 @@ impl Graph for NetworkGraph {
 
         self.geospatial_rtree
             .nearest_neighbor_iter_with_distance_2(&point)
-            .inspect(|(n, d)| println!("{}: {}m", n.vertex.0 + 1, d.sqrt()))
             .take_while(move |(_, distance_2)| *distance_2 <= max_distance_2)
+            .inspect(|(n, d)| println!("{}: {}m", n.vertex.0 + 1, d.sqrt()))
             .map(|(node, _)| node.vertex)
     }
 }

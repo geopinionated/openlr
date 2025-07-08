@@ -3,7 +3,7 @@ use std::str::FromStr;
 
 use geojson::{Feature, FeatureCollection, Value};
 use openlr::decoder_graph::{Edge, EdgeId, NetworkGraph, NetworkNode, Vertex, VertexId};
-use openlr::{Coordinate, Fow, Frc, Graph, Length};
+use openlr::{Coordinate, Fow, Frc, Graph, Length, decode_base64_openlr};
 use rstar::RTree;
 use strum::IntoEnumIterator;
 use typed_index_collections::ti_vec;
@@ -38,6 +38,15 @@ struct GeojsonGraph {
 }
 
 #[test]
+fn decode_line_location_reference() {
+    let geojson = include_str!("data/graph.geojson");
+    let geojson_graph = GeojsonGraph::parse_geojson(geojson);
+    let graph: NetworkGraph = geojson_graph.into_network_graph();
+
+    let location = decode_base64_openlr(&graph, "CwmShiVYczPJBgCs/y0zAQ==").unwrap();
+}
+
+#[test]
 fn geojson_graph_nearest_neighbours() {
     let geojson = include_str!("data/graph.geojson");
     let geojson_graph = GeojsonGraph::parse_geojson(geojson);
@@ -50,18 +59,23 @@ fn geojson_graph_nearest_neighbours() {
     };
 
     let neighbours: Vec<VertexId> = graph
-        .nearest_neighbours_within_distance(node_75_location, Length::from_meters(10))
+        .nearest_neighbours_within_distance(node_75_location, Length::from_meters(9))
         .collect();
     println!("{neighbours:?}");
 
-    assert_eq!(neighbours[0], VertexId(75 - 1));
-    assert_eq!(neighbours[1], VertexId(140 - 1));
-    assert_eq!(neighbours[2], VertexId(138 - 1));
-    assert_eq!(neighbours[3], VertexId(139 - 1));
-    assert_eq!(neighbours[4], VertexId(59 - 1));
-    assert_eq!(neighbours[5], VertexId(72 - 1));
-    assert_eq!(neighbours[6], VertexId(73 - 1));
-    assert_eq!(neighbours[7], VertexId(74 - 1));
+    assert_eq!(
+        neighbours,
+        [
+            VertexId(75 - 1),
+            VertexId(140 - 1),
+            VertexId(138 - 1),
+            VertexId(139 - 1),
+            VertexId(59 - 1),
+            VertexId(72 - 1),
+            VertexId(73 - 1),
+            VertexId(74 - 1)
+        ]
+    );
 }
 
 #[test]

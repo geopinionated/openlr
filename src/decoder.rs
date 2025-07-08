@@ -1,6 +1,8 @@
 use thiserror::Error;
 
-use crate::{DeserializeError, Graph, Line, LocationReference, Point, deserialize_base64_openlr};
+use crate::{
+    DeserializeError, Graph, Length, Line, LocationReference, Point, deserialize_base64_openlr,
+};
 
 #[derive(Error, Debug, PartialEq, Clone, Copy)]
 pub enum DecodeError {
@@ -17,8 +19,8 @@ impl From<DeserializeError> for DecodeError {
 /// TODO
 pub struct Location;
 
-pub fn decode_base64_openlr(
-    graph: &impl Graph,
+pub fn decode_base64_openlr<G: Graph>(
+    graph: &G,
     data: impl AsRef<[u8]>,
 ) -> Result<Location, DecodeError> {
     // Step – 1 Decode physical data and check its validity
@@ -30,10 +32,15 @@ pub fn decode_base64_openlr(
     }
 }
 
-fn decode_line(graph: &impl Graph, line: Line) -> Result<Location, DecodeError> {
+fn decode_line<G: Graph>(graph: &G, line: Line) -> Result<Location, DecodeError> {
     // Step – 2 For each location reference point find candidate nodes
+    let candidates = find_candidate_nodes(graph, line.points);
+    dbg!(&candidates);
 
-    todo!()
+    // Step – 3 For each location reference point find candidate lines
+
+    // TODO!!!
+    Ok(Location)
 }
 
 /// Each location reference point contains coordinates specifying a node in the encoder map. The
@@ -46,16 +53,29 @@ fn decode_line(graph: &impl Graph, line: Line) -> Result<Location, DecodeError> 
 /// If no candidate node has been determined for a location reference point the decoder should try to
 /// determine a candidate line directly. The LRP coordinate can be projected onto lines which are not far
 /// away from that coordinate.
-fn find_candidate_nodes<G, I>(graph: &G, points: I) -> Vec<G::Node>
+fn find_candidate_nodes<G, I>(graph: &G, points: I) -> Vec<CandidateNode<G::Node>>
 where
     G: Graph,
     I: IntoIterator<Item = Point>,
 {
-    const MAX_DISTANCE: f64 = 100.0;
+    const MAX_DISTANCE: Length = Length::from_meters(10); // TODO: MaxNodeDistance 100m?
 
-    for point in points {
-        //
-    }
+    points
+        .into_iter()
+        .map(|point| {
+            let nodes: Vec<_> = graph
+                .nearest_neighbours_within_distance(point.coordinate, MAX_DISTANCE)
+                .collect();
 
-    todo!()
+            CandidateNode { point, nodes }
+        })
+        .collect()
+}
+
+/// List of candidate nodes for a Location Reference Point.
+/// Nodes are sorted based on their distance to the point (closest to farthest).
+#[derive(Debug)]
+struct CandidateNode<N> {
+    point: Point,
+    nodes: Vec<N>,
 }

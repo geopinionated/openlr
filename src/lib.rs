@@ -12,7 +12,8 @@ pub use binary::{
     serialize_binary_openlr,
 };
 pub use error::{DeserializeError, SerializeError};
-//
+// --------- TODO --------
+pub use decoder::{DecodeError, decode_base64_openlr};
 pub use graph::Graph;
 pub use model::{
     Bearing, Circle, ClosedLine, Coordinate, Fow, Frc, Grid, GridSize, Length, Line,
