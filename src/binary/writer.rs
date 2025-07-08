@@ -6,18 +6,18 @@ use base64::prelude::BASE64_STANDARD;
 use crate::binary::encoding::EncodedAttributes;
 use crate::model::Offsets;
 use crate::{
-    Circle, ClosedLine, Coordinate, EncodeError, Grid, GridSize, Length, Line, LocationReference,
-    LocationType, Offset, Poi, PointAlongLine, Polygon, Rectangle,
+    Circle, ClosedLine, Coordinate, Grid, GridSize, Length, Line, LocationReference, LocationType,
+    Offset, Poi, PointAlongLine, Polygon, Rectangle, SerializeError,
 };
 
-/// Encodes an OpenLR Location Reference into Base64.
-pub fn encode_base64_openlr(location: &LocationReference) -> Result<String, EncodeError> {
-    let data = encode_binary_openlr(location)?;
+/// Serializes an OpenLR Location Reference into Base64.
+pub fn serialize_base64_openlr(location: &LocationReference) -> Result<String, SerializeError> {
+    let data = serialize_binary_openlr(location)?;
     Ok(BASE64_STANDARD.encode(data))
 }
 
-/// Encodes an OpenLR Location Reference into binary.
-pub fn encode_binary_openlr(location: &LocationReference) -> Result<Vec<u8>, EncodeError> {
+/// Serializes an OpenLR Location Reference into binary.
+pub fn serialize_binary_openlr(location: &LocationReference) -> Result<Vec<u8>, SerializeError> {
     use LocationReference::*;
 
     let mut writer = OpenLrBinaryWriter::default();
@@ -44,7 +44,7 @@ struct OpenLrBinaryWriter {
 }
 
 impl OpenLrBinaryWriter {
-    fn write_header(&mut self, location_type: LocationType) -> Result<(), EncodeError> {
+    fn write_header(&mut self, location_type: LocationType) -> Result<(), SerializeError> {
         const VERSION: u8 = 3;
 
         let location_type = match location_type {
@@ -62,13 +62,13 @@ impl OpenLrBinaryWriter {
         Ok(())
     }
 
-    fn write_line(&mut self, line: &Line) -> Result<(), EncodeError> {
+    fn write_line(&mut self, line: &Line) -> Result<(), SerializeError> {
         let Line { points, offsets } = line;
         if points.len() < 2 {
-            return Err(EncodeError::InvalidLine);
+            return Err(SerializeError::InvalidLine);
         }
 
-        let first_point = points.first().ok_or(EncodeError::InvalidLine)?;
+        let first_point = points.first().ok_or(SerializeError::InvalidLine)?;
         let mut coordinate = first_point.coordinate;
         self.write_coordinate(&coordinate)?;
 
@@ -86,7 +86,7 @@ impl OpenLrBinaryWriter {
             self.write_dnp(&path.dnp)?;
         }
 
-        let last_point = points.last().ok_or(EncodeError::InvalidLine)?;
+        let last_point = points.last().ok_or(SerializeError::InvalidLine)?;
         self.write_relative_coordinate(last_point.coordinate, coordinate)?;
         let attributes = EncodedAttributes::from(last_point.line).with_offsets(offsets);
         self.write_attributes(attributes)?;
@@ -101,7 +101,7 @@ impl OpenLrBinaryWriter {
         Ok(())
     }
 
-    fn write_point_along_line(&mut self, point: &PointAlongLine) -> Result<(), EncodeError> {
+    fn write_point_along_line(&mut self, point: &PointAlongLine) -> Result<(), SerializeError> {
         let PointAlongLine {
             points: [first_point, last_point],
             offset,
@@ -130,46 +130,46 @@ impl OpenLrBinaryWriter {
         Ok(())
     }
 
-    fn write_poi(&mut self, poi: &Poi) -> Result<(), EncodeError> {
+    fn write_poi(&mut self, poi: &Poi) -> Result<(), SerializeError> {
         let Poi { point, poi } = poi;
         self.write_point_along_line(point)?;
         self.write_relative_coordinate(*poi, point.points[0].coordinate)?;
         Ok(())
     }
 
-    fn write_circle(&mut self, circle: &Circle) -> Result<(), EncodeError> {
+    fn write_circle(&mut self, circle: &Circle) -> Result<(), SerializeError> {
         let Circle { center, radius } = circle;
         self.write_coordinate(center)?;
         self.write_radius(radius)
     }
 
-    fn write_rectangle(&mut self, rectangle: &Rectangle) -> Result<(), EncodeError> {
+    fn write_rectangle(&mut self, rectangle: &Rectangle) -> Result<(), SerializeError> {
         let Rectangle {
             lower_left,
             upper_right,
         } = rectangle;
 
         if lower_left == upper_right {
-            return Err(EncodeError::InvalidRectangle);
+            return Err(SerializeError::InvalidRectangle);
         }
 
         self.write_coordinate(lower_left)?;
         self.write_coordinate(upper_right)
     }
 
-    fn write_grid(&mut self, grid: &Grid) -> Result<(), EncodeError> {
+    fn write_grid(&mut self, grid: &Grid) -> Result<(), SerializeError> {
         let Grid { rect, size } = grid;
         self.write_rectangle(rect)?;
         self.write_grid_size(size)
     }
 
-    fn write_polygon(&mut self, polygon: &Polygon) -> Result<(), EncodeError> {
+    fn write_polygon(&mut self, polygon: &Polygon) -> Result<(), SerializeError> {
         let Polygon { corners } = polygon;
         if corners.len() < 3 {
-            return Err(EncodeError::InvalidPolygon);
+            return Err(SerializeError::InvalidPolygon);
         }
 
-        let mut coordinate = *corners.first().ok_or(EncodeError::InvalidPolygon)?;
+        let mut coordinate = *corners.first().ok_or(SerializeError::InvalidPolygon)?;
         self.write_coordinate(&coordinate)?;
 
         let relative_corners = corners.get(1..).into_iter().flatten();
@@ -180,13 +180,13 @@ impl OpenLrBinaryWriter {
         Ok(())
     }
 
-    fn write_closed_line(&mut self, line: &ClosedLine) -> Result<(), EncodeError> {
+    fn write_closed_line(&mut self, line: &ClosedLine) -> Result<(), SerializeError> {
         let ClosedLine { points, last_line } = line;
         if points.len() < 2 {
-            return Err(EncodeError::InvalidLine);
+            return Err(SerializeError::InvalidLine);
         }
 
-        let first_point = points.first().ok_or(EncodeError::InvalidLine)?;
+        let first_point = points.first().ok_or(SerializeError::InvalidLine)?;
         let mut coordinate = first_point.coordinate;
         self.write_coordinate(&coordinate)?;
 
@@ -207,8 +207,8 @@ impl OpenLrBinaryWriter {
         self.write_attributes(EncodedAttributes::from(*last_line))
     }
 
-    fn write_coordinate(&mut self, coordinate: &Coordinate) -> Result<(), EncodeError> {
-        let mut write_degrees = |degrees| -> Result<(), EncodeError> {
+    fn write_coordinate(&mut self, coordinate: &Coordinate) -> Result<(), SerializeError> {
+        let mut write_degrees = |degrees| -> Result<(), SerializeError> {
             let bytes = Coordinate::degrees_into_be_bytes(degrees);
             self.cursor.write_all(&bytes)?;
             Ok(())
@@ -222,8 +222,8 @@ impl OpenLrBinaryWriter {
         &mut self,
         coordinate: Coordinate,
         previous: Coordinate,
-    ) -> Result<Coordinate, EncodeError> {
-        let mut write_degrees = |degrees, previous| -> Result<(), EncodeError> {
+    ) -> Result<Coordinate, SerializeError> {
+        let mut write_degrees = |degrees, previous| -> Result<(), SerializeError> {
             let bytes = Coordinate::degrees_into_be_bytes_relative(degrees, previous);
             self.cursor.write_all(&bytes)?;
             Ok(())
@@ -234,7 +234,7 @@ impl OpenLrBinaryWriter {
         Ok(coordinate)
     }
 
-    fn write_attributes(&mut self, attributes: EncodedAttributes) -> Result<(), EncodeError> {
+    fn write_attributes(&mut self, attributes: EncodedAttributes) -> Result<(), SerializeError> {
         let fow = attributes.line.fow.into_byte();
         let frc = attributes.line.frc.into_byte();
         let bear = attributes.line.bear.try_into_byte()?;
@@ -245,25 +245,25 @@ impl OpenLrBinaryWriter {
         Ok(())
     }
 
-    fn write_dnp(&mut self, dnp: &Length) -> Result<(), EncodeError> {
+    fn write_dnp(&mut self, dnp: &Length) -> Result<(), SerializeError> {
         let dnp = dnp.dnp_into_byte();
         self.cursor.write_all(&[dnp])?;
         Ok(())
     }
 
-    fn write_radius(&mut self, radius: &Length) -> Result<(), EncodeError> {
+    fn write_radius(&mut self, radius: &Length) -> Result<(), SerializeError> {
         let radius = radius.radius_into_be_bytes();
         self.cursor.write_all(&radius)?;
         Ok(())
     }
 
-    fn write_offset(&mut self, offset: Offset) -> Result<(), EncodeError> {
+    fn write_offset(&mut self, offset: Offset) -> Result<(), SerializeError> {
         let offset = offset.try_into_byte()?;
         self.cursor.write_all(&[offset])?;
         Ok(())
     }
 
-    fn write_grid_size(&mut self, size: &GridSize) -> Result<(), EncodeError> {
+    fn write_grid_size(&mut self, size: &GridSize) -> Result<(), SerializeError> {
         let size = size.try_into_be_bytes()?;
         self.cursor.write_all(&size)?;
         Ok(())
@@ -276,12 +276,12 @@ mod tests {
     use crate::model::Offsets;
     use crate::{
         Bearing, Fow, Frc, LineAttributes, Orientation, PathAttributes, Point, SideOfRoad,
-        decode_base64_openlr,
+        deserialize_base64_openlr,
     };
 
     #[test]
-    fn openlr_encode_line_location_reference_001() {
-        assert_encoding_eq_decoding(LocationReference::Line(Line {
+    fn openlr_serialize_line_location_reference_001() {
+        assert_serde_eq(LocationReference::Line(Line {
             points: vec![
                 Point {
                     coordinate: Coordinate {
@@ -334,8 +334,8 @@ mod tests {
     }
 
     #[test]
-    fn openlr_encode_line_location_reference_002() {
-        assert_encoding_eq_decoding(LocationReference::Line(Line {
+    fn openlr_serialize_line_location_reference_002() {
+        assert_serde_eq(LocationReference::Line(Line {
             points: vec![
                 Point {
                     coordinate: Coordinate {
@@ -373,8 +373,8 @@ mod tests {
     }
 
     #[test]
-    fn openlr_encode_line_location_reference_003() {
-        assert_encoding_eq_decoding(LocationReference::Line(Line {
+    fn openlr_serialize_line_location_reference_003() {
+        assert_serde_eq(LocationReference::Line(Line {
             points: vec![
                 Point {
                     coordinate: Coordinate {
@@ -409,8 +409,8 @@ mod tests {
     }
 
     #[test]
-    fn openlr_encode_line_location_reference_004() {
-        assert_encoding_eq_decoding(LocationReference::Line(Line {
+    fn openlr_serialize_line_location_reference_004() {
+        assert_serde_eq(LocationReference::Line(Line {
             points: vec![
                 Point {
                     coordinate: Coordinate {
@@ -460,8 +460,8 @@ mod tests {
     }
 
     #[test]
-    fn openlr_encode_line_location_reference_005() {
-        assert_encoding_eq_decoding(LocationReference::Line(Line {
+    fn openlr_serialize_line_location_reference_005() {
+        assert_serde_eq(LocationReference::Line(Line {
             points: vec![
                 Point {
                     coordinate: Coordinate {
@@ -496,48 +496,48 @@ mod tests {
     }
 
     #[test]
-    fn openlr_encode_coordinate_location_reference_001() {
-        assert_encoding_eq_decoding(LocationReference::GeoCoordinate(Coordinate {
+    fn openlr_serialize_coordinate_location_reference_001() {
+        assert_serde_eq(LocationReference::GeoCoordinate(Coordinate {
             lon: -34.6089398,
             lat: -58.3732688,
         }));
     }
 
     #[test]
-    fn openlr_encode_coordinate_location_reference_002() {
-        assert_encoding_eq_decoding(LocationReference::GeoCoordinate(Coordinate {
+    fn openlr_serialize_coordinate_location_reference_002() {
+        assert_serde_eq(LocationReference::GeoCoordinate(Coordinate {
             lon: 52.4952185,
             lat: 13.4616744,
         }));
     }
 
     #[test]
-    fn openlr_encode_coordinate_location_reference_003() {
-        assert_encoding_eq_decoding(LocationReference::GeoCoordinate(Coordinate {
+    fn openlr_serialize_coordinate_location_reference_003() {
+        assert_serde_eq(LocationReference::GeoCoordinate(Coordinate {
             lon: 0.0,
             lat: 0.0,
         }));
     }
 
     #[test]
-    fn openlr_encode_coordinate_location_reference_004() {
-        assert_encoding_eq_decoding(LocationReference::GeoCoordinate(Coordinate {
+    fn openlr_serialize_coordinate_location_reference_004() {
+        assert_serde_eq(LocationReference::GeoCoordinate(Coordinate {
             lon: 52.49522,
             lat: -13.461675,
         }));
     }
 
     #[test]
-    fn openlr_encode_coordinate_location_reference_005() {
-        assert_encoding_eq_decoding(LocationReference::GeoCoordinate(Coordinate {
+    fn openlr_serialize_coordinate_location_reference_005() {
+        assert_serde_eq(LocationReference::GeoCoordinate(Coordinate {
             lon: -52.49522,
             lat: 13.461675,
         }));
     }
 
     #[test]
-    fn openlr_encode_point_along_line_location_reference_001() {
-        assert_encoding_eq_decoding(LocationReference::PointAlongLine(PointAlongLine {
+    fn openlr_serialize_point_along_line_location_reference_001() {
+        assert_serde_eq(LocationReference::PointAlongLine(PointAlongLine {
             points: [
                 Point {
                     coordinate: Coordinate {
@@ -574,8 +574,8 @@ mod tests {
     }
 
     #[test]
-    fn openlr_encode_point_along_line_location_reference_002() {
-        assert_encoding_eq_decoding(LocationReference::PointAlongLine(PointAlongLine {
+    fn openlr_serialize_point_along_line_location_reference_002() {
+        assert_serde_eq(LocationReference::PointAlongLine(PointAlongLine {
             points: [
                 Point {
                     coordinate: Coordinate {
@@ -612,8 +612,8 @@ mod tests {
     }
 
     #[test]
-    fn openlr_encode_poi_location_reference_001() {
-        assert_encoding_eq_decoding(LocationReference::Poi(Poi {
+    fn openlr_serialize_poi_location_reference_001() {
+        assert_serde_eq(LocationReference::Poi(Poi {
             point: PointAlongLine {
                 points: [
                     Point {
@@ -656,8 +656,8 @@ mod tests {
     }
 
     #[test]
-    fn openlr_encode_circle_location_reference_001() {
-        assert_encoding_eq_decoding(LocationReference::Circle(Circle {
+    fn openlr_serialize_circle_location_reference_001() {
+        assert_serde_eq(LocationReference::Circle(Circle {
             center: Coordinate {
                 lon: 5.1018512,
                 lat: 52.1059763,
@@ -667,8 +667,8 @@ mod tests {
     }
 
     #[test]
-    fn openlr_encode_circle_location_reference_002() {
-        assert_encoding_eq_decoding(LocationReference::Circle(Circle {
+    fn openlr_serialize_circle_location_reference_002() {
+        assert_serde_eq(LocationReference::Circle(Circle {
             center: Coordinate {
                 lon: -3.3115947,
                 lat: 55.9452903,
@@ -678,8 +678,8 @@ mod tests {
     }
 
     #[test]
-    fn openlr_encode_rectangle_location_reference_001() {
-        assert_encoding_eq_decoding(LocationReference::Rectangle(Rectangle {
+    fn openlr_serialize_rectangle_location_reference_001() {
+        assert_serde_eq(LocationReference::Rectangle(Rectangle {
             lower_left: Coordinate {
                 lon: 35.8215343,
                 lat: 26.0433590,
@@ -692,8 +692,8 @@ mod tests {
     }
 
     #[test]
-    fn openlr_encode_rectangle_location_reference_002() {
-        assert_encoding_eq_decoding(LocationReference::Rectangle(Rectangle {
+    fn openlr_serialize_rectangle_location_reference_002() {
+        assert_serde_eq(LocationReference::Rectangle(Rectangle {
             lower_left: Coordinate {
                 lon: 5.1000702,
                 lat: 52.1032083,
@@ -706,8 +706,8 @@ mod tests {
     }
 
     #[test]
-    fn openlr_encode_grid_location_reference_001() {
-        assert_encoding_eq_decoding(LocationReference::Grid(Grid {
+    fn openlr_serialize_grid_location_reference_001() {
+        assert_serde_eq(LocationReference::Grid(Grid {
             rect: Rectangle {
                 lower_left: Coordinate {
                     lon: -5.0989758,
@@ -726,8 +726,8 @@ mod tests {
     }
 
     #[test]
-    fn openlr_encode_grid_location_reference_002() {
-        assert_encoding_eq_decoding(LocationReference::Grid(Grid {
+    fn openlr_serialize_grid_location_reference_002() {
+        assert_serde_eq(LocationReference::Grid(Grid {
             rect: Rectangle {
                 lower_left: Coordinate {
                     lon: 5.0988042,
@@ -746,8 +746,8 @@ mod tests {
     }
 
     #[test]
-    fn openlr_encode_polygon_location_reference_001() {
-        assert_encoding_eq_decoding(LocationReference::Polygon(Polygon {
+    fn openlr_serialize_polygon_location_reference_001() {
+        assert_serde_eq(LocationReference::Polygon(Polygon {
             corners: vec![
                 Coordinate {
                     lon: 5.0993621,
@@ -770,8 +770,8 @@ mod tests {
     }
 
     #[test]
-    fn openlr_encode_closed_line_location_reference_001() {
-        assert_encoding_eq_decoding(LocationReference::ClosedLine(ClosedLine {
+    fn openlr_serialize_closed_line_location_reference_001() {
+        assert_serde_eq(LocationReference::ClosedLine(ClosedLine {
             points: vec![
                 Point {
                     coordinate: Coordinate {
@@ -812,9 +812,9 @@ mod tests {
         }));
     }
 
-    fn assert_encoding_eq_decoding(location: LocationReference) {
-        let encoded = encode_base64_openlr(&location).unwrap();
-        let decoded_location = decode_base64_openlr(&encoded).unwrap();
+    fn assert_serde_eq(location: LocationReference) {
+        let encoded = serialize_base64_openlr(&location).unwrap();
+        let decoded_location = deserialize_base64_openlr(&encoded).unwrap();
         assert_eq!(location, decoded_location);
     }
 }

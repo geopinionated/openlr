@@ -1,7 +1,7 @@
 use crate::model::Offsets;
 use crate::{
-    Bearing, Coordinate, DecodeError, EncodeError, Fow, Frc, GridSize, Length, LineAttributes,
-    Offset, Orientation, SideOfRoad,
+    Bearing, Coordinate, DeserializeError, Fow, Frc, GridSize, Length, LineAttributes, Offset,
+    Orientation, SerializeError, SideOfRoad,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -42,7 +42,7 @@ impl EncodedAttributes {
         self
     }
 
-    pub(crate) const fn lfrcnp(&self) -> Result<Frc, DecodeError> {
+    pub(crate) const fn lfrcnp(&self) -> Result<Frc, DeserializeError> {
         Frc::try_from_byte(self.lfrcnp_or_flags)
     }
 
@@ -54,17 +54,17 @@ impl EncodedAttributes {
         self.lfrcnp_or_flags & 0b01 != 0
     }
 
-    pub(crate) const fn orientation(&self) -> Result<Orientation, DecodeError> {
+    pub(crate) const fn orientation(&self) -> Result<Orientation, DeserializeError> {
         Orientation::try_from_byte(self.orientation_or_side)
     }
 
-    pub(crate) const fn side(&self) -> Result<SideOfRoad, DecodeError> {
+    pub(crate) const fn side(&self) -> Result<SideOfRoad, DeserializeError> {
         SideOfRoad::try_from_byte(self.orientation_or_side)
     }
 }
 
 impl Frc {
-    pub(crate) const fn try_from_byte(byte: u8) -> Result<Self, DecodeError> {
+    pub(crate) const fn try_from_byte(byte: u8) -> Result<Self, DeserializeError> {
         match byte {
             0 => Ok(Self::Frc0),
             1 => Ok(Self::Frc1),
@@ -74,7 +74,7 @@ impl Frc {
             5 => Ok(Self::Frc5),
             6 => Ok(Self::Frc6),
             7 => Ok(Self::Frc7),
-            _ => Err(DecodeError::InvalidFrc(byte)),
+            _ => Err(DeserializeError::InvalidFrc(byte)),
         }
     }
 
@@ -93,7 +93,7 @@ impl Frc {
 }
 
 impl Fow {
-    pub(crate) const fn try_from_byte(byte: u8) -> Result<Self, DecodeError> {
+    pub(crate) const fn try_from_byte(byte: u8) -> Result<Self, DeserializeError> {
         match byte {
             0 => Ok(Self::Undefined),
             1 => Ok(Self::Motorway),
@@ -103,7 +103,7 @@ impl Fow {
             5 => Ok(Self::TrafficSquare),
             6 => Ok(Self::SlipRoad),
             7 => Ok(Self::Other),
-            _ => Err(DecodeError::InvalidFow(byte)),
+            _ => Err(DeserializeError::InvalidFow(byte)),
         }
     }
 
@@ -192,10 +192,10 @@ impl Bearing {
         Self::from_degrees(degrees)
     }
 
-    pub(crate) fn try_into_byte(self) -> Result<u8, EncodeError> {
+    pub(crate) fn try_into_byte(self) -> Result<u8, SerializeError> {
         let degrees = self.degrees();
         if !(0..360).contains(&degrees) {
-            return Err(EncodeError::InvalidBearing(degrees));
+            return Err(SerializeError::InvalidBearing(degrees));
         }
 
         let bear = (degrees as f64 - Self::BEAR_SECTOR / 2.0) / Self::BEAR_SECTOR;
@@ -215,10 +215,10 @@ impl Offset {
     }
 
     /// Returns the bucket index corresponding to the given offset.
-    pub(crate) fn try_into_byte(self) -> Result<u8, EncodeError> {
+    pub(crate) fn try_into_byte(self) -> Result<u8, SerializeError> {
         let range = self.range();
         if !(0.0..1.0).contains(&range) {
-            return Err(EncodeError::InvalidOffset(range));
+            return Err(SerializeError::InvalidOffset(range));
         }
 
         let bucket = if range == 0.0 {
@@ -240,13 +240,13 @@ impl Offsets {
 }
 
 impl Orientation {
-    pub(crate) const fn try_from_byte(byte: u8) -> Result<Self, DecodeError> {
+    pub(crate) const fn try_from_byte(byte: u8) -> Result<Self, DeserializeError> {
         match byte {
             0 => Ok(Self::Unknown),
             1 => Ok(Self::Forward),
             2 => Ok(Self::Backward),
             3 => Ok(Self::Both),
-            _ => Err(DecodeError::InvalidOrientation(byte)),
+            _ => Err(DeserializeError::InvalidOrientation(byte)),
         }
     }
 
@@ -261,13 +261,13 @@ impl Orientation {
 }
 
 impl SideOfRoad {
-    pub(crate) const fn try_from_byte(byte: u8) -> Result<Self, DecodeError> {
+    pub(crate) const fn try_from_byte(byte: u8) -> Result<Self, DeserializeError> {
         match byte {
             0 => Ok(Self::OnRoadOrUnknown),
             1 => Ok(Self::Right),
             2 => Ok(Self::Left),
             3 => Ok(Self::Both),
-            _ => Err(DecodeError::InvalidSideOfRoad(byte)),
+            _ => Err(DeserializeError::InvalidSideOfRoad(byte)),
         }
     }
 
@@ -289,9 +289,9 @@ impl GridSize {
         Self { columns, rows }
     }
 
-    pub(crate) fn try_into_be_bytes(self) -> Result<[u8; 4], EncodeError> {
+    pub(crate) fn try_into_be_bytes(self) -> Result<[u8; 4], SerializeError> {
         if self.columns < 2 || self.rows < 2 {
-            return Err(EncodeError::InvalidGridSize);
+            return Err(SerializeError::InvalidGridSize);
         }
 
         let columns = u16::to_be_bytes(self.columns);
@@ -311,7 +311,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn openlr_encode_decode_degrees() {
+    fn openlr_binary_encode_decode_degrees() {
         let assert_degrees_relative_eq = |degrees| {
             let encoded = Coordinate::degrees_into_be_bytes(degrees);
             let decoded = Coordinate::degrees_from_be_bytes(encoded);
@@ -334,7 +334,7 @@ mod tests {
     }
 
     #[test]
-    fn openlr_encode_decode_relative_degrees() {
+    fn openlr_binary_encode_decode_relative_degrees() {
         let assert_degrees_relative_eq = |degrees, previous| {
             let encoded = Coordinate::degrees_into_be_bytes_relative(degrees, previous);
             let decoded = Coordinate::degrees_from_be_bytes_relative(encoded, previous);

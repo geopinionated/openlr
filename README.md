@@ -1,6 +1,6 @@
 # OpenLR Rust implementation
 
-Binary (and Base64) encoding/decoding of OpenLR Location References (version 3).
+Binary (and Base64) ser/deserialization of OpenLR Location References (version 3).
 
 [White Paper](https://download.tomtom.com/open/banners/openlr-whitepaper_v1.5.pdf)
 
@@ -10,13 +10,13 @@ Binary (and Base64) encoding/decoding of OpenLR Location References (version 3).
 ### Example
 
 ```rust
-use openlr::{Coordinate, LocationReference, decode_base64_openlr, encode_base64_openlr};
+use openlr::{Coordinate, LocationReference, deserialize_base64_openlr, serialize_base64_openlr};
 
 let location = LocationReference::GeoCoordinate(Coordinate {
     lon: 13.090918,
     lat: 52.466884,
 });
 
-let encoded: String = encode_base64_openlr(&location).unwrap();
-let decoded: LocationReference = decode_base64_openlr(&encoded).unwrap();
+let encoded: String = serialize_base64_openlr(&location).unwrap();
+let decoded: LocationReference = deserialize_base64_openlr(&encoded).unwrap();
 ```
