@@ -18,6 +18,7 @@ thiserror = "2.0"
 # dev-dependencies
 geo = "0.30"
 geojson = "0.24"
+graph = "0.3"
 rstar = "0.12"
 strum = { version = "0.27", features = ["derive"] }
-typed-index-collections = "3.3"
+#typed-index-collections = "3.3"

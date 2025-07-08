@@ -2,11 +2,11 @@ use std::collections::HashMap;
 use std::str::FromStr;
 
 use geojson::{Feature, FeatureCollection, Value};
-use openlr::decoder_graph::{Edge, EdgeId, NetworkGraph, NetworkNode, Vertex, VertexId};
-use openlr::{Coordinate, Fow, Frc, Graph, Length, decode_base64_openlr};
+use graph::prelude::DirectedNeighborsWithValues;
+use openlr::decoder_graph::{EdgeId, NetworkGraph, NetworkNode, VertexId};
+use openlr::{Coordinate, EdgeProperty, Fow, Frc, Graph, Length, decode_base64_openlr};
 use rstar::RTree;
 use strum::IntoEnumIterator;
-use typed_index_collections::ti_vec;
 
 type NodeId = i64;
 type LineId = i64;
@@ -59,21 +59,21 @@ fn geojson_graph_nearest_neighbours() {
     };
 
     let neighbours: Vec<VertexId> = graph
-        .nearest_neighbours_within_distance(node_75_location, Length::from_meters(9))
+        .nearest_vertices_within_distance(node_75_location, Length::from_meters(9))
         .collect();
     println!("{neighbours:?}");
 
     assert_eq!(
         neighbours,
         [
-            VertexId(75 - 1),
-            VertexId(140 - 1),
-            VertexId(138 - 1),
-            VertexId(139 - 1),
-            VertexId(59 - 1),
-            VertexId(72 - 1),
-            VertexId(73 - 1),
-            VertexId(74 - 1)
+            VertexId(75),
+            VertexId(140),
+            VertexId(138),
+            VertexId(139),
+            VertexId(59),
+            VertexId(72),
+            VertexId(73),
+            VertexId(74)
         ]
     );
 }
@@ -82,50 +82,131 @@ fn geojson_graph_nearest_neighbours() {
 fn graph_into_directed() {
     let geojson = include_str!("data/graph.geojson");
     let geojson_graph = GeojsonGraph::parse_geojson(geojson);
-
     let graph: NetworkGraph = geojson_graph.into_network_graph();
 
-    let vertex = &graph.vertices[VertexId(1 - 1)];
+    let get_exiting_edges = |vertex| {
+        let mut edges = graph
+            .vertex_exiting_edges(vertex)
+            .map(|(edge, vertex_to)| (graph.get_edge_property(edge).cloned().unwrap(), vertex_to))
+            .collect::<Vec<_>>();
+        edges.sort_unstable_by_key(|(_, v)| *v);
+        edges
+    };
+
+    let get_entering_edges = |vertex| {
+        let mut edges = graph
+            .vertex_entering_edges(vertex)
+            .map(|(edge, vertex_to)| (graph.get_edge_property(edge).cloned().unwrap(), vertex_to))
+            .collect::<Vec<_>>();
+        edges.sort_unstable_by_key(|(_, v)| *v);
+        edges
+    };
+
+    assert_eq!(graph.vertex_entering_edges(VertexId(1)).count(), 0);
     assert_eq!(
-        vertex.edges,
-        vec![Edge {
-            id: EdgeId(16218 - 1),
-            cost: Length::from_meters(217),
-            vertex_to: VertexId(2 - 1)
-        }]
+        get_exiting_edges(VertexId(1)),
+        vec![(
+            EdgeProperty {
+                id: EdgeId(16218),
+                cost: Length::from_meters(217),
+                frc: Frc::Frc2,
+                fow: Fow::SingleCarriageway,
+            },
+            VertexId(2)
+        )]
     );
 
-    let vertex = &graph.vertices[VertexId(126 - 1)];
     assert_eq!(
-        vertex.edges,
+        get_entering_edges(VertexId(126)),
         vec![
-            Edge {
-                id: EdgeId(8323953 - 1),
-                cost: Length::from_meters(16),
-                vertex_to: VertexId(127 - 1)
-            },
-            Edge {
-                id: EdgeId(8323959 - 1),
-                cost: Length::from_meters(11),
-                vertex_to: VertexId(129 - 1)
-            }
+            (
+                EdgeProperty {
+                    id: EdgeId(8323953),
+                    cost: Length::from_meters(16),
+                    frc: Frc::Frc6,
+                    fow: Fow::SingleCarriageway,
+                },
+                VertexId(127)
+            ),
+            (
+                EdgeProperty {
+                    id: EdgeId(8323959),
+                    cost: Length::from_meters(11),
+                    frc: Frc::Frc6,
+                    fow: Fow::SingleCarriageway,
+                },
+                VertexId(129)
+            )
+        ]
+    );
+    assert_eq!(
+        get_exiting_edges(VertexId(126)),
+        vec![
+            (
+                EdgeProperty {
+                    id: EdgeId(8323953),
+                    cost: Length::from_meters(16),
+                    frc: Frc::Frc6,
+                    fow: Fow::SingleCarriageway,
+                },
+                VertexId(127)
+            ),
+            (
+                EdgeProperty {
+                    id: EdgeId(8323959),
+                    cost: Length::from_meters(11),
+                    frc: Frc::Frc6,
+                    fow: Fow::SingleCarriageway,
+                },
+                VertexId(129)
+            )
         ]
     );
 
-    let vertex = &graph.vertices[VertexId(134 - 1)];
     assert_eq!(
-        vertex.edges,
+        get_entering_edges(VertexId(134)),
         vec![
-            Edge {
-                id: EdgeId(8345025 - 1),
-                cost: Length::from_meters(199),
-                vertex_to: VertexId(134 - 1)
-            },
-            Edge {
-                id: EdgeId(8345026 - 1),
-                cost: Length::from_meters(31),
-                vertex_to: VertexId(123 - 1)
-            }
+            (
+                EdgeProperty {
+                    id: EdgeId(8345026),
+                    cost: Length::from_meters(31),
+                    frc: Frc::Frc6,
+                    fow: Fow::SingleCarriageway,
+                },
+                VertexId(123)
+            ),
+            (
+                EdgeProperty {
+                    id: EdgeId(8345025),
+                    cost: Length::from_meters(199),
+                    frc: Frc::Frc6,
+                    fow: Fow::SingleCarriageway,
+                },
+                VertexId(134)
+            )
+        ]
+    );
+    assert_eq!(
+        get_exiting_edges(VertexId(134)),
+        vec![
+            (
+                EdgeProperty {
+                    id: EdgeId(8345026),
+                    cost: Length::from_meters(31),
+                    frc: Frc::Frc6,
+                    fow: Fow::SingleCarriageway,
+                },
+                VertexId(123)
+            ),
+            (
+                EdgeProperty {
+                    id: EdgeId(8345025),
+                    cost: Length::from_meters(199),
+                    frc: Frc::Frc6,
+                    fow: Fow::SingleCarriageway,
+                },
+                VertexId(134)
+            )
         ]
     );
 }
@@ -283,11 +364,71 @@ impl GeojsonGraph {
     }
 
     fn into_network_graph(self) -> NetworkGraph {
-        let mut graph = NetworkGraph {
-            vertices: ti_vec![Vertex::default(); self.nodes.len()],
-            geospatial_rtree: RTree::default(),
-        };
+        let edge_properties = self
+            .lines
+            .iter()
+            .map(|(&line_id, line)| {
+                let edge_id: usize = line_id.try_into().unwrap();
+                let edge_id: EdgeId = edge_id.into();
 
+                let property = EdgeProperty {
+                    id: edge_id,
+                    cost: Length::from_meters(line.length),
+                    frc: line.frc,
+                    fow: line.fow,
+                };
+
+                (edge_id, property)
+            })
+            .collect();
+
+        let edges: Vec<(usize, usize, EdgeProperty<_>)> = self
+            .nodes
+            .iter()
+            .flat_map(|(&from_id, node)| {
+                let from_id: usize = from_id.try_into().unwrap();
+
+                node.lines
+                    .iter()
+                    .map(|&(line_id, to_id)| {
+                        let to_id: usize = to_id.try_into().unwrap();
+                        let edge_id: usize = line_id.try_into().unwrap();
+
+                        let line = self.lines.get(&line_id).unwrap();
+                        let property = EdgeProperty {
+                            id: EdgeId(edge_id),
+                            cost: Length::from_meters(line.length),
+                            frc: line.frc,
+                            fow: line.fow,
+                        };
+
+                        (to_id, property)
+                    })
+                    .map(move |(to_id, property)| (from_id, to_id, property))
+            })
+            .collect();
+
+        let nodes: Vec<NetworkNode> = self
+            .nodes
+            .iter()
+            .map(|(&from_id, node)| {
+                let vertex: usize = from_id.try_into().unwrap();
+                NetworkNode {
+                    vertex: vertex.into(),
+                    location: node.location,
+                }
+            })
+            .collect();
+
+        NetworkGraph {
+            geospatial_rtree: RTree::bulk_load(nodes),
+            network: graph::prelude::GraphBuilder::new()
+                .edges_with_values(edges)
+                .build(),
+            edge_properties,
+        }
+
+        /*
         for (&node_id, node) in &self.nodes {
             let vertex_id: usize = node_id.try_into().unwrap();
             let vertex_id: VertexId = (vertex_id - 1).into();
@@ -320,7 +461,6 @@ impl GeojsonGraph {
                 });
             }
         }
-
-        graph
+        */
     }
 }

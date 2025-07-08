@@ -1,15 +1,36 @@
 use std::fmt::Debug;
+use std::hash::Hash;
 
-use crate::{Coordinate, Length};
+use crate::{Coordinate, Fow, Frc, Length};
 
-/// TODO
-/// Geo-spatial index + Road Network Graph
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct EdgeProperty<W> {
+    pub id: W,
+    pub cost: Length, // TODO: f64?
+    pub frc: Frc,
+    pub fow: Fow,
+}
+
+/// Geospatial index + Road Network Graph
 pub trait Graph {
-    type Node: Debug;
+    type EdgeId: Debug + Copy + Ord;
+    type VertexId: Debug + Copy + Ord + Hash + Eq;
 
-    fn nearest_neighbours_within_distance(
+    fn get_edge_property(&self, edge: Self::EdgeId) -> Option<&EdgeProperty<Self::EdgeId>>;
+
+    fn vertex_exiting_edges(
+        &self,
+        vertex: Self::VertexId,
+    ) -> impl Iterator<Item = (Self::EdgeId, Self::VertexId)>;
+
+    fn vertex_entering_edges(
+        &self,
+        vertex: Self::VertexId,
+    ) -> impl Iterator<Item = (Self::EdgeId, Self::VertexId)>;
+
+    fn nearest_vertices_within_distance(
         &self,
         coordinate: Coordinate,
         max_distance: Length,
-    ) -> impl Iterator<Item = Self::Node>;
+    ) -> impl Iterator<Item = Self::VertexId>;
 }

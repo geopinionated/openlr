@@ -3,9 +3,10 @@ use std::collections::{BinaryHeap, HashMap};
 use std::vec;
 
 use geo::{Distance, Haversine};
+use graph::prelude::{DirectedCsrGraph, DirectedNeighborsWithValues};
 use rstar::RTree;
-use typed_index_collections::TiVec;
 
+use crate::graph::EdgeProperty;
 use crate::{Coordinate, Graph, Length};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -14,10 +15,12 @@ pub struct VertexId(pub usize);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct EdgeId(pub usize);
 
-#[derive(Debug, Default)]
+//#[derive(Debug, Default)]
 pub struct NetworkGraph {
-    pub vertices: TiVec<VertexId, Vertex>,
+    // TODO: VertexID instead of usize? Store edge ID instead of property + Map<EdgeID, EdgeProperty>?
+    pub network: DirectedCsrGraph<usize, (), EdgeProperty<EdgeId>>,
     pub geospatial_rtree: RTree<NetworkNode>,
+    pub edge_properties: HashMap<EdgeId, EdgeProperty<EdgeId>>,
 }
 
 #[derive(Debug)]
@@ -44,13 +47,36 @@ impl rstar::PointDistance for NetworkNode {
 }
 
 impl Graph for NetworkGraph {
-    type Node = VertexId;
+    type EdgeId = EdgeId;
+    type VertexId = VertexId;
 
-    fn nearest_neighbours_within_distance(
+    fn get_edge_property(&self, edge: Self::EdgeId) -> Option<&EdgeProperty<Self::EdgeId>> {
+        self.edge_properties.get(&edge)
+    }
+
+    fn vertex_exiting_edges(
+        &self,
+        vertex: Self::VertexId,
+    ) -> impl Iterator<Item = (Self::EdgeId, Self::VertexId)> {
+        self.network
+            .out_neighbors_with_values(vertex.0)
+            .map(|item| (item.value.id, VertexId(item.target)))
+    }
+
+    fn vertex_entering_edges(
+        &self,
+        vertex: Self::VertexId,
+    ) -> impl Iterator<Item = (Self::EdgeId, Self::VertexId)> {
+        self.network
+            .in_neighbors_with_values(vertex.0)
+            .map(|item| (item.value.id, VertexId(item.target)))
+    }
+
+    fn nearest_vertices_within_distance(
         &self,
         coordinate: crate::Coordinate,
         max_distance: Length,
-    ) -> impl Iterator<Item = Self::Node> {
+    ) -> impl Iterator<Item = Self::VertexId> {
         let max_distance_2: f64 = (max_distance.meters() * max_distance.meters()) as f64;
         let point = geo::Point::new(coordinate.lon, coordinate.lat);
 
@@ -98,42 +124,6 @@ impl From<EdgeId> for usize {
     }
 }
 
-impl NetworkGraph {
-    // Build graph from undirected edges
-    // There could be multiple edges between same pair of vertices
-    pub fn new(edges: impl AsRef<[(VertexId, VertexId)]>) -> Self {
-        //let edges = edges.as_ref();
-        //let max_vertex_id = *edges
-        //    .iter()
-        //    .map(|(v1, v2)| v1.max(v2))
-        //    .max()
-        //    .expect("Must have at least 1 edge");
-        //
-        //let number_of_vertices = usize::from(max_vertex_id) + 1;
-        //let number_of_edges = edges.len();
-        //let mut vertices: TiVec<_, _> = vec![Vertex { edges: vec![] }; number_of_vertices].into();
-        //
-        //for (edge_index, &(v1, v2)) in edges.iter().enumerate() {
-        //    let edge_id: EdgeId = edge_index.into();
-        //
-        //    vertices[v1].edges.push((edge_id, v2));
-        //    vertices[v2].edges.push((edge_id, v1));
-        //}
-        //
-        //// sort by vertex_to to have stability
-        //vertices
-        //    .iter_mut()
-        //    .for_each(|v| v.edges.sort_unstable_by_key(|e| (e.1, e.0)));
-        //
-        //Self {
-        //    vertices,
-        //    //number_of_edges,
-        //}
-
-        todo!()
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct State {
     cost: Length, // current best cost from origin to this vertex
@@ -163,9 +153,9 @@ pub struct ShortestPath {
 
 impl NetworkGraph {
     fn shortest_path(&self, origin: VertexId, destination: VertexId) -> Option<ShortestPath> {
-        if self.vertices.get(origin).is_none() || self.vertices.get(destination).is_none() {
-            return None;
-        }
+        //if self.vertices.get(origin).is_none() || self.vertices.get(destination).is_none() {
+        //    return None;
+        //}
 
         // best_cost_from_origin[node]: represents the current known shortest distance from origin to node
         let mut best_cost_from_origin: HashMap<VertexId, Length> = HashMap::new();
@@ -208,17 +198,24 @@ impl NetworkGraph {
                 continue;
             }
 
-            let edges = &self.vertices[state.vertex].edges;
-            for edge in edges {
+            //let edges = &self.vertices[state.vertex].edges;
+            let out_vertices: Vec<_> = self
+                .network
+                .out_neighbors_with_values(state.vertex.0)
+                .map(|item| (VertexId(item.target), item.value))
+                .collect();
+
+            for (vertex_to, edge) in out_vertices {
+                //let EdgeProperty { cost, frc, fow } = self.edge_properties.get(edge).unwrap();
                 let cost_from_origin = state.cost + edge.cost;
                 let best_origin_to_neighbor_cost = *best_cost_from_origin
-                    .get(&edge.vertex_to)
+                    .get(&vertex_to)
                     .unwrap_or(&Length::MAX);
 
                 // check if we can follow the current path to reach the neighbor in a cheaper way
                 if cost_from_origin < best_origin_to_neighbor_cost {
                     let neighbor = State {
-                        vertex: edge.vertex_to,
+                        vertex: vertex_to,
                         cost: cost_from_origin,
                     };
 

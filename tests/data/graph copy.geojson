@@ -270,8 +270,7 @@
     {
       "type": "Feature",
       "properties": {
-        "id": 20,
-        "marker-color": "red"
+        "id": 20
       },
       "geometry": {
         "type": "Point",
@@ -943,8 +942,7 @@
     {
       "type": "Feature",
       "properties": {
-        "id": 68,
-        "marker-color": "green"
+        "id": 68
       },
       "geometry": {
         "type": "Point",
@@ -1756,7 +1754,8 @@
     {
       "type": "Feature",
       "properties": {
-        "id": 126
+        "id": 126,
+        "marker-color": "red"
       },
       "geometry": {
         "type": "Point",
@@ -1868,7 +1867,8 @@
     {
       "type": "Feature",
       "properties": {
-        "id": 134
+        "id": 134,
+        "marker-color": "red"
       },
       "geometry": {
         "type": "Point",
