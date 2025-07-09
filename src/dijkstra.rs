@@ -69,9 +69,9 @@ where
         }
 
         for (edge, vertex_to) in graph.vertex_exiting_edges(state.vertex) {
-            let edge = graph.get_edge_properties(edge)?;
+            let edge_length = graph.get_edge_length(edge)?;
 
-            let cost_from_origin = state.distance + edge.length;
+            let cost_from_origin = state.distance + edge_length;
 
             let best_origin_to_neighbor_cost = *best_cost_from_origin
                 .get(&vertex_to)

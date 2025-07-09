@@ -1,12 +1,8 @@
-use std::collections::HashMap;
-use std::path;
-
-use base64::engine::Config;
 use thiserror::Error;
 
 use crate::{
-    DeserializeError, EdgeProperty, Fow, Frc, Graph, Length, Line, LocationReference, Orientation,
-    Poi, Point, Rating, deserialize_base64_openlr,
+    DeserializeError, Fow, Frc, Graph, Length, Line, LocationReference, Orientation, Point,
+    deserialize_base64_openlr,
 };
 
 #[derive(Error, Debug, PartialEq, Clone, Copy)]
@@ -170,15 +166,9 @@ fn rate_line<G>(
 where
     G: Graph,
 {
-    let EdgeProperty {
-        id,
-        length,
-        frc,
-        fow,
-    } = graph
-        .get_edge_properties(edge)
-        .expect("Every edge that belongs to the graph should have properties");
-    assert_eq!(*id, edge);
+    let frc = graph.get_edge_frc(edge).unwrap();
+    let fow = graph.get_edge_fow(edge).unwrap();
+    let length = graph.get_edge_length(edge).unwrap();
 
     println!(
         "last? {} {node:?} {edge:?} {distance:.2?}m {frc:?} {fow:?} {length:?}",
@@ -192,7 +182,7 @@ where
 
     // compute rating
     let (orientation, projection_length) = if point.is_last() {
-        (Orientation::Backward, *length)
+        (Orientation::Backward, length)
     } else {
         (Orientation::Forward, Length::ZERO)
     };
@@ -202,7 +192,7 @@ where
 
     // Determine whether to apply the non-junction node factor to the node score
     // Only apply the non-junction node factor when the LRP matches a node and not a line directly
-    let is_junction = if projection_length > Length::ZERO && projection_length < *length {
+    let is_junction = if projection_length > Length::ZERO && projection_length < length {
         panic!("when can this be true?");
         false
     } else {

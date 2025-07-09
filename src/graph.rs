@@ -1,15 +1,7 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 
-use crate::{Bearing, Coordinate, Fow, Frc, Length};
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct EdgeProperty<EdgeId> {
-    pub id: EdgeId, // TODO: this should not be needed
-    pub length: Length,
-    pub frc: Frc,
-    pub fow: Fow,
-}
+use crate::{Coordinate, Fow, Frc, Length};
 
 /// Geospatial index + Road Network Graph
 pub trait Graph {
@@ -17,9 +9,10 @@ pub trait Graph {
     type EdgeId: Debug + Copy + Ord;
     //type Meter: Debug + Copy + Ord + Default + From<f64> + Into<f64>;
 
-    // TODO many methods for each property?
-    // get_cost(), get_frc(), etc..
-    fn get_edge_properties(&self, edge: Self::EdgeId) -> Option<&EdgeProperty<Self::EdgeId>>;
+    fn get_edge_length(&self, edge: Self::EdgeId) -> Option<Length>;
+    fn get_edge_frc(&self, edge: Self::EdgeId) -> Option<Frc>;
+    fn get_edge_fow(&self, edge: Self::EdgeId) -> Option<Fow>;
+    fn get_edge_coordinates(&self, edge: Self::EdgeId) -> impl Iterator<Item = Coordinate>;
 
     fn vertex_exiting_edges(
         &self,

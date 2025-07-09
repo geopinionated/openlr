@@ -1,11 +1,10 @@
 use std::collections::HashMap;
 
-use geo::{Distance, Haversine};
+use geo::{Distance, Haversine, LineString};
 use graph::prelude::{DirectedCsrGraph, DirectedNeighborsWithValues};
 use rstar::RTree;
 
-use crate::graph::EdgeProperty;
-use crate::{Coordinate, Graph, Length};
+use crate::{Coordinate, Fow, Frc, Graph, Length};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct VertexId(pub usize);
@@ -13,12 +12,21 @@ pub struct VertexId(pub usize);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct EdgeId(pub usize);
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct EdgeProperty {
+    pub id: EdgeId, // TODO: this should not be needed
+    pub length: Length,
+    pub frc: Frc,
+    pub fow: Fow,
+    pub geometry: Vec<Coordinate>,
+}
+
 //#[derive(Debug, Default)]
 pub struct NetworkGraph {
-    // TODO: VertexID instead of usize? Store edge ID instead of property + Map<EdgeID, EdgeProperty>?
+    // TODO: VertexID instead of usize?
     pub network: DirectedCsrGraph<usize, (), EdgeId>,
     pub geospatial_rtree: RTree<NetworkNode>,
-    pub edge_properties: HashMap<EdgeId, EdgeProperty<EdgeId>>,
+    pub edge_properties: HashMap<EdgeId, EdgeProperty>,
 }
 
 #[derive(Debug)]
@@ -48,8 +56,28 @@ impl Graph for NetworkGraph {
     type EdgeId = EdgeId;
     type VertexId = VertexId;
 
-    fn get_edge_properties(&self, edge: Self::EdgeId) -> Option<&EdgeProperty<Self::EdgeId>> {
-        self.edge_properties.get(&edge)
+    fn get_edge_length(&self, edge: Self::EdgeId) -> Option<Length> {
+        self.edge_properties
+            .get(&edge)
+            .map(|properties| properties.length)
+    }
+    fn get_edge_frc(&self, edge: Self::EdgeId) -> Option<Frc> {
+        self.edge_properties
+            .get(&edge)
+            .map(|properties| properties.frc)
+    }
+
+    fn get_edge_fow(&self, edge: Self::EdgeId) -> Option<Fow> {
+        self.edge_properties
+            .get(&edge)
+            .map(|properties| properties.fow)
+    }
+
+    fn get_edge_coordinates(&self, edge: Self::EdgeId) -> impl Iterator<Item = Coordinate> {
+        self.edge_properties
+            .get(&edge)
+            .into_iter()
+            .flat_map(|properties| properties.geometry.iter().copied())
     }
 
     fn vertex_exiting_edges(
