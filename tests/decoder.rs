@@ -3,7 +3,7 @@ use std::str::FromStr;
 
 use geojson::{Feature, FeatureCollection, Value};
 use openlr::decoder_graph::{EdgeId, EdgeProperty, NetworkGraph, NetworkNode, VertexId};
-use openlr::{Coordinate, Fow, Frc, Graph, Length, decode_base64_openlr};
+use openlr::{Bearing, Coordinate, Fow, Frc, Graph, Length, decode_base64_openlr};
 use rstar::RTree;
 use strum::IntoEnumIterator;
 
@@ -14,7 +14,7 @@ type LineId = i64;
 struct Node {
     id: NodeId,
     location: Coordinate,
-    lines: Vec<(LineId, NodeId)>, // outgoing
+    lines: Vec<(LineId, NodeId)>, // outgoing, negative ID if reversed
 }
 
 #[derive(Debug)]
@@ -68,10 +68,68 @@ fn graph_connected_vertices() {
 }
 
 #[test]
+fn graph_edge_bearing() {
+    let geojson = include_str!("data/graph.geojson");
+    let geojson_graph = GeojsonGraph::parse_geojson(geojson);
+    let graph: NetworkGraph = geojson_graph.into_network_graph();
+
+    let mut outgoing: Vec<_> = graph.vertex_exiting_edges(VertexId(68)).collect();
+    outgoing.sort_unstable_by_key(|(_, v)| *v);
+    assert_eq!(
+        outgoing,
+        vec![
+            (EdgeId(-5359425), VertexId(12)),
+            (EdgeId(5359426), VertexId(60)),
+            (EdgeId(-4925291), VertexId(67)),
+            (EdgeId(8717174), VertexId(95)),
+        ]
+    );
+
+    assert_eq!(
+        graph.get_edge_bearing(EdgeId(-5359425)).unwrap(),
+        Bearing::from_degrees(17)
+    );
+    assert_eq!(
+        graph.get_edge_bearing(EdgeId(5359425)).unwrap(),
+        Bearing::from_degrees(17 + 180)
+    );
+
+    assert_eq!(
+        graph.get_edge_bearing(EdgeId(8717174)).unwrap(),
+        Bearing::from_degrees(106)
+    );
+
+    assert_eq!(
+        graph.get_edge_bearing(EdgeId(5359426)).unwrap(),
+        Bearing::from_degrees(197)
+    );
+
+    assert_eq!(
+        graph.get_edge_bearing(EdgeId(-4925291)).unwrap(),
+        Bearing::from_degrees(286)
+    );
+}
+
+#[test]
 fn graph_edge_coordinates() {
     let geojson = include_str!("data/graph.geojson");
     let geojson_graph = GeojsonGraph::parse_geojson(geojson);
     let graph: NetworkGraph = geojson_graph.into_network_graph();
+
+    let geometry: Vec<_> = graph.get_edge_coordinates(EdgeId(5359425)).collect();
+    assert_eq!(
+        geometry,
+        vec![
+            Coordinate {
+                lon: 13.4615934,
+                lat: 52.5180374
+            },
+            Coordinate {
+                lon: 13.4611206,
+                lat: 52.5170944
+            }
+        ]
+    );
 
     let geometry: Vec<_> = graph.get_edge_coordinates(EdgeId(8717174)).collect();
     assert_eq!(
@@ -174,7 +232,7 @@ fn geojson_graph_into_network_graph() {
             .vertex_entering_edges(vertex)
             .map(|(edge, vertex_to)| {
                 (
-                    edge,
+                    dbg!(edge),
                     graph.get_edge_length(edge).unwrap(),
                     graph.get_edge_frc(edge).unwrap(),
                     graph.get_edge_fow(edge).unwrap(),
@@ -202,7 +260,7 @@ fn geojson_graph_into_network_graph() {
         get_entering_edges(VertexId(126)),
         vec![
             (
-                EdgeId(8323953),
+                EdgeId(-8323953),
                 Length::from_meters(16),
                 Frc::Frc6,
                 Fow::SingleCarriageway,
@@ -228,7 +286,7 @@ fn geojson_graph_into_network_graph() {
                 VertexId(127)
             ),
             (
-                EdgeId(8323959),
+                EdgeId(-8323959),
                 Length::from_meters(11),
                 Frc::Frc6,
                 Fow::SingleCarriageway,
@@ -241,7 +299,7 @@ fn geojson_graph_into_network_graph() {
         get_entering_edges(VertexId(134)),
         vec![
             (
-                EdgeId(8345026),
+                EdgeId(-8345026),
                 Length::from_meters(31),
                 Frc::Frc6,
                 Fow::SingleCarriageway,
@@ -305,15 +363,18 @@ fn geojson_graph() {
 
     let node = graph.nodes.get(&2).unwrap();
     assert_eq!(node.id, 2);
-    assert_eq!(node.lines, vec![(16219, 3), (3622025, 58)]);
+    assert_eq!(node.lines, vec![(16219, 3), (-3622025, 58)]);
 
     let node = graph.nodes.get(&29).unwrap();
     assert_eq!(node.id, 29);
-    assert_eq!(node.lines, vec![(580854, 30), (2711304, 51), (2711305, 48)]);
+    assert_eq!(
+        node.lines,
+        vec![(580854, 30), (-2711304, 51), (2711305, 48)]
+    );
 
     let node = graph.nodes.get(&126).unwrap();
     assert_eq!(node.id, 126);
-    assert_eq!(node.lines, vec![(8323953, 127), (8323959, 129)]);
+    assert_eq!(node.lines, vec![(8323953, 127), (-8323959, 129)]);
 
     let line = graph.lines.get(&8323959).unwrap();
     assert_eq!(line.id, 8323959);
@@ -406,10 +467,18 @@ impl GeojsonGraph {
                 let node = graph.nodes.get_mut(&start_id).unwrap();
                 node.lines.push((id, end_id));
 
+                if start_id == 68 {
+                    println!("START {start_id}->{end_id}");
+                }
+
                 if direction == 1 && start_id != end_id {
+                    if end_id == 68 {
+                        println!("END {start_id}->{end_id}");
+                    }
+
                     // both directions
                     let node = graph.nodes.get_mut(&end_id).unwrap();
-                    node.lines.push((id, start_id));
+                    node.lines.push((-id, start_id));
                 }
 
                 let line = Line {
@@ -434,18 +503,20 @@ impl GeojsonGraph {
             .lines
             .iter()
             .map(|(&line_id, line)| {
-                let edge_id: usize = line_id.try_into().unwrap();
-                let edge_id: EdgeId = edge_id.into();
+                //let edge_id: usize = line_id.try_into().unwrap();
+                if line_id == -8323953 {
+                    panic!();
+                }
 
                 let property = EdgeProperty {
-                    id: edge_id,
+                    id: EdgeId(line_id),
                     length: Length::from_meters(line.length),
                     frc: line.frc,
                     fow: line.fow,
                     geometry: line.geometry.clone(),
                 };
 
-                (edge_id, property)
+                (EdgeId(line_id), property)
             })
             .collect();
 
@@ -455,10 +526,15 @@ impl GeojsonGraph {
             .flat_map(|(&from_id, node)| {
                 let from_id: usize = from_id.try_into().unwrap();
 
+                if node.id == 68 {
+                    println!("LINES {:?}", node.lines);
+                    //panic!();
+                }
+
                 node.lines.iter().map(move |&(line_id, to_id)| {
                     let to_id: usize = to_id.try_into().unwrap();
-                    let edge_id: usize = line_id.try_into().unwrap();
-                    (from_id, to_id, EdgeId(edge_id))
+                    //let edge_id: usize = line_id.try_into().unwrap();
+                    (from_id, to_id, EdgeId(line_id))
                 })
             })
             .collect();
@@ -482,40 +558,5 @@ impl GeojsonGraph {
                 .build(),
             edge_properties,
         }
-
-        /*
-        for (&node_id, node) in &self.nodes {
-            let vertex_id: usize = node_id.try_into().unwrap();
-            let vertex_id: VertexId = (vertex_id - 1).into();
-
-            graph.geospatial_rtree.insert(NetworkNode {
-                vertex: vertex_id,
-                location: node.location,
-            });
-
-            let vertex = &mut graph.vertices[vertex_id];
-
-            for &(line_id, node_id_to) in &node.lines {
-                let line = self.lines.get(&line_id).unwrap();
-                //if line.direction == 2 {
-                //    assert_eq!(node_id, line.start_id);
-                //} else if line.direction == 3 {
-                //    assert_eq!(node_id, line.end_id);
-                //}
-
-                let edge_id: usize = line_id.try_into().unwrap();
-                let edge_id: EdgeId = (edge_id - 1).into();
-
-                let vertex_to: usize = node_id_to.try_into().unwrap();
-                let vertex_to: VertexId = (vertex_to - 1).into();
-
-                vertex.edges.push(Edge {
-                    id: edge_id,
-                    cost: Length::from_meters(line.length),
-                    vertex_to,
-                });
-            }
-        }
-        */
     }
 }

@@ -1785,7 +1785,8 @@
     {
       "type": "Feature",
       "properties": {
-        "id": 126
+        "id": 126,
+        "marker-color": "yellow"
       },
       "geometry": {
         "type": "Point",

@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 
-use crate::{Coordinate, Fow, Frc, Length};
+use crate::{Bearing, Coordinate, Fow, Frc, Length};
 
 /// Geospatial index + Road Network Graph
 pub trait Graph {
@@ -13,6 +13,7 @@ pub trait Graph {
     fn get_edge_frc(&self, edge: Self::EdgeId) -> Option<Frc>;
     fn get_edge_fow(&self, edge: Self::EdgeId) -> Option<Fow>;
     fn get_edge_coordinates(&self, edge: Self::EdgeId) -> impl Iterator<Item = Coordinate>;
+    fn get_edge_bearing(&self, edge: Self::EdgeId) -> Option<Bearing>;
 
     fn vertex_exiting_edges(
         &self,

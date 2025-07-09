@@ -1,16 +1,22 @@
 use std::collections::HashMap;
 
-use geo::{Distance, Haversine, LineString};
+use geo::{Distance, Haversine};
 use graph::prelude::{DirectedCsrGraph, DirectedNeighborsWithValues};
 use rstar::RTree;
 
-use crate::{Coordinate, Fow, Frc, Graph, Length};
+use crate::{Bearing, Coordinate, Fow, Frc, Graph, Length};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct VertexId(pub usize);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct EdgeId(pub usize);
+pub struct EdgeId(pub i64);
+
+impl EdgeId {
+    pub fn is_reversed(&self) -> bool {
+        self.0.is_negative()
+    }
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct EdgeProperty {
@@ -58,26 +64,52 @@ impl Graph for NetworkGraph {
 
     fn get_edge_length(&self, edge: Self::EdgeId) -> Option<Length> {
         self.edge_properties
-            .get(&edge)
+            // edge properties do not change if the edge is reversed
+            .get(&EdgeId(edge.0.abs()))
             .map(|properties| properties.length)
     }
     fn get_edge_frc(&self, edge: Self::EdgeId) -> Option<Frc> {
         self.edge_properties
-            .get(&edge)
+            // edge properties do not change if the edge is reversed
+            .get(&EdgeId(edge.0.abs()))
             .map(|properties| properties.frc)
     }
 
     fn get_edge_fow(&self, edge: Self::EdgeId) -> Option<Fow> {
         self.edge_properties
-            .get(&edge)
+            // edge properties do not change if the edge is reversed
+            .get(&EdgeId(edge.0.abs()))
             .map(|properties| properties.fow)
     }
 
     fn get_edge_coordinates(&self, edge: Self::EdgeId) -> impl Iterator<Item = Coordinate> {
         self.edge_properties
-            .get(&edge)
+            // edge properties do not change if the edge is reversed
+            .get(&EdgeId(edge.0.abs()))
             .into_iter()
             .flat_map(|properties| properties.geometry.iter().copied())
+    }
+
+    // TODO: bearing should be calculated from a start offset
+    // OpenLR Java takes the next point at (BEAR_DIST=20m) after the first point
+    fn get_edge_bearing(&self, edge: Self::EdgeId) -> Option<Bearing> {
+        use geo::Bearing;
+        let coordinates: Vec<_> = self.get_edge_coordinates(edge).collect();
+
+        let first = coordinates.first()?;
+        let mut first = geo::point!(x: first.lon, y: first.lat);
+
+        let last = coordinates.last()?;
+        let mut last = geo::point!(x: last.lon, y: last.lat);
+
+        if edge.is_reversed() {
+            std::mem::swap(&mut first, &mut last);
+        }
+        println!("{first:?} -> {last:?}");
+
+        let bearing = Haversine.bearing(first, last);
+
+        Some(crate::Bearing::from_degrees(bearing.round() as u16))
     }
 
     fn vertex_exiting_edges(
@@ -141,14 +173,14 @@ impl From<VertexId> for usize {
     }
 }
 
-impl From<usize> for EdgeId {
-    fn from(value: usize) -> Self {
-        Self(value)
-    }
-}
-
-impl From<EdgeId> for usize {
-    fn from(edge: EdgeId) -> Self {
-        edge.0
-    }
-}
+//impl From<usize> for EdgeId {
+//    fn from(value: usize) -> Self {
+//        Self(value)
+//    }
+//}
+//
+//impl From<EdgeId> for usize {
+//    fn from(edge: EdgeId) -> Self {
+//        edge.0
+//    }
+//}

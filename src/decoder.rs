@@ -209,6 +209,7 @@ where
     // TODO !!!
     // Calculates the bearing value based on the bearing values of the line and the lrp attribute.
     let bear_rating = 0.0;
+    dbg!(point.line.bear);
 
     const NODE_FACTOR: f64 = 2.0;
     const LINE_FACTOR: f64 = 3.0;

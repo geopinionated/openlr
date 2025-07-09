@@ -270,6 +270,14 @@ impl Bearing {
     pub const fn degrees(&self) -> u16 {
         self.0
     }
+
+    pub fn difference(&self, other: &Self) -> f64 {
+        let mut delta = (self.degrees() as f64 - other.degrees() as f64).abs();
+        if delta > 180.0 {
+            delta = 360.0 - delta;
+        }
+        delta
+    }
 }
 
 /// Coordinate pair stands for a pair of WGS84 longitude (lon) and latitude (lat) values.
