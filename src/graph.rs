@@ -1,12 +1,12 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 
-use crate::{Coordinate, Fow, Frc, Length};
+use crate::{Coordinate, Fow, Frc};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct EdgeProperty<EdgeId> {
-    pub id: EdgeId,     // TODO: this should not be needed
-    pub length: Length, // TODO: f64?
+pub struct EdgeProperty<EdgeId, Length> {
+    pub id: EdgeId, // TODO: this should not be needed
+    pub length: Length,
     pub frc: Frc,
     pub fow: Fow,
 }
@@ -15,11 +15,14 @@ pub struct EdgeProperty<EdgeId> {
 pub trait Graph {
     type VertexId: Debug + Copy + Ord + Hash + Eq;
     type EdgeId: Debug + Copy + Ord;
-    type Meter: Debug + Copy + From<f64>;
+    type Meter: Debug + Copy + Ord + Default + From<f64> + Into<f64>;
 
     // TODO many methods for each property?
     // get_cost(), get_frc(), etc..
-    fn get_edge_properties(&self, edge: Self::EdgeId) -> Option<&EdgeProperty<Self::EdgeId>>;
+    fn get_edge_properties(
+        &self,
+        edge: Self::EdgeId,
+    ) -> Option<&EdgeProperty<Self::EdgeId, Self::Meter>>;
 
     fn vertex_exiting_edges(
         &self,

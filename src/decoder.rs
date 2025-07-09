@@ -158,10 +158,10 @@ where
     }
 
     // compute rating
-    let orientation = if point.is_last() {
-        Orientation::Backward
+    let (orientation, projection) = if point.is_last() {
+        (Orientation::Backward, *length)
     } else {
-        Orientation::Forward
+        (Orientation::Forward, G::Meter::default())
     };
 
     //let distance_rating =

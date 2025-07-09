@@ -13,7 +13,21 @@
           52.51710534095764
         ]
       },
-      "id": "OpenLR LRP"
+      "id": "OpenLR LRP Origin"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "marker-color": "orange"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          13.462836552352906,
+          52.51499534095764
+        ]
+      },
+      "id": "OpenLR LRP Destination"
     },
     {
       "type": "Feature",

@@ -4,22 +4,22 @@ use std::fmt::Debug;
 use crate::{Graph, Length};
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct ShortestPath<N> {
-    pub cost: Length,
-    pub path: Vec<N>,
+pub struct ShortestPath<VertexId, Distance> {
+    pub distance: Distance,
+    pub path: Vec<VertexId>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-struct State<N> {
-    cost: Length, // current best cost from origin to this vertex
-    vertex: N,
+struct State<VertexId, Distance> {
+    distance: Distance, // current best cost from origin to this vertex
+    vertex: VertexId,
 }
 
 fn shortest_path<G>(
     graph: &G,
     origin: G::VertexId,
     destination: G::VertexId,
-) -> Option<ShortestPath<G::VertexId>>
+) -> Option<ShortestPath<G::VertexId, G::Meter>>
 where
     G: Graph,
 {
@@ -28,8 +28,8 @@ where
     //}
 
     // best_cost_from_origin[node]: represents the current known shortest distance from origin to node
-    let mut best_cost_from_origin: HashMap<G::VertexId, Length> = HashMap::new();
-    best_cost_from_origin.insert(origin, Length::from_meters(0));
+    let mut best_cost_from_origin: HashMap<G::VertexId, G::Meter> = HashMap::new();
+    best_cost_from_origin.insert(origin, G::Meter::default());
 
     // prev_hop[node]: represents the previous-hop node on the current best known path from origin to node
     let mut prev_hop: HashMap<G::VertexId, G::VertexId> = HashMap::new();
@@ -37,7 +37,7 @@ where
     // The set of discovered nodes that may need to be visited. Initially, only the start node is known.
     let mut frontier = BinaryHeap::from([State {
         vertex: origin,
-        cost: Length::from_meters(0),
+        distance: G::Meter::default(),
     }]);
 
     while let Some(state) = frontier.pop() {
@@ -55,7 +55,7 @@ where
             shortest_path.reverse();
 
             return Some(ShortestPath {
-                cost: state.cost,
+                distance: state.distance,
                 path: shortest_path,
             });
         }
@@ -63,28 +63,30 @@ where
         // check if we already know a cheaper way to get to the end of this path from the origin
         let best_origin_to_path_end_cost = *best_cost_from_origin
             .get(&state.vertex)
-            .unwrap_or(&Length::MAX);
-        if state.cost > best_origin_to_path_end_cost {
+            .unwrap_or(&G::Meter::from(f64::MAX));
+        if state.distance > best_origin_to_path_end_cost {
             continue;
         }
 
         for (edge, vertex_to) in graph.vertex_exiting_edges(state.vertex) {
             let edge = graph.get_edge_properties(edge)?;
 
-            let cost_from_origin = state.cost + edge.length;
+            let cost_from_origin: f64 = state.distance.into() + edge.length.into();
+            let cost_from_origin = G::Meter::from(cost_from_origin);
+
             let best_origin_to_neighbor_cost = *best_cost_from_origin
                 .get(&vertex_to)
-                .unwrap_or(&Length::MAX);
+                .unwrap_or(&G::Meter::from(f64::MAX));
 
             // check if we can follow the current path to reach the neighbor in a cheaper way
             if cost_from_origin < best_origin_to_neighbor_cost {
                 let neighbor = State {
                     vertex: vertex_to,
-                    cost: cost_from_origin,
+                    distance: cost_from_origin,
                 };
 
                 // Relaxation: we have now found a better way that we are going to explore
-                best_cost_from_origin.insert(neighbor.vertex, neighbor.cost);
+                best_cost_from_origin.insert(neighbor.vertex, neighbor.distance);
                 prev_hop.insert(neighbor.vertex, state.vertex);
                 frontier.push(neighbor);
             }
