@@ -5,7 +5,6 @@ use geojson::{Feature, FeatureCollection, Value};
 use graph::prelude::DirectedNeighborsWithValues;
 use openlr::decoder_graph::{EdgeId, NetworkGraph, NetworkNode, VertexId};
 use openlr::{Coordinate, EdgeProperty, Fow, Frc, Graph, Length, decode_base64_openlr};
-use ordered_float::OrderedFloat;
 use rstar::RTree;
 use strum::IntoEnumIterator;
 
@@ -59,12 +58,12 @@ fn geojson_graph_nearest_neighbours() {
         lat: 52.5143601,
     };
 
-    const MAX_DISTANCE_M: OrderedFloat<f64> = OrderedFloat(9.0);
+    const MAX_DISTANCE: Length = Length::from_meters(9);
 
     let neighbours: Vec<VertexId> = graph
-        .nearest_vertices_within_distance(node_75_location, MAX_DISTANCE_M)
+        .nearest_vertices_within_distance(node_75_location, MAX_DISTANCE)
         .map(|(vertex, distance)| {
-            assert!(distance <= MAX_DISTANCE_M);
+            assert!(distance.meters() <= MAX_DISTANCE.meters());
             vertex
         })
         .collect();
@@ -115,7 +114,7 @@ fn graph_into_directed() {
         vec![(
             EdgeProperty {
                 id: EdgeId(16218),
-                length: OrderedFloat(217.0),
+                length: Length::from_meters(217),
                 frc: Frc::Frc2,
                 fow: Fow::SingleCarriageway,
             },
@@ -129,7 +128,7 @@ fn graph_into_directed() {
             (
                 EdgeProperty {
                     id: EdgeId(8323953),
-                    length: OrderedFloat(16.0),
+                    length: Length::from_meters(16),
                     frc: Frc::Frc6,
                     fow: Fow::SingleCarriageway,
                 },
@@ -138,7 +137,7 @@ fn graph_into_directed() {
             (
                 EdgeProperty {
                     id: EdgeId(8323959),
-                    length: OrderedFloat(11.0),
+                    length: Length::from_meters(11),
                     frc: Frc::Frc6,
                     fow: Fow::SingleCarriageway,
                 },
@@ -152,7 +151,7 @@ fn graph_into_directed() {
             (
                 EdgeProperty {
                     id: EdgeId(8323953),
-                    length: OrderedFloat(16.0),
+                    length: Length::from_meters(16),
                     frc: Frc::Frc6,
                     fow: Fow::SingleCarriageway,
                 },
@@ -161,7 +160,7 @@ fn graph_into_directed() {
             (
                 EdgeProperty {
                     id: EdgeId(8323959),
-                    length: OrderedFloat(11.0),
+                    length: Length::from_meters(11),
                     frc: Frc::Frc6,
                     fow: Fow::SingleCarriageway,
                 },
@@ -176,7 +175,7 @@ fn graph_into_directed() {
             (
                 EdgeProperty {
                     id: EdgeId(8345026),
-                    length: OrderedFloat(31.0),
+                    length: Length::from_meters(31),
                     frc: Frc::Frc6,
                     fow: Fow::SingleCarriageway,
                 },
@@ -185,7 +184,7 @@ fn graph_into_directed() {
             (
                 EdgeProperty {
                     id: EdgeId(8345025),
-                    length: OrderedFloat(199.0),
+                    length: Length::from_meters(199),
                     frc: Frc::Frc6,
                     fow: Fow::SingleCarriageway,
                 },
@@ -199,7 +198,7 @@ fn graph_into_directed() {
             (
                 EdgeProperty {
                     id: EdgeId(8345026),
-                    length: OrderedFloat(31.0),
+                    length: Length::from_meters(31),
                     frc: Frc::Frc6,
                     fow: Fow::SingleCarriageway,
                 },
@@ -208,7 +207,7 @@ fn graph_into_directed() {
             (
                 EdgeProperty {
                     id: EdgeId(8345025),
-                    length: OrderedFloat(199.0),
+                    length: Length::from_meters(199),
                     frc: Frc::Frc6,
                     fow: Fow::SingleCarriageway,
                 },
@@ -380,7 +379,7 @@ impl GeojsonGraph {
 
                 let property = EdgeProperty {
                     id: edge_id,
-                    length: OrderedFloat(line.length as f64),
+                    length: Length::from_meters(line.length),
                     frc: line.frc,
                     fow: line.fow,
                 };
@@ -389,7 +388,7 @@ impl GeojsonGraph {
             })
             .collect();
 
-        let edges: Vec<(usize, usize, EdgeProperty<_, _>)> = self
+        let edges: Vec<(usize, usize, EdgeProperty<_>)> = self
             .nodes
             .iter()
             .flat_map(|(&from_id, node)| {
@@ -404,7 +403,7 @@ impl GeojsonGraph {
                         let line = self.lines.get(&line_id).unwrap();
                         let property = EdgeProperty {
                             id: EdgeId(edge_id),
-                            length: OrderedFloat(line.length as f64),
+                            length: Length::from_meters(line.length),
                             frc: line.frc,
                             fow: line.fow,
                         };
@@ -434,5 +433,40 @@ impl GeojsonGraph {
                 .build(),
             edge_properties,
         }
+
+        /*
+        for (&node_id, node) in &self.nodes {
+            let vertex_id: usize = node_id.try_into().unwrap();
+            let vertex_id: VertexId = (vertex_id - 1).into();
+
+            graph.geospatial_rtree.insert(NetworkNode {
+                vertex: vertex_id,
+                location: node.location,
+            });
+
+            let vertex = &mut graph.vertices[vertex_id];
+
+            for &(line_id, node_id_to) in &node.lines {
+                let line = self.lines.get(&line_id).unwrap();
+                //if line.direction == 2 {
+                //    assert_eq!(node_id, line.start_id);
+                //} else if line.direction == 3 {
+                //    assert_eq!(node_id, line.end_id);
+                //}
+
+                let edge_id: usize = line_id.try_into().unwrap();
+                let edge_id: EdgeId = (edge_id - 1).into();
+
+                let vertex_to: usize = node_id_to.try_into().unwrap();
+                let vertex_to: VertexId = (vertex_to - 1).into();
+
+                vertex.edges.push(Edge {
+                    id: edge_id,
+                    cost: Length::from_meters(line.length),
+                    vertex_to,
+                });
+            }
+        }
+        */
     }
 }

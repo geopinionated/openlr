@@ -1,4 +1,4 @@
-use std::ops::Add;
+use std::ops::{Add, Sub};
 
 use approx::abs_diff_eq;
 
@@ -140,6 +140,8 @@ impl Default for Orientation {
 pub struct Length(u32);
 
 impl Length {
+    pub const ZERO: Self = Self(0);
+    pub const MIN: Self = Self::ZERO;
     pub const MAX: Self = Self(u32::MAX);
 
     pub const fn from_meters(meters: u32) -> Self {
@@ -156,6 +158,14 @@ impl Add for Length {
 
     fn add(self, other: Self) -> Self {
         Self(self.meters().saturating_add(other.meters()))
+    }
+}
+
+impl Sub for Length {
+    type Output = Self;
+
+    fn sub(self, other: Self) -> Self {
+        Self(self.meters().saturating_sub(other.meters()))
     }
 }
 

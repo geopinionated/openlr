@@ -19,9 +19,9 @@ pub struct EdgeId(pub usize);
 //#[derive(Debug, Default)]
 pub struct NetworkGraph {
     // TODO: VertexID instead of usize? Store edge ID instead of property + Map<EdgeID, EdgeProperty>?
-    pub network: DirectedCsrGraph<usize, (), EdgeProperty<EdgeId, OrderedFloat<f64>>>,
+    pub network: DirectedCsrGraph<usize, (), EdgeProperty<EdgeId>>,
     pub geospatial_rtree: RTree<NetworkNode>,
-    pub edge_properties: HashMap<EdgeId, EdgeProperty<EdgeId, OrderedFloat<f64>>>,
+    pub edge_properties: HashMap<EdgeId, EdgeProperty<EdgeId>>,
 }
 
 #[derive(Debug)]
@@ -50,12 +50,8 @@ impl rstar::PointDistance for NetworkNode {
 impl Graph for NetworkGraph {
     type EdgeId = EdgeId;
     type VertexId = VertexId;
-    type Meter = OrderedFloat<f64>;
 
-    fn get_edge_properties(
-        &self,
-        edge: Self::EdgeId,
-    ) -> Option<&EdgeProperty<Self::EdgeId, Self::Meter>> {
+    fn get_edge_properties(&self, edge: Self::EdgeId) -> Option<&EdgeProperty<Self::EdgeId>> {
         self.edge_properties.get(&edge)
     }
 
@@ -80,16 +76,19 @@ impl Graph for NetworkGraph {
     fn nearest_vertices_within_distance(
         &self,
         coordinate: crate::Coordinate,
-        max_distance: Self::Meter,
-    ) -> impl Iterator<Item = (Self::VertexId, Self::Meter)> {
-        let max_distance_2 = max_distance * max_distance;
+        max_distance: Length,
+    ) -> impl Iterator<Item = (Self::VertexId, Length)> {
+        let max_distance_2 = max_distance.meters() * max_distance.meters();
         let point = geo::Point::new(coordinate.lon, coordinate.lat);
 
         self.geospatial_rtree
             .nearest_neighbor_iter_with_distance_2(&point)
-            .take_while(move |(_, distance_2)| *distance_2 <= max_distance_2.0)
+            .take_while(move |(_, distance_2)| *distance_2 <= max_distance_2 as f64)
             .inspect(|(n, d)| println!("{}: {}m", n.vertex.0 + 1, d.sqrt()))
-            .map(|(node, distance_2)| (node.vertex, distance_2.sqrt().into()))
+            .map(|(node, distance_2)| {
+                let length = Length::from_meters(distance_2.sqrt().round() as u32);
+                (node.vertex, length)
+            })
     }
 }
 

@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::path;
 
+use base64::engine::Config;
 use thiserror::Error;
 
 use crate::{
@@ -22,6 +23,19 @@ impl From<DeserializeError> for DecodeError {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+struct DecoderConfig {
+    max_node_distance: Length,
+}
+
+impl Default for DecoderConfig {
+    fn default() -> Self {
+        Self {
+            max_node_distance: Length::from_meters(10), // TODO: MaxNodeDistance 100m?
+        }
+    }
+}
+
 /// TODO
 pub struct Location;
 
@@ -32,19 +46,25 @@ pub fn decode_base64_openlr<G: Graph>(
     // Step – 1 Decode physical data and check its validity
     let location = deserialize_base64_openlr(data)?;
 
+    let config = DecoderConfig::default();
+
     match location {
-        LocationReference::Line(line) => decode_line(graph, line),
+        LocationReference::Line(line) => decode_line(&config, graph, line),
         _ => unimplemented!(),
     }
 }
 
-fn decode_line<G: Graph>(graph: &G, line: Line) -> Result<Location, DecodeError> {
+fn decode_line<G: Graph>(
+    config: &DecoderConfig,
+    graph: &G,
+    line: Line,
+) -> Result<Location, DecodeError> {
     // Step – 2 For each location reference point find candidate nodes
-    let nodes = find_candidate_nodes(graph, &line.points);
+    let nodes = find_candidate_nodes(config, graph, &line.points);
     //dbg!(&nodes);
 
     // Step – 3 For each location reference point find candidate lines
-    let lines = find_candidate_lines(graph, &nodes)?;
+    let lines = find_candidate_lines(config, graph, &nodes)?;
 
     // TODO!!!
     Ok(Location)
@@ -53,9 +73,9 @@ fn decode_line<G: Graph>(graph: &G, line: Line) -> Result<Location, DecodeError>
 /// List of candidate nodes for a Location Reference Point.
 /// Nodes are sorted based on their distance to the point (closest to farthest).
 #[derive(Debug)]
-struct CandidateNodes<VertexId, Distance> {
+struct CandidateNodes<VertexId> {
     point: Point,
-    nodes: Vec<(VertexId, Distance)>,
+    nodes: Vec<(VertexId, Length)>,
 }
 
 /// List of candidate ways for a Location Reference Point.
@@ -81,8 +101,9 @@ struct CandidateLines<EdgeId> {
 /// If no candidate line can be found for a location reference point, the decoder should report an error
 /// and stop further processing.
 fn find_candidate_lines<'a, G>(
+    config: &DecoderConfig,
     graph: &G,
-    nodes: &[CandidateNodes<G::VertexId, G::Meter>],
+    nodes: &[CandidateNodes<G::VertexId>],
 ) -> Result<Vec<CandidateLines<G::EdgeId>>, DecodeError>
 where
     G: Graph,
@@ -95,6 +116,7 @@ where
             println!("CANDIDATE {node:?}");
             // only outgoing lines are accepted for the LRPs
             // except the last LRP where only incoming lines are accepted
+            // TODO: Box<Iterator>?
             let edges: Vec<_> = if point.is_last() {
                 graph
                     .vertex_entering_edges(node)
@@ -118,7 +140,7 @@ where
             //edges.dedup();
 
             for edge in edges {
-                rate_line(graph, point, edge, distance)?;
+                rate_line(config, graph, point, edge, distance)?;
             }
 
             panic!();
@@ -129,10 +151,11 @@ where
 }
 
 fn rate_line<G>(
+    config: &DecoderConfig,
     graph: &G,
-    point: &Point,      // current Location Reference Point of the OpenLR code
-    edge: G::EdgeId,    // outgoing (or ingoing of point is the last) graph edge from/into the LRP
-    distance: G::Meter, // distance between the LRP coordinate and the graph (edge) vertex
+    point: &Point,    // current Location Reference Point of the OpenLR code
+    edge: G::EdgeId,  // outgoing (or ingoing of point is the last) graph edge from/into the LRP
+    distance: Length, // distance between the LRP coordinate and the graph (edge) vertex
 ) -> Result<(), DecodeError>
 where
     G: Graph,
@@ -158,13 +181,13 @@ where
     }
 
     // compute rating
-    let (orientation, projection) = if point.is_last() {
+    let (orientation, projection_length) = if point.is_last() {
         (Orientation::Backward, *length)
     } else {
-        (Orientation::Forward, G::Meter::default())
+        (Orientation::Forward, Length::ZERO)
     };
 
-    //let distance_rating =
+    let distance_rating = (config.max_node_distance - distance).max(Length::MIN);
 
     Ok(())
 }
@@ -180,21 +203,20 @@ where
 /// determine a candidate line directly. The LRP coordinate can be projected onto lines which are not far
 /// away from that coordinate.
 fn find_candidate_nodes<'a, G, I>(
+    config: &DecoderConfig,
     graph: &G,
     points: I,
-) -> Vec<CandidateNodes<G::VertexId, G::Meter>>
+) -> Vec<CandidateNodes<G::VertexId>>
 where
     G: Graph,
     I: IntoIterator<Item = &'a Point>,
 {
-    let max_distance: G::Meter = G::Meter::from(10.0); // TODO: MaxNodeDistance 100m?
-
     points
         .into_iter()
         .map(|&point| {
             println!("LRP {:?}", point.coordinate);
             let nodes = graph
-                .nearest_vertices_within_distance(point.coordinate, max_distance)
+                .nearest_vertices_within_distance(point.coordinate, config.max_node_distance)
                 .collect();
 
             CandidateNodes { point, nodes }
