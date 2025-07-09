@@ -4,6 +4,20 @@
     {
       "type": "Feature",
       "properties": {
+        "marker-color": "orange"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          13.461116552352905,
+          52.51710534095764
+        ]
+      },
+      "id": "OpenLR LRP"
+    },
+    {
+      "type": "Feature",
+      "properties": {
         "id": 1
       },
       "geometry": {

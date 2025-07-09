@@ -58,8 +58,14 @@ fn geojson_graph_nearest_neighbours() {
         lat: 52.5143601,
     };
 
+    const MAX_DISTANCE_M: f64 = 9.0;
+
     let neighbours: Vec<VertexId> = graph
-        .nearest_vertices_within_distance(node_75_location, Length::from_meters(9))
+        .nearest_vertices_within_distance(node_75_location, MAX_DISTANCE_M)
+        .map(|(vertex, distance)| {
+            assert!(distance <= MAX_DISTANCE_M);
+            vertex
+        })
         .collect();
     println!("{neighbours:?}");
 
@@ -87,7 +93,7 @@ fn graph_into_directed() {
     let get_exiting_edges = |vertex| {
         let mut edges = graph
             .vertex_exiting_edges(vertex)
-            .map(|(edge, vertex_to)| (graph.get_edge_property(edge).cloned().unwrap(), vertex_to))
+            .map(|(edge, vertex_to)| (graph.get_edge_properties(edge).cloned().unwrap(), vertex_to))
             .collect::<Vec<_>>();
         edges.sort_unstable_by_key(|(_, v)| *v);
         edges
@@ -96,7 +102,7 @@ fn graph_into_directed() {
     let get_entering_edges = |vertex| {
         let mut edges = graph
             .vertex_entering_edges(vertex)
-            .map(|(edge, vertex_to)| (graph.get_edge_property(edge).cloned().unwrap(), vertex_to))
+            .map(|(edge, vertex_to)| (graph.get_edge_properties(edge).cloned().unwrap(), vertex_to))
             .collect::<Vec<_>>();
         edges.sort_unstable_by_key(|(_, v)| *v);
         edges
@@ -108,7 +114,7 @@ fn graph_into_directed() {
         vec![(
             EdgeProperty {
                 id: EdgeId(16218),
-                cost: Length::from_meters(217),
+                length: Length::from_meters(217),
                 frc: Frc::Frc2,
                 fow: Fow::SingleCarriageway,
             },
@@ -122,7 +128,7 @@ fn graph_into_directed() {
             (
                 EdgeProperty {
                     id: EdgeId(8323953),
-                    cost: Length::from_meters(16),
+                    length: Length::from_meters(16),
                     frc: Frc::Frc6,
                     fow: Fow::SingleCarriageway,
                 },
@@ -131,7 +137,7 @@ fn graph_into_directed() {
             (
                 EdgeProperty {
                     id: EdgeId(8323959),
-                    cost: Length::from_meters(11),
+                    length: Length::from_meters(11),
                     frc: Frc::Frc6,
                     fow: Fow::SingleCarriageway,
                 },
@@ -145,7 +151,7 @@ fn graph_into_directed() {
             (
                 EdgeProperty {
                     id: EdgeId(8323953),
-                    cost: Length::from_meters(16),
+                    length: Length::from_meters(16),
                     frc: Frc::Frc6,
                     fow: Fow::SingleCarriageway,
                 },
@@ -154,7 +160,7 @@ fn graph_into_directed() {
             (
                 EdgeProperty {
                     id: EdgeId(8323959),
-                    cost: Length::from_meters(11),
+                    length: Length::from_meters(11),
                     frc: Frc::Frc6,
                     fow: Fow::SingleCarriageway,
                 },
@@ -169,7 +175,7 @@ fn graph_into_directed() {
             (
                 EdgeProperty {
                     id: EdgeId(8345026),
-                    cost: Length::from_meters(31),
+                    length: Length::from_meters(31),
                     frc: Frc::Frc6,
                     fow: Fow::SingleCarriageway,
                 },
@@ -178,7 +184,7 @@ fn graph_into_directed() {
             (
                 EdgeProperty {
                     id: EdgeId(8345025),
-                    cost: Length::from_meters(199),
+                    length: Length::from_meters(199),
                     frc: Frc::Frc6,
                     fow: Fow::SingleCarriageway,
                 },
@@ -192,7 +198,7 @@ fn graph_into_directed() {
             (
                 EdgeProperty {
                     id: EdgeId(8345026),
-                    cost: Length::from_meters(31),
+                    length: Length::from_meters(31),
                     frc: Frc::Frc6,
                     fow: Fow::SingleCarriageway,
                 },
@@ -201,7 +207,7 @@ fn graph_into_directed() {
             (
                 EdgeProperty {
                     id: EdgeId(8345025),
-                    cost: Length::from_meters(199),
+                    length: Length::from_meters(199),
                     frc: Frc::Frc6,
                     fow: Fow::SingleCarriageway,
                 },
@@ -373,7 +379,7 @@ impl GeojsonGraph {
 
                 let property = EdgeProperty {
                     id: edge_id,
-                    cost: Length::from_meters(line.length),
+                    length: Length::from_meters(line.length),
                     frc: line.frc,
                     fow: line.fow,
                 };
@@ -397,7 +403,7 @@ impl GeojsonGraph {
                         let line = self.lines.get(&line_id).unwrap();
                         let property = EdgeProperty {
                             id: EdgeId(edge_id),
-                            cost: Length::from_meters(line.length),
+                            length: Length::from_meters(line.length),
                             frc: line.frc,
                             fow: line.fow,
                         };

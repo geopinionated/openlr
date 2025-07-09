@@ -32,6 +32,29 @@ impl Default for Frc {
     }
 }
 
+impl Frc {
+    /// Gets the value of this Functional Road Class, the lower the value the higher
+    /// the importance of the class.
+    pub const fn value(&self) -> u8 {
+        self.into_byte()
+    }
+
+    /// Variance is an estimate of how a FRC can differ from another FRC of different class.
+    /// The higher the variance the more the two classes can differ and still be considered
+    /// equal during the decoding process.
+    pub const fn variance(&self) -> u8 {
+        match self {
+            Self::Frc0 | Self::Frc1 => 1,
+            Self::Frc2 | Self::Frc3 => 2,
+            Self::Frc4 | Self::Frc5 | Self::Frc6 | Self::Frc7 => 3,
+        }
+    }
+
+    pub const fn is_within_variance(&self, other: &Self) -> bool {
+        self.value() <= other.value() + other.variance()
+    }
+}
+
 /// Form of Way.
 /// The form of way (FOW) describes the physical road type of a line.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, strum::EnumIter)]
@@ -201,6 +224,14 @@ pub struct Point {
     pub coordinate: Coordinate,
     pub line: LineAttributes,
     pub path: Option<PathAttributes>,
+}
+
+impl Point {
+    /// Returns true only if this point is the last point of a Reference Location,
+    /// and therefore it doesn't have Path attributes.
+    pub const fn is_last(&self) -> bool {
+        self.path.is_none()
+    }
 }
 
 /// Offsets are used to locate the start and end of a location more precisely than

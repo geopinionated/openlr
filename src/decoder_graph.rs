@@ -49,8 +49,9 @@ impl rstar::PointDistance for NetworkNode {
 impl Graph for NetworkGraph {
     type EdgeId = EdgeId;
     type VertexId = VertexId;
+    type Meter = f64;
 
-    fn get_edge_property(&self, edge: Self::EdgeId) -> Option<&EdgeProperty<Self::EdgeId>> {
+    fn get_edge_properties(&self, edge: Self::EdgeId) -> Option<&EdgeProperty<Self::EdgeId>> {
         self.edge_properties.get(&edge)
     }
 
@@ -75,16 +76,16 @@ impl Graph for NetworkGraph {
     fn nearest_vertices_within_distance(
         &self,
         coordinate: crate::Coordinate,
-        max_distance: Length,
-    ) -> impl Iterator<Item = Self::VertexId> {
-        let max_distance_2: f64 = (max_distance.meters() * max_distance.meters()) as f64;
+        max_distance: Self::Meter,
+    ) -> impl Iterator<Item = (Self::VertexId, Self::Meter)> {
+        let max_distance_2: f64 = max_distance * max_distance;
         let point = geo::Point::new(coordinate.lon, coordinate.lat);
 
         self.geospatial_rtree
             .nearest_neighbor_iter_with_distance_2(&point)
             .take_while(move |(_, distance_2)| *distance_2 <= max_distance_2)
             .inspect(|(n, d)| println!("{}: {}m", n.vertex.0 + 1, d.sqrt()))
-            .map(|(node, _)| node.vertex)
+            .map(|(node, distance_2)| (node.vertex, distance_2.sqrt()))
     }
 }
 
@@ -207,7 +208,7 @@ impl NetworkGraph {
 
             for (vertex_to, edge) in out_vertices {
                 //let EdgeProperty { cost, frc, fow } = self.edge_properties.get(edge).unwrap();
-                let cost_from_origin = state.cost + edge.cost;
+                let cost_from_origin = state.cost + edge.length;
                 let best_origin_to_neighbor_cost = *best_cost_from_origin
                     .get(&vertex_to)
                     .unwrap_or(&Length::MAX);
