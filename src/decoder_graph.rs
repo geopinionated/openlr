@@ -1,10 +1,7 @@
-use std::cmp::Ordering;
-use std::collections::{BinaryHeap, HashMap};
-use std::vec;
+use std::collections::HashMap;
 
 use geo::{Distance, Haversine};
 use graph::prelude::{DirectedCsrGraph, DirectedNeighborsWithValues};
-use ordered_float::OrderedFloat;
 use rstar::RTree;
 
 use crate::graph::EdgeProperty;

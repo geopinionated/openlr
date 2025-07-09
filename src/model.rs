@@ -1,6 +1,16 @@
 use std::ops::{Add, Sub};
 
 use approx::abs_diff_eq;
+use strum::IntoEnumIterator;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, strum::EnumIter)]
+#[repr(u8)]
+pub enum Rating {
+    Excellent,
+    Good,
+    Average,
+    Poor,
+}
 
 /// Functional Road Class.
 /// The functional road class (FRC) of a line is a road classification
@@ -33,16 +43,35 @@ impl Default for Frc {
 }
 
 impl Frc {
+    // rating_variance?
+    pub const fn rating_interval(rating: Rating) -> i8 {
+        match rating {
+            Rating::Excellent => 0,
+            Rating::Good => 1,
+            Rating::Average => 2,
+            Rating::Poor => 3,
+        }
+    }
+
+    pub const fn rating_score(rating: Rating) -> f64 {
+        match rating {
+            Rating::Excellent => 100.0,
+            Rating::Good => 75.0,
+            Rating::Average => 50.0,
+            Rating::Poor => 0.0,
+        }
+    }
+
     /// Gets the value of this Functional Road Class, the lower the value the higher
     /// the importance of the class.
-    pub const fn value(&self) -> u8 {
-        self.into_byte()
+    pub const fn value(&self) -> i8 {
+        self.into_byte() as i8
     }
 
     /// Variance is an estimate of how a FRC can differ from another FRC of different class.
     /// The higher the variance the more the two classes can differ and still be considered
     /// equal during the decoding process.
-    pub const fn variance(&self) -> u8 {
+    pub const fn variance(&self) -> i8 {
         match self {
             Self::Frc0 | Self::Frc1 => 1,
             Self::Frc2 | Self::Frc3 => 2,
@@ -52,6 +81,25 @@ impl Frc {
 
     pub const fn is_within_variance(&self, other: &Self) -> bool {
         self.value() <= other.value() + other.variance()
+    }
+
+    pub const fn delta(&self, other: &Self) -> i8 {
+        (self.value() - other.value()).abs()
+    }
+
+    pub fn rating(&self, other: &Self) -> Rating {
+        let delta = (self.value() - other.value()).abs();
+
+        let rating_interval = |rating| match rating {
+            Rating::Excellent => 0,
+            Rating::Good => 1,
+            Rating::Average => 2,
+            Rating::Poor => 3,
+        };
+
+        Rating::iter()
+            .find(|&rating| delta <= rating_interval(rating))
+            .unwrap_or(Rating::Poor)
     }
 }
 
@@ -89,6 +137,45 @@ pub enum Fow {
 impl Default for Fow {
     fn default() -> Self {
         Self::Other
+    }
+}
+
+impl Fow {
+    pub const fn rating(&self, other: &Self) -> Rating {
+        use Fow::*;
+        match (self, other) {
+            (Undefined, _) | (_, Undefined) => Rating::Average,
+            (Motorway, Motorway) => Rating::Excellent,
+            (Motorway, MultipleCarriageway) => Rating::Good,
+            (Motorway, _) => Rating::Poor,
+            (MultipleCarriageway, MultipleCarriageway) => Rating::Excellent,
+            (MultipleCarriageway, Motorway) => Rating::Good,
+            (MultipleCarriageway, _) => Rating::Poor,
+            (SingleCarriageway, SingleCarriageway) => Rating::Excellent,
+            (SingleCarriageway, MultipleCarriageway) => Rating::Good,
+            (SingleCarriageway, Roundabout | TrafficSquare) => Rating::Average,
+            (SingleCarriageway, _) => Rating::Poor,
+            (Roundabout, Roundabout) => Rating::Excellent,
+            (Roundabout, MultipleCarriageway | SingleCarriageway | TrafficSquare) => {
+                Rating::Average
+            }
+            (Roundabout, _) => Rating::Poor,
+            (TrafficSquare, TrafficSquare) => Rating::Excellent,
+            (TrafficSquare, SingleCarriageway | Roundabout) => Rating::Average,
+            (TrafficSquare, _) => Rating::Poor,
+            (SlipRoad, SlipRoad) => Rating::Excellent,
+            (SlipRoad, _) => Rating::Poor,
+            (Other, Other) => Rating::Excellent,
+            (Other, _) => Rating::Poor,
+        }
+    }
+
+    pub const fn rating_score(rating: Rating) -> f64 {
+        match rating {
+            Rating::Excellent => 100.0,
+            Rating::Good | Rating::Average => 50.0,
+            Rating::Poor => 25.0,
+        }
     }
 }
 
@@ -467,6 +554,20 @@ impl LocationReference {
             Self::Grid(_) => LocationType::Grid,
             Self::Polygon(_) => LocationType::Polygon,
             Self::ClosedLine(_) => LocationType::ClosedLine,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use strum::IntoEnumIterator;
+
+    use super::*;
+
+    #[test]
+    fn fow_rating() {
+        for (fow1, fow2) in Fow::iter().zip(Fow::iter()) {
+            assert_eq!(fow1.rating(&fow2), fow2.rating(&fow1));
         }
     }
 }

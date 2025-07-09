@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 
-use crate::{Coordinate, Fow, Frc, Length};
+use crate::{Bearing, Coordinate, Fow, Frc, Length};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct EdgeProperty<EdgeId> {
@@ -36,4 +36,20 @@ pub trait Graph {
         coordinate: Coordinate,
         max_distance: Length,
     ) -> impl Iterator<Item = (Self::VertexId, Length)>;
+
+    fn connected_vertices(&self, vertex: Self::VertexId) -> impl Iterator<Item = Self::VertexId> {
+        let mut nodes: Vec<_> = self
+            .vertex_exiting_edges(vertex)
+            .chain(self.vertex_entering_edges(vertex))
+            .map(|(_, v)| v)
+            .filter(|&v| v != vertex)
+            .collect();
+        nodes.sort_unstable();
+        nodes.dedup();
+        nodes.into_iter()
+    }
+
+    fn is_junction(&self, vertex: Self::VertexId) -> bool {
+        self.connected_vertices(vertex).count() > 2
+    }
 }

@@ -5,8 +5,8 @@ use base64::engine::Config;
 use thiserror::Error;
 
 use crate::{
-    DeserializeError, EdgeProperty, Frc, Graph, Length, Line, LocationReference, Orientation, Poi,
-    Point, deserialize_base64_openlr,
+    DeserializeError, EdgeProperty, Fow, Frc, Graph, Length, Line, LocationReference, Orientation,
+    Poi, Point, Rating, deserialize_base64_openlr,
 };
 
 #[derive(Error, Debug, PartialEq, Clone, Copy)]
@@ -26,12 +26,14 @@ impl From<DeserializeError> for DecodeError {
 #[derive(Debug, Clone, Copy)]
 struct DecoderConfig {
     max_node_distance: Length,
+    non_junction_factor: f64,
 }
 
 impl Default for DecoderConfig {
     fn default() -> Self {
         Self {
             max_node_distance: Length::from_meters(10), // TODO: MaxNodeDistance 100m?
+            non_junction_factor: 0.8,
         }
     }
 }
@@ -123,7 +125,7 @@ where
                     .inspect(|(id, from_vertex)| {
                         println!("Entering {id:?}: {from_vertex:?} -> {node:?}");
                     })
-                    .map(|(edge, _)| edge)
+                    .map(|(id, from)| Edge { id, from, to: node })
                     .collect()
             } else {
                 // last line
@@ -132,7 +134,7 @@ where
                     .inspect(|(id, to_vertex)| {
                         println!("Exiting {id:?}: {node:?} -> {to_vertex:?}");
                     })
-                    .map(|(edge, _)| edge)
+                    .map(|(id, to)| Edge { id, from: node, to })
                     .collect()
             };
 
@@ -140,7 +142,7 @@ where
             //edges.dedup();
 
             for edge in edges {
-                rate_line(config, graph, point, edge, distance)?;
+                rate_line(config, graph, point, node, edge.id, distance)?;
             }
 
             panic!();
@@ -150,12 +152,20 @@ where
     Ok(lines)
 }
 
+#[derive(Debug, Clone, Copy)]
+struct Edge<E, V> {
+    id: E,
+    from: V,
+    to: V,
+}
+
 fn rate_line<G>(
     config: &DecoderConfig,
     graph: &G,
-    point: &Point,    // current Location Reference Point of the OpenLR code
-    edge: G::EdgeId,  // outgoing (or ingoing of point is the last) graph edge from/into the LRP
-    distance: Length, // distance between the LRP coordinate and the graph (edge) vertex
+    point: &Point,     // current Location Reference Point of the OpenLR code
+    node: G::VertexId, // start line node (or last line node for last LRP)
+    edge: G::EdgeId,   // outgoing (or ingoing of point is the last) graph edge from/into the LRP
+    distance: Length,  // distance between the LRP coordinate and the graph (edge) vertex
 ) -> Result<(), DecodeError>
 where
     G: Graph,
@@ -171,7 +181,7 @@ where
     assert_eq!(*id, edge);
 
     println!(
-        "last? {} {edge:?} {distance:.2?}m {frc:?} {fow:?} {length:?}",
+        "last? {} {node:?} {edge:?} {distance:.2?}m {frc:?} {fow:?} {length:?}",
         point.is_last()
     );
 
@@ -187,7 +197,40 @@ where
         (Orientation::Forward, Length::ZERO)
     };
 
-    let distance_rating = (config.max_node_distance - distance).max(Length::MIN);
+    // Calculates the node value based on the distance between the LRP position and the corresponding node.
+    let mut node_rating = (config.max_node_distance - distance).meters() as f64;
+
+    // Determine whether to apply the non-junction node factor to the node score
+    // Only apply the non-junction node factor when the LRP matches a node and not a line directly
+    let is_junction = if projection_length > Length::ZERO && projection_length < *length {
+        panic!("when can this be true?");
+        false
+    } else {
+        // TODO: do we need to compute it every time for the same node?
+        graph.is_junction(node)
+    };
+    //dbg!(is_junction);
+
+    if !is_junction {
+        node_rating = node_rating * config.non_junction_factor;
+    }
+    dbg!(node_rating);
+
+    // TODO !!!
+    // Calculates the bearing value based on the bearing values of the line and the lrp attribute.
+    let bear_rating = 0.0;
+
+    const NODE_FACTOR: f64 = 2.0;
+    const LINE_FACTOR: f64 = 3.0;
+
+    let frc_rating = Frc::rating_score(frc.rating(&point.line.frc));
+    let fow_rating = Fow::rating_score(fow.rating(&point.line.fow));
+
+    // Compute line rating
+    let line_rating = frc_rating + fow_rating; // + bear_rating
+
+    // Compute final rating
+    let rating = NODE_FACTOR * node_rating + LINE_FACTOR * line_rating;
 
     Ok(())
 }

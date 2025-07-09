@@ -47,6 +47,28 @@ fn decode_line_location_reference() {
 }
 
 #[test]
+fn geojson_graph_connected_vertices() {
+    let geojson = include_str!("data/graph.geojson");
+    let geojson_graph = GeojsonGraph::parse_geojson(geojson);
+    let graph: NetworkGraph = geojson_graph.into_network_graph();
+
+    let connected: Vec<VertexId> = graph.connected_vertices(VertexId(68)).collect();
+    assert_eq!(
+        connected,
+        vec![VertexId(12), VertexId(60), VertexId(67), VertexId(95)]
+    );
+
+    let connected: Vec<VertexId> = graph.connected_vertices(VertexId(125)).collect();
+    assert_eq!(connected, vec![VertexId(122)]);
+
+    let connected: Vec<VertexId> = graph.connected_vertices(VertexId(134)).collect();
+    assert_eq!(connected, vec![VertexId(123)]);
+
+    let connected: Vec<VertexId> = graph.connected_vertices(VertexId(116)).collect();
+    assert_eq!(connected, vec![VertexId(4), VertexId(114), VertexId(135)]);
+}
+
+#[test]
 fn geojson_graph_nearest_neighbours() {
     let geojson = include_str!("data/graph.geojson");
     let geojson_graph = GeojsonGraph::parse_geojson(geojson);
