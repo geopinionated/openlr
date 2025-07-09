@@ -3,7 +3,7 @@ use std::str::FromStr;
 
 use geojson::{Feature, FeatureCollection, Value};
 use graph::prelude::DirectedNeighborsWithValues;
-use openlr::decoder_graph::{EdgeId, NetworkGraph, NetworkNode, VertexId};
+use openlr::decoder_graph::{Edge, EdgeId, NetworkGraph, NetworkNode, VertexId};
 use openlr::{Coordinate, EdgeProperty, Fow, Frc, Graph, Length, decode_base64_openlr};
 use rstar::RTree;
 use strum::IntoEnumIterator;
@@ -410,7 +410,7 @@ impl GeojsonGraph {
             })
             .collect();
 
-        let edges: Vec<(usize, usize, EdgeProperty<_>)> = self
+        let edges: Vec<(usize, usize, EdgeId)> = self
             .nodes
             .iter()
             .flat_map(|(&from_id, node)| {
@@ -422,15 +422,15 @@ impl GeojsonGraph {
                         let to_id: usize = to_id.try_into().unwrap();
                         let edge_id: usize = line_id.try_into().unwrap();
 
-                        let line = self.lines.get(&line_id).unwrap();
-                        let property = EdgeProperty {
-                            id: EdgeId(edge_id),
-                            length: Length::from_meters(line.length),
-                            frc: line.frc,
-                            fow: line.fow,
-                        };
+                        //let line = self.lines.get(&line_id).unwrap();
+                        //let property = EdgeProperty {
+                        //    id: EdgeId(edge_id),
+                        //    length: Length::from_meters(line.length),
+                        //    frc: line.frc,
+                        //    fow: line.fow,
+                        //};
 
-                        (to_id, property)
+                        (to_id, EdgeId(edge_id))
                     })
                     .map(move |(to_id, property)| (from_id, to_id, property))
             })

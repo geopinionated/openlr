@@ -16,7 +16,7 @@ pub struct EdgeId(pub usize);
 //#[derive(Debug, Default)]
 pub struct NetworkGraph {
     // TODO: VertexID instead of usize? Store edge ID instead of property + Map<EdgeID, EdgeProperty>?
-    pub network: DirectedCsrGraph<usize, (), EdgeProperty<EdgeId>>,
+    pub network: DirectedCsrGraph<usize, (), EdgeId>,
     pub geospatial_rtree: RTree<NetworkNode>,
     pub edge_properties: HashMap<EdgeId, EdgeProperty<EdgeId>>,
 }
@@ -58,7 +58,7 @@ impl Graph for NetworkGraph {
     ) -> impl Iterator<Item = (Self::EdgeId, Self::VertexId)> {
         self.network
             .out_neighbors_with_values(vertex.0)
-            .map(|item| (item.value.id, VertexId(item.target)))
+            .map(|item| (item.value, VertexId(item.target)))
     }
 
     fn vertex_entering_edges(
@@ -67,7 +67,7 @@ impl Graph for NetworkGraph {
     ) -> impl Iterator<Item = (Self::EdgeId, Self::VertexId)> {
         self.network
             .in_neighbors_with_values(vertex.0)
-            .map(|item| (item.value.id, VertexId(item.target)))
+            .map(|item| (item.value, VertexId(item.target)))
     }
 
     fn nearest_vertices_within_distance(
