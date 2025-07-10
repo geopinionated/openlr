@@ -1,4 +1,4 @@
-use std::vec;
+use std::{io, vec};
 
 use thiserror::Error;
 
@@ -29,6 +29,7 @@ struct DecoderConfig {
     node_factor: f64,
     line_factor: f64,
     non_junction_factor: f64, // TODO: can we remove for now and use 1.0?
+    projected_line_factor: f64,
 }
 
 impl Default for DecoderConfig {
@@ -40,6 +41,7 @@ impl Default for DecoderConfig {
             node_factor: 3.0,
             line_factor: 3.0,
             non_junction_factor: 0.8,
+            projected_line_factor: 0.95,
         }
     }
 }
@@ -104,7 +106,7 @@ struct CandidateLines<EdgeId> {
 struct CandidateLine<EdgeId> {
     line: EdgeId,
     rating: f64,
-    distance_to_lrp: Option<Length>, // set only when LRP is projected into the line
+    // offset: Length, // The projection along the line in meter (from start)
 }
 
 /// For each location reference point the decoder tries to determine lines which should fulfill the
@@ -116,9 +118,11 @@ struct CandidateLine<EdgeId> {
 /// - The candidate lines should match the attributes functional road class, form of way and
 ///   bearing as extracted from the physical data. Slight variances are allowed and shall be taken
 ///   into account in step 4.
+///
 /// The direct search of lines using a projection point may also be executed even if candidate nodes are
 /// found. This might increase the number of candidate nodes but it could help to determine the correct
 /// candidate line in the next step if the nodes in the encoder and decoder map differ significantly.
+///
 /// If no candidate line can be found for a location reference point, the decoder should report an error
 /// and stop further processing.
 fn find_candidate_lines_from_nodes<G>(
@@ -129,13 +133,20 @@ fn find_candidate_lines_from_nodes<G>(
 where
     G: Graph,
 {
-    let mut lines: Vec<CandidateLines<_>> = vec![];
+    let lines: Vec<CandidateLines<_>> = vec![];
 
     for CandidateNodes { point, nodes } in nodes {
-        println!("\nNEW POINT with {} candidate nodes", nodes.len());
+        println!(
+            "\nNEW POINT {point:?} with {} candidate nodes\n",
+            nodes.len()
+        );
 
-        let mut candidate_lines: Vec<CandidateLine<G::EdgeId>> = vec![];
+        let mut candidate_lines = CandidateLines {
+            point: *point,
+            lines: vec![],
+        };
 
+        println!("Finding candidate lines from nodes");
         for candidate_node in nodes {
             // only outgoing lines are accepted for the LRPs
             // except the last LRP where only incoming lines are accepted
@@ -149,9 +160,9 @@ where
                             candidate_node.node
                         );
                     })
-                    .map(|(edge, from)| NetworkLine {
+                    .map(|(edge, _)| NetworkLine {
                         lrp: *point,
-                        edge: edge,
+                        edge,
                         vertex: candidate_node.node,
                         distance_to_lrp: candidate_node.distance_to_lrp,
                     })
@@ -162,9 +173,9 @@ where
                     .inspect(|(id, to_vertex)| {
                         println!("Exiting {id:?}: {:?} -> {to_vertex:?}", candidate_node.node);
                     })
-                    .map(|(edge, to)| NetworkLine {
+                    .map(|(edge, _)| NetworkLine {
                         lrp: *point,
-                        edge: edge,
+                        edge,
                         vertex: candidate_node.node,
                         distance_to_lrp: candidate_node.distance_to_lrp,
                     })
@@ -174,44 +185,81 @@ where
             //edges.sort_unstable();
             //edges.dedup();
 
-            candidate_lines.extend(
+            candidate_lines.lines.extend(
                 lines
                     .into_iter()
                     .filter_map(|line| rate_line(config, graph, line))
                     .inspect(|candidate| println!("{candidate:?}")),
             );
 
-            println!("\nCandidate lines from nodes:\n{candidate_lines:?}");
-
-            panic!();
+            //panic!();
         }
+
+        println!("\nFinding candidate lines from projected lines");
+        let mut projected_lines =
+            find_projected_candidate_lines(config, graph, &mut candidate_lines);
+        dbg!(projected_lines.len());
+
+        candidate_lines.lines.append(&mut projected_lines);
+        dbg!(candidate_lines.lines.len());
+
+        panic!();
     }
 
     Ok(lines)
 }
 
-fn find_candidate_lines_from_projection<G>(
+fn find_projected_candidate_lines<G>(
     config: &DecoderConfig,
     graph: &G,
-    point: &Point,
-) -> Result<Vec<CandidateLines<G::EdgeId>>, DecodeError>
+    candidate_lines: &mut CandidateLines<G::EdgeId>,
+) -> Vec<CandidateLine<G::EdgeId>>
 where
     G: Graph,
 {
-    let lines: Vec<_> = graph
-        .nearest_edges_within_distance(point.coordinate, config.max_node_distance)
-        .map(|(edge, distance_to_lrp)| {
-            //
-            NetworkLine {
-                lrp: *point,
-                edge: edge,
-                vertex: todo!(),
-                distance_to_lrp: distance_to_lrp,
+    graph
+        .nearest_edges_within_distance(candidate_lines.point.coordinate, config.max_node_distance)
+        .filter_map(|(edge, distance_to_lrp)| {
+            let vertex = if candidate_lines.point.is_last() {
+                graph.get_edge_end_vertex(edge)?
+            } else {
+                graph.get_edge_start_vertex(edge)?
+            };
+
+            Some(NetworkLine {
+                lrp: candidate_lines.point,
+                edge,
+                vertex,
+                distance_to_lrp,
+            })
+        })
+        .filter_map(|line| {
+            let mut projected_candidate = rate_line(config, graph, line)?;
+
+            if !candidate_lines.lines.is_empty() {
+                projected_candidate.rating *= config.projected_line_factor;
+                if projected_candidate.rating < config.min_line_rating {
+                    return None;
+                }
+            }
+
+            if let Some(candidate) = candidate_lines
+                .lines
+                .iter_mut()
+                .find(|candidate| candidate.line == line.edge)
+            {
+                if candidate.rating < projected_candidate.rating {
+                    // TODO: update candidate offset with projected line offset
+                    candidate.rating = projected_candidate.rating;
+                }
+
+                None
+            } else {
+                println!("PROJECTED: {projected_candidate:?}");
+                Some(projected_candidate)
             }
         })
-        .collect();
-
-    todo!()
+        .collect()
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -249,11 +297,16 @@ where
     let bearing = graph.get_edge_bearing(line.edge)?;
 
     println!(
-        "\nRATE LINE\n{line:?} {line:?} {frc:?} {fow:?} {length:?} {bearing:?} last={}",
+        "\nRATE LINE\n{:?} {:?} {frc:?} {fow:?} {length:?} {bearing:?} distance-LRP={:?} last-LRP={}",
+        line.edge,
+        line.vertex,
+        line.distance_to_lrp,
         line.lrp.is_last()
     );
 
-    if !line.lrp.is_last() && !frc.is_within_variance(&line.lrp.line.frc) {
+    if let Some(path) = &line.lrp.path
+        && !frc.is_within_variance(&path.lfrcnp)
+    {
         return None;
     }
 
@@ -288,6 +341,7 @@ where
 
     let line_rating = bearing_rating + frc_rating + fow_rating;
     let rating = config.node_factor * node_rating + config.line_factor * line_rating;
+    dbg!(rating);
 
     if rating < config.min_line_rating {
         None
@@ -295,7 +349,6 @@ where
         Some(CandidateLine {
             line: line.edge,
             rating,
-            distance_to_lrp: None,
         })
     }
 }

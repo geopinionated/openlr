@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 
 use geojson::{Feature, FeatureCollection, Value};
@@ -230,26 +230,79 @@ fn graph_nearest_edges() {
 
     const MAX_DISTANCE: Length = Length::from_meters(100);
 
-    let neighbours: Vec<EdgeId> = graph
+    let neighbours: Vec<(EdgeId, _)> = graph
         .nearest_edges_within_distance(coordinate, MAX_DISTANCE)
         .map(|(edge, distance)| {
             assert!(distance.meters() <= MAX_DISTANCE.meters());
-            edge
+            (edge, distance)
         })
         .collect();
-    println!("{neighbours:?}");
+
+    assert!(neighbours.is_sorted_by_key(|(_, d)| *d));
+
+    let mut neighbours = neighbours.into_iter().map(|(e, _)| e).collect::<Vec<_>>();
+    neighbours.sort_unstable_by_key(|e| e.0);
 
     assert_eq!(
         neighbours,
         [
-            EdgeId(8717174),
+            EdgeId(-8717175),
+            EdgeId(-8717174),
+            EdgeId(-5707439),
+            EdgeId(-5707436),
+            EdgeId(-5707435),
+            EdgeId(-5359426),
+            EdgeId(-5359425),
+            EdgeId(-4925291),
+            EdgeId(4925291),
             EdgeId(5359425),
             EdgeId(5359426),
-            EdgeId(4925291),
             EdgeId(5707435),
-            EdgeId(5707439),
-            EdgeId(8717175),
             EdgeId(5707436),
+            EdgeId(5707439),
+            EdgeId(8717174),
+            EdgeId(8717175)
+        ]
+    );
+}
+
+#[test]
+fn graph_nearest_v2_edges_2() {
+    let geojson = include_str!("data/graph.geojson");
+    let geojson_graph = GeojsonGraph::parse_geojson(geojson);
+    let graph: NetworkGraph = geojson_graph.into_network_graph();
+
+    let coordinate = Coordinate {
+        lon: 13.461116552352905,
+        lat: 52.51710534095764,
+    };
+
+    const MAX_DISTANCE: Length = Length::from_meters(5);
+
+    let neighbours: Vec<(EdgeId, _)> = graph
+        .nearest_edges_within_distance(coordinate, MAX_DISTANCE)
+        .map(|(edge, distance)| {
+            assert!(distance.meters() <= MAX_DISTANCE.meters());
+            dbg!((edge, distance))
+        })
+        .collect();
+
+    assert!(neighbours.is_sorted_by_key(|(_, d)| *d));
+
+    let mut neighbours = neighbours.into_iter().map(|(e, _)| e).collect::<Vec<_>>();
+    neighbours.sort_unstable_by_key(|e| e.0);
+
+    assert_eq!(
+        neighbours,
+        [
+            EdgeId(-8717174),
+            EdgeId(-5359426),
+            EdgeId(-5359425),
+            EdgeId(-4925291),
+            EdgeId(4925291),
+            EdgeId(5359425),
+            EdgeId(5359426),
+            EdgeId(8717174)
         ]
     );
 }
@@ -621,17 +674,24 @@ impl GeojsonGraph {
             })
             .collect();
 
-        let geospatial_edges: Vec<GeospatialEdge> = self
-            .lines
+        let directed_edges: HashSet<EdgeId> = self
+            .nodes
             .iter()
-            .map(|(&line_id, line)| {
+            .flat_map(|(_, node)| node.lines.iter().map(|&(line_id, _)| EdgeId(line_id)))
+            .collect();
+
+        let geospatial_edges: Vec<GeospatialEdge> = directed_edges
+            .into_iter()
+            .map(|edge_id| {
+                let line = self.lines.get(&edge_id.0.abs()).unwrap();
+
                 let geometry = line
                     .geometry
                     .iter()
                     .map(|coordinate| geo::coord! { x: coordinate.lon, y: coordinate.lat });
 
                 GeospatialEdge {
-                    edge: EdgeId(line_id),
+                    edge: edge_id,
                     geometry: geo::LineString::from_iter(geometry),
                 }
             })

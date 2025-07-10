@@ -203,7 +203,7 @@ impl Graph for NetworkGraph {
         self.geospatial_nodes
             .nearest_neighbor_iter_with_distance_2(&point)
             .take_while(move |(_, distance_2)| *distance_2 <= max_distance_2 as f64)
-            .inspect(|(n, d)| println!("{:?}: {}m", n.vertex, d.sqrt()))
+            //.inspect(|(n, d)| println!("{:?}: {}m", n.vertex, d.sqrt()))
             .map(|(node, distance_2)| {
                 let length = Length::from_meters(distance_2.sqrt().round() as u32);
                 (node.vertex, length)
@@ -221,7 +221,7 @@ impl Graph for NetworkGraph {
         self.geospatial_edges
             .nearest_neighbor_iter_with_distance_2(&point)
             .take_while(move |(_, distance_2)| *distance_2 <= max_distance_2 as f64)
-            .inspect(|(n, d)| println!("{:?}: {}m", n.edge, d.sqrt()))
+            //.inspect(|(n, d)| println!("{:?}: {}m", n.edge, d.sqrt()))
             .map(|(node, distance_2)| {
                 let length = Length::from_meters(distance_2.sqrt().round() as u32);
                 (node.edge, length)

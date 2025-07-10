@@ -1897,8 +1897,7 @@
     {
       "type": "Feature",
       "properties": {
-        "id": 134,
-        "marker-color": "yellow"
+        "id": 134
       },
       "geometry": {
         "type": "Point",
@@ -3631,7 +3630,7 @@
         "id": 4925291,
         "direction": 1,
         "fow": 3,
-        "stroke": "blue"
+        "stroke": "lightBlue"
       },
       "geometry": {
         "type": "LineString",
