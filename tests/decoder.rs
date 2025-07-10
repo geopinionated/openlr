@@ -113,6 +113,48 @@ fn graph_edge_bearing() {
 }
 
 #[test]
+fn graph_edge_distance_from_start_vertex_to_projected_coordinate() {
+    let geojson = include_str!("data/graph.geojson");
+    let geojson_graph = GeojsonGraph::parse_geojson(geojson);
+    let graph: NetworkGraph = geojson_graph.into_network_graph();
+
+    let coordinate = Coordinate {
+        lon: 13.461116552352905,
+        lat: 52.51710534095764,
+    };
+
+    assert_eq!(
+        graph
+            .get_distance_from_start_vertex(EdgeId(4925291), coordinate)
+            .unwrap(),
+        Length::from_meters(142)
+    );
+    assert_eq!(
+        graph
+            .get_distance_from_start_vertex(EdgeId(-4925291), coordinate)
+            .unwrap(),
+        Length::from_meters(1)
+    );
+
+    let coordinate = Coordinate {
+        lon: 13.461951,
+        lat: 52.51700,
+    };
+    assert_eq!(
+        graph
+            .get_distance_from_start_vertex(EdgeId(8717174), coordinate)
+            .unwrap(),
+        Length::from_meters(57)
+    );
+    assert_eq!(
+        graph
+            .get_distance_from_start_vertex(EdgeId(-8717174), coordinate)
+            .unwrap(),
+        Length::from_meters(80)
+    );
+}
+
+#[test]
 fn graph_edge_vertices() {
     let geojson = include_str!("data/graph.geojson");
     let geojson_graph = GeojsonGraph::parse_geojson(geojson);

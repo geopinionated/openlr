@@ -18,6 +18,12 @@ pub trait Graph {
     fn get_edge_coordinates(&self, edge: Self::EdgeId) -> impl Iterator<Item = Coordinate>;
     fn get_edge_bearing(&self, edge: Self::EdgeId) -> Option<Bearing>;
 
+    fn get_distance_from_start_vertex(
+        &self,
+        edge: Self::EdgeId,
+        coordinate: Coordinate,
+    ) -> Option<Length>;
+
     fn vertex_exiting_edges(
         &self,
         vertex: Self::VertexId,

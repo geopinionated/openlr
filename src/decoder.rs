@@ -262,15 +262,9 @@ where
         .collect()
 }
 
-#[derive(Debug, Clone, Copy)]
-struct Edge<E, V> {
-    id: E,
-    from: V,
-    to: V,
-}
-
 // TODO
 // offset: Length, // distance from the node to the part of the line that should be considered
+// (AKA: projection along line)
 #[derive(Debug, Clone, Copy)]
 struct NetworkLine<EdgeId, VertexId> {
     /// the Location Reference Point (LRP)

@@ -1,6 +1,7 @@
+use core::f64;
 use std::collections::HashMap;
 
-use geo::{BoundingRect, Distance, Haversine, HaversineClosestPoint};
+use geo::{BoundingRect, Contains, Distance, Haversine, HaversineClosestPoint, closest_point};
 use graph::prelude::{DirectedCsrGraph, DirectedNeighborsWithValues};
 use rstar::RTree;
 
@@ -30,8 +31,8 @@ pub struct EdgeProperty {
     pub length: Length,
     pub frc: Frc,
     pub fow: Fow,
-    pub geometry: Vec<Coordinate>,
-    pub vertices: [VertexId; 2], // [start, end] vertices (need to be swapped if edge is reversed)
+    pub geometry: Vec<Coordinate>, // TODO: Store directly LineString?
+    pub vertices: [VertexId; 2],   // [start, end] vertices (need to be swapped if edge is reversed)
 }
 
 //#[derive(Debug, Default)]
@@ -150,28 +151,70 @@ impl Graph for NetworkGraph {
             // edge properties do not change if the edge is reversed
             .get(&EdgeId(edge.0.abs()))
             .into_iter()
-            .flat_map(|properties| properties.geometry.iter().copied())
+            .flat_map(move |properties| {
+                let mut geometry: Vec<_> = properties.geometry.clone();
+
+                if edge.is_reversed() {
+                    geometry.reverse();
+                }
+
+                geometry.into_iter()
+            })
     }
 
     // TODO: bearing should be calculated from a start offset
     // OpenLR Java takes the next point at (BEAR_DIST=20m) after the first point
     fn get_edge_bearing(&self, edge: Self::EdgeId) -> Option<Bearing> {
-        use geo::Bearing;
         let coordinates: Vec<_> = self.get_edge_coordinates(edge).collect();
 
         let first = coordinates.first()?;
-        let mut first = geo::point!(x: first.lon, y: first.lat);
+        let first = geo::point!(x: first.lon, y: first.lat);
 
         let last = coordinates.last()?;
-        let mut last = geo::point!(x: last.lon, y: last.lat);
+        let last = geo::point!(x: last.lon, y: last.lat);
 
-        if edge.is_reversed() {
-            std::mem::swap(&mut first, &mut last);
-        }
-
+        use geo::Bearing;
         let bearing = Haversine.bearing(first, last);
 
         Some(crate::Bearing::from_degrees(bearing.round() as u16))
+    }
+
+    fn get_distance_from_start_vertex(
+        &self,
+        edge: Self::EdgeId,
+        coordinate: Coordinate,
+    ) -> Option<Length> {
+        let geometry = geo::LineString::from_iter(
+            self.get_edge_coordinates(edge)
+                .map(|coordinate| geo::coord! { x: coordinate.lon, y: coordinate.lat }),
+        );
+
+        let mut closest_distance = f64::INFINITY;
+        let mut distance_from_start = 0.0;
+        let mut distance_acc = 0.0;
+
+        let point = geo::Point::new(coordinate.lon, coordinate.lat);
+
+        for line in geometry.lines() {
+            match line.haversine_closest_point(&point) {
+                geo::Closest::SinglePoint(p) | geo::Closest::Intersection(p) => {
+                    let distance_to_line = Haversine.distance(point, p);
+
+                    if distance_to_line < closest_distance {
+                        // this is the closest line segment of the whole geometry (so far)
+                        closest_distance = distance_to_line;
+                        distance_from_start =
+                            distance_acc + Haversine.distance(line.start_point(), p);
+                    }
+
+                    use geo::Length;
+                    distance_acc += Haversine.length(&line);
+                }
+                geo::Closest::Indeterminate => return None,
+            }
+        }
+
+        Some(Length::from_meters(distance_from_start.round() as u32))
     }
 
     fn vertex_exiting_edges(
