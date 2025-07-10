@@ -3,7 +3,7 @@ use std::str::FromStr;
 
 use geojson::{Feature, FeatureCollection, Value};
 use openlr::decoder_graph::{
-    Edge, EdgeId, EdgeProperty, GeospatialEdge, GeospatialNode, NetworkGraph, VertexId,
+    EdgeId, EdgeProperty, GeospatialEdge, GeospatialNode, NetworkGraph, VertexId,
 };
 use openlr::{Bearing, Coordinate, Fow, Frc, Graph, Length, decode_base64_openlr};
 use rstar::RTree;
@@ -109,6 +109,55 @@ fn graph_edge_bearing() {
     assert_eq!(
         graph.get_edge_bearing(EdgeId(-4925291)).unwrap(),
         Bearing::from_degrees(286)
+    );
+}
+
+#[test]
+fn graph_edge_vertices() {
+    let geojson = include_str!("data/graph.geojson");
+    let geojson_graph = GeojsonGraph::parse_geojson(geojson);
+    let graph: NetworkGraph = geojson_graph.into_network_graph();
+
+    assert_eq!(
+        graph.vertex_exiting_edges(VertexId(1)).collect::<Vec<_>>(),
+        vec![(EdgeId(16218), VertexId(2))]
+    );
+    assert_eq!(
+        graph.get_edge_start_vertex(EdgeId(16218)).unwrap(),
+        VertexId(1)
+    );
+    assert_eq!(
+        graph.get_edge_end_vertex(EdgeId(16218)).unwrap(),
+        VertexId(2)
+    );
+
+    let mut exiting_edges: Vec<_> = graph.vertex_exiting_edges(VertexId(68)).collect();
+    exiting_edges.sort_unstable_by_key(|(_, v)| *v);
+    assert_eq!(
+        exiting_edges,
+        vec![
+            (EdgeId(-5359425), VertexId(12)),
+            (EdgeId(5359426), VertexId(60)),
+            (EdgeId(-4925291), VertexId(67)),
+            (EdgeId(8717174), VertexId(95)),
+        ]
+    );
+
+    assert_eq!(
+        graph.get_edge_start_vertex(EdgeId(-5359425)).unwrap(),
+        VertexId(68)
+    );
+    assert_eq!(
+        graph.get_edge_end_vertex(EdgeId(-5359425)).unwrap(),
+        VertexId(12)
+    );
+    assert_eq!(
+        graph.get_edge_start_vertex(EdgeId(-5359425)).unwrap(),
+        graph.get_edge_end_vertex(EdgeId(5359425)).unwrap()
+    );
+    assert_eq!(
+        graph.get_edge_end_vertex(EdgeId(-5359425)).unwrap(),
+        graph.get_edge_start_vertex(EdgeId(5359425)).unwrap()
     );
 }
 
@@ -540,6 +589,7 @@ impl GeojsonGraph {
                     frc: line.frc,
                     fow: line.fow,
                     geometry: line.geometry.clone(),
+                    vertices: [VertexId(line.start_id), VertexId(line.end_id)],
                 };
 
                 (EdgeId(line_id), property)

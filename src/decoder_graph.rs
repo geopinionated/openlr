@@ -7,7 +7,13 @@ use rstar::RTree;
 use crate::{Bearing, Coordinate, Fow, Frc, Graph, Length};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct VertexId(pub usize);
+pub struct VertexId(pub i64);
+
+impl VertexId {
+    const fn index(&self) -> usize {
+        self.0 as usize
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct EdgeId(pub i64);
@@ -25,6 +31,7 @@ pub struct EdgeProperty {
     pub frc: Frc,
     pub fow: Fow,
     pub geometry: Vec<Coordinate>,
+    pub vertices: [VertexId; 2], // [start, end] vertices (need to be swapped if edge is reversed)
 }
 
 //#[derive(Debug, Default)]
@@ -94,6 +101,30 @@ impl Graph for NetworkGraph {
     type EdgeId = EdgeId;
     type VertexId = VertexId;
 
+    fn get_edge_start_vertex(&self, edge: Self::EdgeId) -> Option<Self::VertexId> {
+        self.edge_properties
+            .get(&EdgeId(edge.0.abs()))
+            .map(|properties| {
+                if edge.is_reversed() {
+                    properties.vertices[1]
+                } else {
+                    properties.vertices[0]
+                }
+            })
+    }
+
+    fn get_edge_end_vertex(&self, edge: Self::EdgeId) -> Option<Self::VertexId> {
+        self.edge_properties
+            .get(&EdgeId(edge.0.abs()))
+            .map(|properties| {
+                if edge.is_reversed() {
+                    properties.vertices[0]
+                } else {
+                    properties.vertices[1]
+                }
+            })
+    }
+
     fn get_edge_length(&self, edge: Self::EdgeId) -> Option<Length> {
         self.edge_properties
             // edge properties do not change if the edge is reversed
@@ -148,8 +179,8 @@ impl Graph for NetworkGraph {
         vertex: Self::VertexId,
     ) -> impl Iterator<Item = (Self::EdgeId, Self::VertexId)> {
         self.network
-            .out_neighbors_with_values(vertex.0)
-            .map(|item| (item.value, VertexId(item.target)))
+            .out_neighbors_with_values(vertex.index())
+            .map(|item| (item.value, VertexId(item.target as i64)))
     }
 
     fn vertex_entering_edges(
@@ -157,8 +188,8 @@ impl Graph for NetworkGraph {
         vertex: Self::VertexId,
     ) -> impl Iterator<Item = (Self::EdgeId, Self::VertexId)> {
         self.network
-            .in_neighbors_with_values(vertex.0)
-            .map(|item| (item.value, VertexId(item.target)))
+            .in_neighbors_with_values(vertex.index())
+            .map(|item| (item.value, VertexId(item.target as i64)))
     }
 
     fn nearest_vertices_within_distance(
@@ -212,24 +243,12 @@ pub struct Edge {
 
 impl From<usize> for VertexId {
     fn from(value: usize) -> Self {
-        Self(value)
+        Self(value as i64)
     }
 }
 
 impl From<VertexId> for usize {
     fn from(vertex: VertexId) -> Self {
-        vertex.0
+        vertex.index()
     }
 }
-
-//impl From<usize> for EdgeId {
-//    fn from(value: usize) -> Self {
-//        Self(value)
-//    }
-//}
-//
-//impl From<EdgeId> for usize {
-//    fn from(edge: EdgeId) -> Self {
-//        edge.0
-//    }
-//}

@@ -9,6 +9,9 @@ pub trait Graph {
     type EdgeId: Debug + Copy + Ord;
     //type Meter: Debug + Copy + Ord + Default + From<f64> + Into<f64>;
 
+    fn get_edge_start_vertex(&self, edge: Self::EdgeId) -> Option<Self::VertexId>;
+    fn get_edge_end_vertex(&self, edge: Self::EdgeId) -> Option<Self::VertexId>;
+
     fn get_edge_length(&self, edge: Self::EdgeId) -> Option<Length>;
     fn get_edge_frc(&self, edge: Self::EdgeId) -> Option<Frc>;
     fn get_edge_fow(&self, edge: Self::EdgeId) -> Option<Fow>;

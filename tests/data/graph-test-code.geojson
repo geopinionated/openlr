@@ -1070,8 +1070,7 @@
     {
       "type": "Feature",
       "properties": {
-        "id": 75,
-        "marker-color": "yellow"
+        "id": 75
       },
       "geometry": {
         "type": "Point",
@@ -1898,7 +1897,8 @@
     {
       "type": "Feature",
       "properties": {
-        "id": 134
+        "id": 134,
+        "marker-color": "yellow"
       },
       "geometry": {
         "type": "Point",

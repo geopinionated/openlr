@@ -72,7 +72,7 @@ fn decode_line<G: Graph>(
     //dbg!(&nodes);
 
     // Step – 3 For each location reference point find candidate lines
-    let lines = find_candidate_lines(config, graph, &nodes)?;
+    let lines = find_candidate_lines_from_nodes(config, graph, &nodes)?;
 
     // TODO!!!
     Ok(Location)
@@ -104,6 +104,7 @@ struct CandidateLines<EdgeId> {
 struct CandidateLine<EdgeId> {
     line: EdgeId,
     rating: f64,
+    distance_to_lrp: Option<Length>, // set only when LRP is projected into the line
 }
 
 /// For each location reference point the decoder tries to determine lines which should fulfill the
@@ -120,7 +121,7 @@ struct CandidateLine<EdgeId> {
 /// candidate line in the next step if the nodes in the encoder and decoder map differ significantly.
 /// If no candidate line can be found for a location reference point, the decoder should report an error
 /// and stop further processing.
-fn find_candidate_lines<'a, G>(
+fn find_candidate_lines_from_nodes<G>(
     config: &DecoderConfig,
     graph: &G,
     nodes: &[CandidateNodes<G::VertexId>],
@@ -139,7 +140,7 @@ where
             // only outgoing lines are accepted for the LRPs
             // except the last LRP where only incoming lines are accepted
             // TODO: Box<Iterator>?
-            let edges: Vec<_> = if point.is_last() {
+            let lines: Vec<_> = if point.is_last() {
                 graph
                     .vertex_entering_edges(candidate_node.node)
                     .inspect(|(id, from_vertex)| {
@@ -148,23 +149,24 @@ where
                             candidate_node.node
                         );
                     })
-                    .map(|(id, from)| Edge {
-                        id,
-                        from,
-                        to: candidate_node.node,
+                    .map(|(edge, from)| NetworkLine {
+                        lrp: *point,
+                        edge: edge,
+                        vertex: candidate_node.node,
+                        distance_to_lrp: candidate_node.distance_to_lrp,
                     })
                     .collect()
             } else {
-                // last line
                 graph
                     .vertex_exiting_edges(candidate_node.node)
                     .inspect(|(id, to_vertex)| {
                         println!("Exiting {id:?}: {:?} -> {to_vertex:?}", candidate_node.node);
                     })
-                    .map(|(id, to)| Edge {
-                        id,
-                        from: candidate_node.node,
-                        to,
+                    .map(|(edge, to)| NetworkLine {
+                        lrp: *point,
+                        edge: edge,
+                        vertex: candidate_node.node,
+                        distance_to_lrp: candidate_node.distance_to_lrp,
                     })
                     .collect()
             };
@@ -173,9 +175,9 @@ where
             //edges.dedup();
 
             candidate_lines.extend(
-                edges
+                lines
                     .into_iter()
-                    .filter_map(|edge| rate_line(config, graph, point, candidate_node, edge.id))
+                    .filter_map(|line| rate_line(config, graph, line))
                     .inspect(|candidate| println!("{candidate:?}")),
             );
 
@@ -188,6 +190,30 @@ where
     Ok(lines)
 }
 
+fn find_candidate_lines_from_projection<G>(
+    config: &DecoderConfig,
+    graph: &G,
+    point: &Point,
+) -> Result<Vec<CandidateLines<G::EdgeId>>, DecodeError>
+where
+    G: Graph,
+{
+    let lines: Vec<_> = graph
+        .nearest_edges_within_distance(point.coordinate, config.max_node_distance)
+        .map(|(edge, distance_to_lrp)| {
+            //
+            NetworkLine {
+                lrp: *point,
+                edge: edge,
+                vertex: todo!(),
+                distance_to_lrp: distance_to_lrp,
+            }
+        })
+        .collect();
+
+    todo!()
+}
+
 #[derive(Debug, Clone, Copy)]
 struct Edge<E, V> {
     id: E,
@@ -195,39 +221,51 @@ struct Edge<E, V> {
     to: V,
 }
 
+// TODO
+// offset: Length, // distance from the node to the part of the line that should be considered
+#[derive(Debug, Clone, Copy)]
+struct NetworkLine<EdgeId, VertexId> {
+    /// the Location Reference Point (LRP)
+    lrp: Point,
+    /// edge ID of the line that exits the LRP (or enters the last LRP)
+    edge: EdgeId,
+    /// start vertex of the line (or end vertex if it's the last LRP)
+    vertex: VertexId,
+    /// distance from the LRP to the node (or to the line if the LRP was projected)
+    distance_to_lrp: Length,
+}
+
 fn rate_line<G>(
     config: &DecoderConfig,
     graph: &G,
-    point: &Point, // current Location Reference Point (LRP) of the OpenLR code
-    candidate: &CandidateNode<G::VertexId>,
-    line: G::EdgeId, // outgoing (or ingoing of point is the last) graph edge from/into the LRP
+    line: NetworkLine<G::EdgeId, G::VertexId>,
 ) -> Option<CandidateLine<G::EdgeId>>
 where
     G: Graph,
 {
-    let frc = graph.get_edge_frc(line)?;
-    let fow = graph.get_edge_fow(line)?;
-    let length = graph.get_edge_length(line)?;
-    let bearing = graph.get_edge_bearing(line)?;
+    let frc = graph.get_edge_frc(line.edge)?;
+    let fow = graph.get_edge_fow(line.edge)?;
+    let length = graph.get_edge_length(line.edge)?;
+    let bearing = graph.get_edge_bearing(line.edge)?;
 
     println!(
-        "\nRATE LINE\n{candidate:?} {line:?} {frc:?} {fow:?} {length:?} {bearing:?} last={}",
-        point.is_last()
+        "\nRATE LINE\n{line:?} {line:?} {frc:?} {fow:?} {length:?} {bearing:?} last={}",
+        line.lrp.is_last()
     );
 
-    if !point.is_last() && !frc.is_within_variance(&point.line.frc) {
+    if !line.lrp.is_last() && !frc.is_within_variance(&line.lrp.line.frc) {
         return None;
     }
 
     // compute rating
-    let (orientation, projection_length) = if point.is_last() {
+    let (orientation, projection_length) = if line.lrp.is_last() {
         (Orientation::Backward, length)
     } else {
         (Orientation::Forward, Length::ZERO)
     };
 
     // Calculates the node value based on the distance between the LRP position and the corresponding node.
-    let mut node_rating = (config.max_node_distance - candidate.distance_to_lrp).meters() as f64;
+    let mut node_rating = (config.max_node_distance - line.distance_to_lrp).meters() as f64;
 
     // Determine whether to apply the non-junction node factor to the node score
     // Only apply the non-junction node factor when the LRP matches a node and not a line directly
@@ -236,7 +274,7 @@ where
         false
     } else {
         // TODO: do we need to compute it every time for the same node?
-        graph.is_junction(candidate.node)
+        graph.is_junction(line.vertex)
     };
     //dbg!(is_junction);
 
@@ -244,9 +282,9 @@ where
         node_rating *= config.non_junction_factor;
     }
 
-    let bearing_rating = Bearing::rating_score(bearing.rating(&point.line.bearing));
-    let frc_rating = Frc::rating_score(frc.rating(&point.line.frc));
-    let fow_rating = Fow::rating_score(fow.rating(&point.line.fow));
+    let bearing_rating = Bearing::rating_score(bearing.rating(&line.lrp.line.bearing));
+    let frc_rating = Frc::rating_score(frc.rating(&line.lrp.line.frc));
+    let fow_rating = Fow::rating_score(fow.rating(&line.lrp.line.fow));
 
     let line_rating = bearing_rating + frc_rating + fow_rating;
     let rating = config.node_factor * node_rating + config.line_factor * line_rating;
@@ -254,7 +292,11 @@ where
     if rating < config.min_line_rating {
         None
     } else {
-        Some(CandidateLine { line, rating })
+        Some(CandidateLine {
+            line: line.edge,
+            rating,
+            distance_to_lrp: None,
+        })
     }
 }
 
@@ -280,7 +322,6 @@ where
     points
         .into_iter()
         .map(|&point| {
-            println!("LRP {:?}", point.coordinate);
             let nodes = graph
                 .nearest_vertices_within_distance(point.coordinate, config.max_node_distance)
                 .map(|(node, distance_to_lrp)| CandidateNode {
