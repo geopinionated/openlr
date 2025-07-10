@@ -6,10 +6,10 @@ use strum::IntoEnumIterator;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, strum::EnumIter)]
 #[repr(u8)]
 pub enum Rating {
-    Excellent,
-    Good,
-    Average,
-    Poor,
+    Excellent = 0,
+    Good = 1,
+    Average = 2,
+    Poor = 3,
 }
 
 /// Functional Road Class.
@@ -43,25 +43,6 @@ impl Default for Frc {
 }
 
 impl Frc {
-    // rating_variance?
-    pub const fn rating_interval(rating: Rating) -> i8 {
-        match rating {
-            Rating::Excellent => 0,
-            Rating::Good => 1,
-            Rating::Average => 2,
-            Rating::Poor => 3,
-        }
-    }
-
-    pub const fn rating_score(rating: Rating) -> f64 {
-        match rating {
-            Rating::Excellent => 100.0,
-            Rating::Good => 75.0,
-            Rating::Average => 50.0,
-            Rating::Poor => 0.0,
-        }
-    }
-
     /// Gets the value of this Functional Road Class, the lower the value the higher
     /// the importance of the class.
     pub const fn value(&self) -> i8 {
@@ -83,10 +64,6 @@ impl Frc {
         self.value() <= other.value() + other.variance()
     }
 
-    pub const fn delta(&self, other: &Self) -> i8 {
-        (self.value() - other.value()).abs()
-    }
-
     pub fn rating(&self, other: &Self) -> Rating {
         let delta = (self.value() - other.value()).abs();
 
@@ -100,6 +77,15 @@ impl Frc {
         Rating::iter()
             .find(|&rating| delta <= rating_interval(rating))
             .unwrap_or(Rating::Poor)
+    }
+
+    pub const fn rating_score(rating: Rating) -> f64 {
+        match rating {
+            Rating::Excellent => 100.0,
+            Rating::Good => 75.0,
+            Rating::Average => 50.0,
+            Rating::Poor => 0.0,
+        }
     }
 }
 
@@ -263,6 +249,8 @@ impl Sub for Length {
 pub struct Bearing(u16);
 
 impl Bearing {
+    pub const NORTH: Self = Self(0);
+
     pub const fn from_degrees(degrees: u16) -> Self {
         Self(degrees)
     }
@@ -271,12 +259,34 @@ impl Bearing {
         self.0
     }
 
-    pub fn difference(&self, other: &Self) -> f64 {
-        let mut delta = (self.degrees() as f64 - other.degrees() as f64).abs();
-        if delta > 180.0 {
-            delta = 360.0 - delta;
+    pub const fn difference(&self, other: &Self) -> Self {
+        let delta = (self.degrees() as i64 - other.degrees() as i64).unsigned_abs() as u16;
+        let degrees = if delta > 180 { 360 - delta } else { delta };
+        Self::from_degrees(degrees)
+    }
+
+    pub fn rating(&self, other: &Self) -> Rating {
+        let difference = self.difference(other);
+
+        let rating_interval = |rating| match rating {
+            Rating::Excellent => 6,
+            Rating::Good => 12,
+            Rating::Average => 18,
+            Rating::Poor => 24,
+        };
+
+        Rating::iter()
+            .find(|&rating| difference.degrees() <= rating_interval(rating))
+            .unwrap_or(Rating::Poor)
+    }
+
+    pub const fn rating_score(rating: Rating) -> f64 {
+        match rating {
+            Rating::Excellent => 100.0,
+            Rating::Good => 50.0,
+            Rating::Average => 25.0,
+            Rating::Poor => 0.0,
         }
-        delta
     }
 }
 
@@ -306,7 +316,7 @@ impl PartialEq for Coordinate {
 pub struct LineAttributes {
     pub frc: Frc,
     pub fow: Fow,
-    pub bear: Bearing,
+    pub bearing: Bearing,
 }
 
 /// The path attributes are part of a location reference point (except for the last

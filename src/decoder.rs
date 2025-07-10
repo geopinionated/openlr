@@ -1,16 +1,18 @@
+use std::vec;
+
 use thiserror::Error;
 
 use crate::{
-    DeserializeError, Fow, Frc, Graph, Length, Line, LocationReference, Orientation, Point,
-    deserialize_base64_openlr,
+    Bearing, DeserializeError, Fow, Frc, Graph, Length, Line, LocationReference, Orientation,
+    Point, deserialize_base64_openlr,
 };
 
 #[derive(Error, Debug, PartialEq, Clone, Copy)]
 pub enum DecodeError {
     #[error("Cannot decode: {0}")]
     InvalidData(DeserializeError),
-    #[error("Candidate line cannot be accepted: {0:?}")]
-    InvalidCandidateLine(Point),
+    //#[error("Candidate line cannot be accepted: {0:?}")]
+    //InvalidCandidateLine(Point),
 }
 
 impl From<DeserializeError> for DecodeError {
@@ -22,13 +24,21 @@ impl From<DeserializeError> for DecodeError {
 #[derive(Debug, Clone, Copy)]
 struct DecoderConfig {
     max_node_distance: Length,
-    non_junction_factor: f64,
+    max_bearing_difference: Bearing,
+    min_line_rating: f64,
+    node_factor: f64,
+    line_factor: f64,
+    non_junction_factor: f64, // TODO: can we remove for now and use 1.0?
 }
 
 impl Default for DecoderConfig {
     fn default() -> Self {
         Self {
             max_node_distance: Length::from_meters(10), // TODO: MaxNodeDistance 100m?
+            max_bearing_difference: Bearing::from_degrees(90),
+            min_line_rating: 800.0,
+            node_factor: 3.0,
+            line_factor: 3.0,
             non_junction_factor: 0.8,
         }
     }
@@ -73,7 +83,13 @@ fn decode_line<G: Graph>(
 #[derive(Debug)]
 struct CandidateNodes<VertexId> {
     point: Point,
-    nodes: Vec<(VertexId, Length)>,
+    nodes: Vec<CandidateNode<VertexId>>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct CandidateNode<VertexId> {
+    node: VertexId,
+    distance_to_lrp: Length,
 }
 
 /// List of candidate ways for a Location Reference Point.
@@ -81,7 +97,13 @@ struct CandidateNodes<VertexId> {
 #[derive(Debug)]
 struct CandidateLines<EdgeId> {
     point: Point,
-    ways: Vec<EdgeId>,
+    lines: Vec<CandidateLine<EdgeId>>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct CandidateLine<EdgeId> {
+    line: EdgeId,
+    rating: f64,
 }
 
 /// For each location reference point the decoder tries to determine lines which should fulfill the
@@ -110,36 +132,54 @@ where
 
     for CandidateNodes { point, nodes } in nodes {
         println!("\nNEW POINT with {} candidate nodes", nodes.len());
-        for &(node, distance) in nodes {
-            println!("CANDIDATE {node:?}");
+
+        let mut candidate_lines: Vec<CandidateLine<G::EdgeId>> = vec![];
+
+        for candidate_node in nodes {
             // only outgoing lines are accepted for the LRPs
             // except the last LRP where only incoming lines are accepted
             // TODO: Box<Iterator>?
             let edges: Vec<_> = if point.is_last() {
                 graph
-                    .vertex_entering_edges(node)
+                    .vertex_entering_edges(candidate_node.node)
                     .inspect(|(id, from_vertex)| {
-                        println!("Entering {id:?}: {from_vertex:?} -> {node:?}");
+                        println!(
+                            "Entering {id:?}: {from_vertex:?} -> {:?}",
+                            candidate_node.node
+                        );
                     })
-                    .map(|(id, from)| Edge { id, from, to: node })
+                    .map(|(id, from)| Edge {
+                        id,
+                        from,
+                        to: candidate_node.node,
+                    })
                     .collect()
             } else {
                 // last line
                 graph
-                    .vertex_exiting_edges(node)
+                    .vertex_exiting_edges(candidate_node.node)
                     .inspect(|(id, to_vertex)| {
-                        println!("Exiting {id:?}: {node:?} -> {to_vertex:?}");
+                        println!("Exiting {id:?}: {:?} -> {to_vertex:?}", candidate_node.node);
                     })
-                    .map(|(id, to)| Edge { id, from: node, to })
+                    .map(|(id, to)| Edge {
+                        id,
+                        from: candidate_node.node,
+                        to,
+                    })
                     .collect()
             };
 
             //edges.sort_unstable();
             //edges.dedup();
 
-            for edge in edges {
-                rate_line(config, graph, point, node, edge.id, distance)?;
-            }
+            candidate_lines.extend(
+                edges
+                    .into_iter()
+                    .filter_map(|edge| rate_line(config, graph, point, candidate_node, edge.id))
+                    .inspect(|candidate| println!("{candidate:?}")),
+            );
+
+            println!("\nCandidate lines from nodes:\n{candidate_lines:?}");
 
             panic!();
         }
@@ -158,26 +198,25 @@ struct Edge<E, V> {
 fn rate_line<G>(
     config: &DecoderConfig,
     graph: &G,
-    point: &Point,     // current Location Reference Point of the OpenLR code
-    node: G::VertexId, // start line node (or last line node for last LRP)
-    edge: G::EdgeId,   // outgoing (or ingoing of point is the last) graph edge from/into the LRP
-    distance: Length,  // distance between the LRP coordinate and the graph (edge) vertex
-) -> Result<(), DecodeError>
+    point: &Point, // current Location Reference Point (LRP) of the OpenLR code
+    candidate: &CandidateNode<G::VertexId>,
+    line: G::EdgeId, // outgoing (or ingoing of point is the last) graph edge from/into the LRP
+) -> Option<CandidateLine<G::EdgeId>>
 where
     G: Graph,
 {
-    let frc = graph.get_edge_frc(edge).unwrap();
-    let fow = graph.get_edge_fow(edge).unwrap();
-    let length = graph.get_edge_length(edge).unwrap();
+    let frc = graph.get_edge_frc(line)?;
+    let fow = graph.get_edge_fow(line)?;
+    let length = graph.get_edge_length(line)?;
+    let bearing = graph.get_edge_bearing(line)?;
 
     println!(
-        "last? {} {node:?} {edge:?} {distance:.2?}m {frc:?} {fow:?} {length:?}",
+        "\nRATE LINE\n{candidate:?} {line:?} {frc:?} {fow:?} {length:?} {bearing:?} last={}",
         point.is_last()
     );
 
     if !point.is_last() && !frc.is_within_variance(&point.line.frc) {
-        panic!("OUT OF VARIANCE!!!");
-        return Err(DecodeError::InvalidCandidateLine(*point));
+        return None;
     }
 
     // compute rating
@@ -188,7 +227,7 @@ where
     };
 
     // Calculates the node value based on the distance between the LRP position and the corresponding node.
-    let mut node_rating = (config.max_node_distance - distance).meters() as f64;
+    let mut node_rating = (config.max_node_distance - candidate.distance_to_lrp).meters() as f64;
 
     // Determine whether to apply the non-junction node factor to the node score
     // Only apply the non-junction node factor when the LRP matches a node and not a line directly
@@ -197,33 +236,26 @@ where
         false
     } else {
         // TODO: do we need to compute it every time for the same node?
-        graph.is_junction(node)
+        graph.is_junction(candidate.node)
     };
     //dbg!(is_junction);
 
     if !is_junction {
-        node_rating = node_rating * config.non_junction_factor;
+        node_rating *= config.non_junction_factor;
     }
-    dbg!(node_rating);
 
-    // TODO !!!
-    // Calculates the bearing value based on the bearing values of the line and the lrp attribute.
-    let bear_rating = 0.0;
-    dbg!(point.line.bear);
-
-    const NODE_FACTOR: f64 = 2.0;
-    const LINE_FACTOR: f64 = 3.0;
-
+    let bearing_rating = Bearing::rating_score(bearing.rating(&point.line.bearing));
     let frc_rating = Frc::rating_score(frc.rating(&point.line.frc));
     let fow_rating = Fow::rating_score(fow.rating(&point.line.fow));
 
-    // Compute line rating
-    let line_rating = frc_rating + fow_rating; // + bear_rating
+    let line_rating = bearing_rating + frc_rating + fow_rating;
+    let rating = config.node_factor * node_rating + config.line_factor * line_rating;
 
-    // Compute final rating
-    let rating = NODE_FACTOR * node_rating + LINE_FACTOR * line_rating;
-
-    Ok(())
+    if rating < config.min_line_rating {
+        None
+    } else {
+        Some(CandidateLine { line, rating })
+    }
 }
 
 /// Each location reference point contains coordinates specifying a node in the encoder map. The
@@ -251,6 +283,10 @@ where
             println!("LRP {:?}", point.coordinate);
             let nodes = graph
                 .nearest_vertices_within_distance(point.coordinate, config.max_node_distance)
+                .map(|(node, distance_to_lrp)| CandidateNode {
+                    node,
+                    distance_to_lrp,
+                })
                 .collect();
 
             CandidateNodes { point, nodes }

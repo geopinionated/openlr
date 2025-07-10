@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use geo::{Distance, Haversine};
+use geo::{BoundingRect, Distance, Haversine, HaversineClosestPoint};
 use graph::prelude::{DirectedCsrGraph, DirectedNeighborsWithValues};
 use rstar::RTree;
 
@@ -31,17 +31,18 @@ pub struct EdgeProperty {
 pub struct NetworkGraph {
     // TODO: VertexID instead of usize?
     pub network: DirectedCsrGraph<usize, (), EdgeId>,
-    pub geospatial_rtree: RTree<NetworkNode>,
+    pub geospatial_nodes: RTree<GeospatialNode>,
+    pub geospatial_edges: RTree<GeospatialEdge>,
     pub edge_properties: HashMap<EdgeId, EdgeProperty>,
 }
 
 #[derive(Debug)]
-pub struct NetworkNode {
-    pub location: Coordinate,
+pub struct GeospatialNode {
     pub vertex: VertexId,
+    pub location: Coordinate,
 }
 
-impl rstar::RTreeObject for NetworkNode {
+impl rstar::RTreeObject for GeospatialNode {
     type Envelope = rstar::AABB<geo::Point>;
 
     fn envelope(&self) -> Self::Envelope {
@@ -49,12 +50,43 @@ impl rstar::RTreeObject for NetworkNode {
     }
 }
 
-impl rstar::PointDistance for NetworkNode {
+impl rstar::PointDistance for GeospatialNode {
     fn distance_2(&self, point: &geo::Point) -> f64 {
-        Haversine.distance(
-            geo::Point::new(self.location.lon, self.location.lat),
-            *point,
+        Haversine
+            .distance(
+                geo::Point::new(self.location.lon, self.location.lat),
+                *point,
+            )
+            .powf(2.0)
+    }
+}
+
+#[derive(Debug)]
+pub struct GeospatialEdge {
+    pub edge: EdgeId,
+    pub geometry: geo::LineString,
+}
+
+impl rstar::RTreeObject for GeospatialEdge {
+    type Envelope = rstar::AABB<geo::Point>;
+
+    fn envelope(&self) -> Self::Envelope {
+        let bbox = self.geometry.bounding_rect().unwrap();
+        rstar::AABB::from_corners(
+            geo::Point::new(bbox.min().x, bbox.min().y),
+            geo::Point::new(bbox.max().x, bbox.max().y),
         )
+    }
+}
+
+impl rstar::PointDistance for GeospatialEdge {
+    fn distance_2(&self, point: &geo::Point) -> f64 {
+        match self.geometry.haversine_closest_point(point) {
+            geo::Closest::SinglePoint(p) | geo::Closest::Intersection(p) => {
+                Haversine.distance(p, *point).powf(2.0)
+            }
+            geo::Closest::Indeterminate => f64::INFINITY,
+        }
     }
 }
 
@@ -105,7 +137,6 @@ impl Graph for NetworkGraph {
         if edge.is_reversed() {
             std::mem::swap(&mut first, &mut last);
         }
-        println!("{first:?} -> {last:?}");
 
         let bearing = Haversine.bearing(first, last);
 
@@ -138,13 +169,31 @@ impl Graph for NetworkGraph {
         let max_distance_2 = max_distance.meters() * max_distance.meters();
         let point = geo::Point::new(coordinate.lon, coordinate.lat);
 
-        self.geospatial_rtree
+        self.geospatial_nodes
             .nearest_neighbor_iter_with_distance_2(&point)
             .take_while(move |(_, distance_2)| *distance_2 <= max_distance_2 as f64)
-            .inspect(|(n, d)| println!("{}: {}m", n.vertex.0 + 1, d.sqrt()))
+            .inspect(|(n, d)| println!("{:?}: {}m", n.vertex, d.sqrt()))
             .map(|(node, distance_2)| {
                 let length = Length::from_meters(distance_2.sqrt().round() as u32);
                 (node.vertex, length)
+            })
+    }
+
+    fn nearest_edges_within_distance(
+        &self,
+        coordinate: Coordinate,
+        max_distance: Length,
+    ) -> impl Iterator<Item = (Self::EdgeId, Length)> {
+        let max_distance_2 = max_distance.meters() * max_distance.meters();
+        let point = geo::Point::new(coordinate.lon, coordinate.lat);
+
+        self.geospatial_edges
+            .nearest_neighbor_iter_with_distance_2(&point)
+            .take_while(move |(_, distance_2)| *distance_2 <= max_distance_2 as f64)
+            .inspect(|(n, d)| println!("{:?}: {}m", n.edge, d.sqrt()))
+            .map(|(node, distance_2)| {
+                let length = Length::from_meters(distance_2.sqrt().round() as u32);
+                (node.edge, length)
             })
     }
 }

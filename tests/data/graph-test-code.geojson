@@ -1070,7 +1070,8 @@
     {
       "type": "Feature",
       "properties": {
-        "id": 75
+        "id": 75,
+        "marker-color": "yellow"
       },
       "geometry": {
         "type": "Point",
@@ -1785,8 +1786,7 @@
     {
       "type": "Feature",
       "properties": {
-        "id": 126,
-        "marker-color": "yellow"
+        "id": 126
       },
       "geometry": {
         "type": "Point",
@@ -6846,6 +6846,19 @@
         ]
       },
       "id": "link-9534577"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "marker-color": "brown"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          13.461951,
+          52.51700
+        ]
+      }
     }
   ]
 }

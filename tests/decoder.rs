@@ -2,7 +2,9 @@ use std::collections::HashMap;
 use std::str::FromStr;
 
 use geojson::{Feature, FeatureCollection, Value};
-use openlr::decoder_graph::{EdgeId, EdgeProperty, NetworkGraph, NetworkNode, VertexId};
+use openlr::decoder_graph::{
+    Edge, EdgeId, EdgeProperty, GeospatialEdge, GeospatialNode, NetworkGraph, VertexId,
+};
 use openlr::{Bearing, Coordinate, Fow, Frc, Graph, Length, decode_base64_openlr};
 use rstar::RTree;
 use strum::IntoEnumIterator;
@@ -167,7 +169,44 @@ fn graph_edge_coordinates() {
 }
 
 #[test]
-fn graph_nearest_neighbours() {
+fn graph_nearest_edges() {
+    let geojson = include_str!("data/graph.geojson");
+    let geojson_graph = GeojsonGraph::parse_geojson(geojson);
+    let graph: NetworkGraph = geojson_graph.into_network_graph();
+
+    let coordinate = Coordinate {
+        lon: 13.461951,
+        lat: 52.51700,
+    };
+
+    const MAX_DISTANCE: Length = Length::from_meters(100);
+
+    let neighbours: Vec<EdgeId> = graph
+        .nearest_edges_within_distance(coordinate, MAX_DISTANCE)
+        .map(|(edge, distance)| {
+            assert!(distance.meters() <= MAX_DISTANCE.meters());
+            edge
+        })
+        .collect();
+    println!("{neighbours:?}");
+
+    assert_eq!(
+        neighbours,
+        [
+            EdgeId(8717174),
+            EdgeId(5359425),
+            EdgeId(5359426),
+            EdgeId(4925291),
+            EdgeId(5707435),
+            EdgeId(5707439),
+            EdgeId(8717175),
+            EdgeId(5707436),
+        ]
+    );
+}
+
+#[test]
+fn graph_nearest_nodes() {
     let geojson = include_str!("data/graph.geojson");
     let geojson_graph = GeojsonGraph::parse_geojson(geojson);
 
@@ -178,7 +217,7 @@ fn graph_nearest_neighbours() {
         lat: 52.5143601,
     };
 
-    const MAX_DISTANCE: Length = Length::from_meters(9);
+    const MAX_DISTANCE: Length = Length::from_meters(90);
 
     let neighbours: Vec<VertexId> = graph
         .nearest_vertices_within_distance(node_75_location, MAX_DISTANCE)
@@ -467,15 +506,7 @@ impl GeojsonGraph {
                 let node = graph.nodes.get_mut(&start_id).unwrap();
                 node.lines.push((id, end_id));
 
-                if start_id == 68 {
-                    println!("START {start_id}->{end_id}");
-                }
-
                 if direction == 1 && start_id != end_id {
-                    if end_id == 68 {
-                        println!("END {start_id}->{end_id}");
-                    }
-
                     // both directions
                     let node = graph.nodes.get_mut(&end_id).unwrap();
                     node.lines.push((-id, start_id));
@@ -503,11 +534,6 @@ impl GeojsonGraph {
             .lines
             .iter()
             .map(|(&line_id, line)| {
-                //let edge_id: usize = line_id.try_into().unwrap();
-                if line_id == -8323953 {
-                    panic!();
-                }
-
                 let property = EdgeProperty {
                     id: EdgeId(line_id),
                     length: Length::from_meters(line.length),
@@ -526,36 +552,47 @@ impl GeojsonGraph {
             .flat_map(|(&from_id, node)| {
                 let from_id: usize = from_id.try_into().unwrap();
 
-                if node.id == 68 {
-                    println!("LINES {:?}", node.lines);
-                    //panic!();
-                }
-
                 node.lines.iter().map(move |&(line_id, to_id)| {
                     let to_id: usize = to_id.try_into().unwrap();
-                    //let edge_id: usize = line_id.try_into().unwrap();
                     (from_id, to_id, EdgeId(line_id))
                 })
             })
             .collect();
 
-        let nodes: Vec<NetworkNode> = self
+        let geospatial_nodes: Vec<GeospatialNode> = self
             .nodes
             .iter()
             .map(|(&from_id, node)| {
                 let vertex: usize = from_id.try_into().unwrap();
-                NetworkNode {
+                GeospatialNode {
                     vertex: vertex.into(),
                     location: node.location,
                 }
             })
             .collect();
 
+        let geospatial_edges: Vec<GeospatialEdge> = self
+            .lines
+            .iter()
+            .map(|(&line_id, line)| {
+                let geometry = line
+                    .geometry
+                    .iter()
+                    .map(|coordinate| geo::coord! { x: coordinate.lon, y: coordinate.lat });
+
+                GeospatialEdge {
+                    edge: EdgeId(line_id),
+                    geometry: geo::LineString::from_iter(geometry),
+                }
+            })
+            .collect();
+
         NetworkGraph {
-            geospatial_rtree: RTree::bulk_load(nodes),
             network: graph::prelude::GraphBuilder::new()
                 .edges_with_values(edges)
                 .build(),
+            geospatial_nodes: RTree::bulk_load(geospatial_nodes),
+            geospatial_edges: RTree::bulk_load(geospatial_edges),
             edge_properties,
         }
     }

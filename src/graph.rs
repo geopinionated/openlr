@@ -31,6 +31,12 @@ pub trait Graph {
         max_distance: Length,
     ) -> impl Iterator<Item = (Self::VertexId, Length)>;
 
+    fn nearest_edges_within_distance(
+        &self,
+        coordinate: Coordinate,
+        max_distance: Length,
+    ) -> impl Iterator<Item = (Self::EdgeId, Length)>;
+
     fn connected_vertices(&self, vertex: Self::VertexId) -> impl Iterator<Item = Self::VertexId> {
         let mut nodes: Vec<_> = self
             .vertex_exiting_edges(vertex)

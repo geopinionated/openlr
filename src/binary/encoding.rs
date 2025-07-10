@@ -198,8 +198,8 @@ impl Bearing {
             return Err(SerializeError::InvalidBearing(degrees));
         }
 
-        let bear = (degrees as f64 - Self::BEAR_SECTOR / 2.0) / Self::BEAR_SECTOR;
-        Ok(bear.round() as u8)
+        let bearing = (degrees as f64 - Self::BEAR_SECTOR / 2.0) / Self::BEAR_SECTOR;
+        Ok(bearing.round() as u8)
     }
 }
 
