@@ -29,7 +29,7 @@ where
 
     // best_cost_from_origin[node]: represents the current known shortest distance from origin to node
     let mut best_cost_from_origin: HashMap<G::VertexId, Length> = HashMap::new();
-    best_cost_from_origin.insert(origin, Length::MIN);
+    best_cost_from_origin.insert(origin, Length::ZERO);
 
     // prev_hop[node]: represents the previous-hop node on the current best known path from origin to node
     let mut prev_hop: HashMap<G::VertexId, G::VertexId> = HashMap::new();
@@ -37,7 +37,7 @@ where
     // The set of discovered nodes that may need to be visited. Initially, only the start node is known.
     let mut frontier = BinaryHeap::from([State {
         vertex: origin,
-        distance: Length::MIN,
+        distance: Length::ZERO,
     }]);
 
     while let Some(state) = frontier.pop() {

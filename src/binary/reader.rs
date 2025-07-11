@@ -378,7 +378,7 @@ mod tests {
                         },
                         path: Some(PathAttributes {
                             lfrcnp: Frc::Frc3,
-                            dnp: Length::from_meters(557)
+                            dnp: Length::from_meters(557.0)
                         })
                     },
                     Point {
@@ -393,7 +393,7 @@ mod tests {
                         },
                         path: Some(PathAttributes {
                             lfrcnp: Frc::Frc5,
-                            dnp: Length::from_meters(264)
+                            dnp: Length::from_meters(264.0)
                         })
                     },
                     Point {
@@ -437,7 +437,7 @@ mod tests {
                         },
                         path: Some(PathAttributes {
                             lfrcnp: Frc::Frc3,
-                            dnp: Length::from_meters(498)
+                            dnp: Length::from_meters(498.0)
                         })
                     },
                     Point {
@@ -481,7 +481,7 @@ mod tests {
                         },
                         path: Some(PathAttributes {
                             lfrcnp: Frc::Frc1,
-                            dnp: Length::from_meters(88)
+                            dnp: Length::from_meters(88.0)
                         })
                     },
                     Point {
@@ -522,7 +522,7 @@ mod tests {
                         },
                         path: Some(PathAttributes {
                             lfrcnp: Frc::Frc3,
-                            dnp: Length::from_meters(29)
+                            dnp: Length::from_meters(29.0)
                         })
                     },
                     Point {
@@ -537,7 +537,7 @@ mod tests {
                         },
                         path: Some(PathAttributes {
                             lfrcnp: Frc::Frc5,
-                            dnp: Length::from_meters(29)
+                            dnp: Length::from_meters(29.0)
                         })
                     },
                     Point {
@@ -604,7 +604,7 @@ mod tests {
                         },
                         path: Some(PathAttributes {
                             lfrcnp: Frc::Frc2,
-                            dnp: Length::from_meters(1436)
+                            dnp: Length::from_meters(1436.0)
                         })
                     },
                     Point {
@@ -647,7 +647,7 @@ mod tests {
                         },
                         path: Some(PathAttributes {
                             lfrcnp: Frc::Frc2,
-                            dnp: Length::from_meters(88)
+                            dnp: Length::from_meters(88.0)
                         })
                     },
                     Point {
@@ -691,7 +691,7 @@ mod tests {
                             },
                             path: Some(PathAttributes {
                                 lfrcnp: Frc::Frc4,
-                                dnp: Length::from_meters(147)
+                                dnp: Length::from_meters(147.0)
                             })
                         },
                         Point {
@@ -730,7 +730,7 @@ mod tests {
                     lon: 5.101_851,
                     lat: 52.105_976
                 },
-                radius: Length::from_meters(300)
+                radius: Length::from_meters(300.0)
             })
         );
     }
@@ -746,7 +746,7 @@ mod tests {
                     lon: -3.3115947,
                     lat: 55.945_29
                 },
-                radius: Length::from_meters(2000)
+                radius: Length::from_meters(2000.0)
             })
         );
     }
@@ -888,7 +888,7 @@ mod tests {
                         },
                         path: Some(PathAttributes {
                             lfrcnp: Frc::Frc3,
-                            dnp: Length::from_meters(264)
+                            dnp: Length::from_meters(264.0)
                         })
                     },
                     Point {
@@ -903,7 +903,7 @@ mod tests {
                         },
                         path: Some(PathAttributes {
                             lfrcnp: Frc::Frc7,
-                            dnp: Length::from_meters(498)
+                            dnp: Length::from_meters(498.0)
                         })
                     },
                 ],

@@ -18,6 +18,7 @@ pub trait DirectedGraph {
     fn get_edge_coordinates(&self, edge: Self::EdgeId) -> impl Iterator<Item = Coordinate>;
 
     fn get_edge_bearing(&self, edge: Self::EdgeId) -> Option<Bearing>;
+
     fn get_edge_bearing_between(
         &self,
         edge: Self::EdgeId,

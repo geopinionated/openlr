@@ -160,7 +160,7 @@ impl Length {
 
     /// Returns the distance to next LR-point in meters from a byte.
     pub(crate) fn dnp_from_byte(byte: u8) -> Self {
-        let meters = ((byte as f64 + 0.5) * Self::DISTANCE_PER_INTERVAL).round() as u32;
+        let meters = ((byte as f64 + 0.5) * Self::DISTANCE_PER_INTERVAL).round();
         Self::from_meters(meters)
     }
 
@@ -173,12 +173,12 @@ impl Length {
     pub(crate) fn radius_from_be_bytes(bytes: &[u8]) -> Self {
         let mut radius = [0u8; 4];
         radius[4 - bytes.len()..].copy_from_slice(bytes);
-        Self::from_meters(u32::from_be_bytes(radius))
+        Self::from_meters(u32::from_be_bytes(radius) as f64)
     }
 
     /// Returns the big-endian representation of a radius in 4 bytes.
     pub(crate) fn radius_into_be_bytes(self) -> [u8; 4] {
-        u32::to_be_bytes(self.meters())
+        u32::to_be_bytes(self.meters() as u32)
     }
 }
 

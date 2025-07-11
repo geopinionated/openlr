@@ -190,14 +190,14 @@ impl DirectedGraph for NetworkGraph {
         offset: Length,
     ) -> Option<Bearing> {
         let edge_length = self.get_edge_length(edge)?;
-        if distance_start >= edge_length {
+        if distance_start > edge_length {
             return None;
         }
 
-        let distance_end = (distance_start + offset).min(edge_length);
+        let distance_end = (distance_start + offset).min(edge_length).max(Length::ZERO);
 
-        let ratio_p1 = distance_start.meters() as f64 / edge_length.meters() as f64;
-        let ratio_p2 = distance_end.meters() as f64 / edge_length.meters() as f64;
+        let ratio_p1 = distance_start.meters() / edge_length.meters();
+        let ratio_p2 = distance_end.meters() / edge_length.meters();
 
         let geometry = geo::LineString::from_iter(
             self.get_edge_coordinates(edge)
@@ -248,7 +248,7 @@ impl DirectedGraph for NetworkGraph {
             }
         }
 
-        Some(Length::from_meters(distance_from_start.round() as u32))
+        Some(Length::from_meters(distance_from_start.round()))
     }
 
     fn vertex_exiting_edges(
@@ -279,10 +279,10 @@ impl DirectedGraph for NetworkGraph {
 
         self.geospatial_nodes
             .nearest_neighbor_iter_with_distance_2(&point)
-            .take_while(move |(_, distance_2)| *distance_2 <= max_distance_2 as f64)
+            .take_while(move |(_, distance_2)| *distance_2 <= max_distance_2)
             //.inspect(|(n, d)| println!("{:?}: {}m", n.vertex, d.sqrt()))
             .map(|(node, distance_2)| {
-                let length = Length::from_meters(distance_2.sqrt().round() as u32);
+                let length = Length::from_meters(distance_2.sqrt().round());
                 (node.vertex, length)
             })
     }
@@ -297,10 +297,10 @@ impl DirectedGraph for NetworkGraph {
 
         self.geospatial_edges
             .nearest_neighbor_iter_with_distance_2(&point)
-            .take_while(move |(_, distance_2)| *distance_2 <= max_distance_2 as f64)
+            .take_while(move |(_, distance_2)| *distance_2 <= max_distance_2)
             //.inspect(|(n, d)| println!("{:?}: {}m", n.edge, d.sqrt()))
             .map(|(node, distance_2)| {
-                let length = Length::from_meters(distance_2.sqrt().round() as u32);
+                let length = Length::from_meters(distance_2.sqrt().round());
                 (node.edge, length)
             })
     }

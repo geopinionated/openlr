@@ -1,6 +1,7 @@
 use std::ops::{Add, Sub};
 
 use approx::abs_diff_eq;
+use ordered_float::OrderedFloat;
 use strum::IntoEnumIterator;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, strum::EnumIter)]
@@ -54,8 +55,7 @@ impl Frc {
     /// equal during the decoding process.
     pub const fn variance(&self) -> i8 {
         match self {
-            Self::Frc0 | Self::Frc1 => 1,
-            Self::Frc2 | Self::Frc3 => 2,
+            Self::Frc0 | Self::Frc1 | Self::Frc2 | Self::Frc3 => 2,
             Self::Frc4 | Self::Frc5 | Self::Frc6 | Self::Frc7 => 3,
         }
     }
@@ -209,20 +209,20 @@ impl Default for Orientation {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
-pub struct Length(u32);
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
+pub struct Length(OrderedFloat<f64>);
 
 impl Length {
-    pub const ZERO: Self = Self(0);
-    pub const MIN: Self = Self::ZERO;
-    pub const MAX: Self = Self(u32::MAX);
+    pub const ZERO: Self = Self(OrderedFloat(0.0));
+    pub const MAX: Self = Self(OrderedFloat(f64::MAX));
+    pub const EPSILON: f64 = 0.01;
 
-    pub const fn from_meters(meters: u32) -> Self {
-        Self(meters)
+    pub const fn from_meters(meters: f64) -> Self {
+        Self(OrderedFloat(meters))
     }
 
-    pub const fn meters(&self) -> u32 {
-        self.0
+    pub fn meters(&self) -> f64 {
+        self.0.into()
     }
 }
 
@@ -230,7 +230,7 @@ impl Add for Length {
     type Output = Self;
 
     fn add(self, other: Self) -> Self {
-        Self(self.meters().saturating_add(other.meters()))
+        Self(OrderedFloat(self.meters() + other.meters()))
     }
 }
 
@@ -238,7 +238,7 @@ impl Sub for Length {
     type Output = Self;
 
     fn sub(self, other: Self) -> Self {
-        Self(self.meters().saturating_sub(other.meters()))
+        Self(OrderedFloat(self.meters() - other.meters()))
     }
 }
 

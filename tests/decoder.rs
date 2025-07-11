@@ -121,14 +121,14 @@ fn graph_edge_bearing_between() {
 
     assert_eq!(
         graph
-            .get_edge_bearing_between(EdgeId(-5359425), Length::ZERO, Length::from_meters(20))
+            .get_edge_bearing_between(EdgeId(-5359425), Length::ZERO, Length::from_meters(20.0))
             .unwrap(),
         Bearing::from_degrees(17)
     );
 
     assert_eq!(
         graph
-            .get_edge_bearing_between(EdgeId(5104156), Length::ZERO, Length::from_meters(10))
+            .get_edge_bearing_between(EdgeId(5104156), Length::ZERO, Length::from_meters(10.0))
             .unwrap(),
         Bearing::from_degrees(139)
     );
@@ -137,11 +137,24 @@ fn graph_edge_bearing_between() {
         graph
             .get_edge_bearing_between(
                 EdgeId(5104156),
-                Length::from_meters(15),
-                Length::from_meters(5)
+                Length::from_meters(15.0),
+                Length::from_meters(5.0)
             )
             .unwrap(),
         Bearing::from_degrees(97)
+    );
+
+    let entering_edges: Vec<_> = graph.vertex_entering_edges(VertexId(20)).collect();
+    dbg!(entering_edges);
+
+    let length = graph.get_edge_length(EdgeId(109783)).unwrap();
+    dbg!(length);
+
+    assert_eq!(
+        graph
+            .get_edge_bearing_between(EdgeId(109783), length, Length::from_meters(-20.0))
+            .unwrap(),
+        Bearing::from_degrees(18)
     );
 }
 
@@ -160,13 +173,13 @@ fn graph_edge_distance_from_start_vertex_to_projected_coordinate() {
         graph
             .get_distance_from_start_vertex(EdgeId(4925291), coordinate)
             .unwrap(),
-        Length::from_meters(142)
+        Length::from_meters(142.0)
     );
     assert_eq!(
         graph
             .get_distance_from_start_vertex(EdgeId(-4925291), coordinate)
             .unwrap(),
-        Length::from_meters(1)
+        Length::from_meters(1.0)
     );
 
     let coordinate = Coordinate {
@@ -177,13 +190,13 @@ fn graph_edge_distance_from_start_vertex_to_projected_coordinate() {
         graph
             .get_distance_from_start_vertex(EdgeId(8717174), coordinate)
             .unwrap(),
-        Length::from_meters(57)
+        Length::from_meters(57.0)
     );
     assert_eq!(
         graph
             .get_distance_from_start_vertex(EdgeId(-8717174), coordinate)
             .unwrap(),
-        Length::from_meters(80)
+        Length::from_meters(80.0)
     );
 }
 
@@ -303,7 +316,7 @@ fn graph_nearest_edges() {
         lat: 52.51700,
     };
 
-    const MAX_DISTANCE: Length = Length::from_meters(100);
+    const MAX_DISTANCE: Length = Length::from_meters(100.0);
 
     let neighbours: Vec<(EdgeId, _)> = graph
         .nearest_edges_within_distance(coordinate, MAX_DISTANCE)
@@ -352,7 +365,7 @@ fn graph_nearest_edges_2() {
         lat: 52.51710534095764,
     };
 
-    const MAX_DISTANCE: Length = Length::from_meters(5);
+    const MAX_DISTANCE: Length = Length::from_meters(5.0);
 
     let neighbours: Vec<(EdgeId, _)> = graph
         .nearest_edges_within_distance(coordinate, MAX_DISTANCE)
@@ -394,7 +407,7 @@ fn graph_nearest_nodes() {
         lat: 52.5143601,
     };
 
-    const MAX_DISTANCE: Length = Length::from_meters(90);
+    const MAX_DISTANCE: Length = Length::from_meters(90.0);
 
     let neighbours: Vec<VertexId> = graph
         .nearest_vertices_within_distance(node_75_location, MAX_DISTANCE)
@@ -488,7 +501,7 @@ fn geojson_graph_into_network_graph() {
         get_exiting_edges(VertexId(1)),
         vec![(
             EdgeId(16218),
-            Length::from_meters(217),
+            Length::from_meters(217.0),
             Frc::Frc2,
             Fow::SingleCarriageway,
             VertexId(2)
@@ -500,14 +513,14 @@ fn geojson_graph_into_network_graph() {
         vec![
             (
                 EdgeId(-8323953),
-                Length::from_meters(16),
+                Length::from_meters(16.0),
                 Frc::Frc6,
                 Fow::SingleCarriageway,
                 VertexId(127)
             ),
             (
                 EdgeId(8323959),
-                Length::from_meters(11),
+                Length::from_meters(11.0),
                 Frc::Frc6,
                 Fow::SingleCarriageway,
                 VertexId(129)
@@ -519,14 +532,14 @@ fn geojson_graph_into_network_graph() {
         vec![
             (
                 EdgeId(8323953),
-                Length::from_meters(16),
+                Length::from_meters(16.0),
                 Frc::Frc6,
                 Fow::SingleCarriageway,
                 VertexId(127)
             ),
             (
                 EdgeId(-8323959),
-                Length::from_meters(11),
+                Length::from_meters(11.0),
                 Frc::Frc6,
                 Fow::SingleCarriageway,
                 VertexId(129)
@@ -539,14 +552,14 @@ fn geojson_graph_into_network_graph() {
         vec![
             (
                 EdgeId(-8345026),
-                Length::from_meters(31),
+                Length::from_meters(31.0),
                 Frc::Frc6,
                 Fow::SingleCarriageway,
                 VertexId(123)
             ),
             (
                 EdgeId(8345025),
-                Length::from_meters(199),
+                Length::from_meters(199.0),
                 Frc::Frc6,
                 Fow::SingleCarriageway,
                 VertexId(134)
@@ -558,14 +571,14 @@ fn geojson_graph_into_network_graph() {
         vec![
             (
                 EdgeId(8345026),
-                Length::from_meters(31),
+                Length::from_meters(31.0),
                 Frc::Frc6,
                 Fow::SingleCarriageway,
                 VertexId(123)
             ),
             (
                 EdgeId(8345025),
-                Length::from_meters(199),
+                Length::from_meters(199.0),
                 Frc::Frc6,
                 Fow::SingleCarriageway,
                 VertexId(134)
@@ -736,7 +749,7 @@ impl GeojsonGraph {
             .map(|(&line_id, line)| {
                 let property = EdgeProperty {
                     id: EdgeId(line_id),
-                    length: Length::from_meters(line.length),
+                    length: Length::from_meters(line.length as f64),
                     frc: line.frc,
                     fow: line.fow,
                     geometry: line.geometry.clone(),
