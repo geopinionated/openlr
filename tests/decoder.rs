@@ -121,6 +121,17 @@ fn graph_edge_bearing_between() {
 
     assert_eq!(
         graph
+            .get_edge_bearing_between(
+                EdgeId(5359425),
+                graph.get_edge_length(EdgeId(5359425)).unwrap() - Length::from_meters(1.0),
+                Length::from_meters(20.0)
+            )
+            .unwrap(),
+        Bearing::from_degrees(197)
+    );
+
+    assert_eq!(
+        graph
             .get_edge_bearing_between(EdgeId(-5359425), Length::ZERO, Length::from_meters(20.0))
             .unwrap(),
         Bearing::from_degrees(17)
@@ -144,15 +155,13 @@ fn graph_edge_bearing_between() {
         Bearing::from_degrees(97)
     );
 
-    let entering_edges: Vec<_> = graph.vertex_entering_edges(VertexId(20)).collect();
-    dbg!(entering_edges);
-
-    let length = graph.get_edge_length(EdgeId(109783)).unwrap();
-    dbg!(length);
-
     assert_eq!(
         graph
-            .get_edge_bearing_between(EdgeId(109783), length, Length::from_meters(-20.0))
+            .get_edge_bearing_between(
+                EdgeId(109783),
+                graph.get_edge_length(EdgeId(109783)).unwrap(),
+                Length::from_meters(-20.0)
+            )
             .unwrap(),
         Bearing::from_degrees(18)
     );
@@ -172,13 +181,15 @@ fn graph_edge_distance_from_start_vertex_to_projected_coordinate() {
     assert_eq!(
         graph
             .get_distance_from_start_vertex(EdgeId(4925291), coordinate)
-            .unwrap(),
+            .unwrap()
+            .round(),
         Length::from_meters(142.0)
     );
     assert_eq!(
         graph
             .get_distance_from_start_vertex(EdgeId(-4925291), coordinate)
-            .unwrap(),
+            .unwrap()
+            .round(),
         Length::from_meters(1.0)
     );
 
@@ -189,13 +200,15 @@ fn graph_edge_distance_from_start_vertex_to_projected_coordinate() {
     assert_eq!(
         graph
             .get_distance_from_start_vertex(EdgeId(8717174), coordinate)
-            .unwrap(),
+            .unwrap()
+            .round(),
         Length::from_meters(57.0)
     );
     assert_eq!(
         graph
             .get_distance_from_start_vertex(EdgeId(-8717174), coordinate)
-            .unwrap(),
+            .unwrap()
+            .round(),
         Length::from_meters(80.0)
     );
 }

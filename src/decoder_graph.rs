@@ -207,6 +207,9 @@ impl DirectedGraph for NetworkGraph {
         let p1 = geometry.point_at_ratio_from_start(&Haversine, ratio_p1)?;
         let p2 = geometry.point_at_ratio_from_start(&Haversine, ratio_p2)?;
 
+        //dbg!(p1);
+        //dbg!(p2);
+
         use geo::Bearing;
         let bearing = Haversine.bearing(p1, p2);
 
@@ -248,7 +251,7 @@ impl DirectedGraph for NetworkGraph {
             }
         }
 
-        Some(Length::from_meters(distance_from_start.round()))
+        Some(Length::from_meters(distance_from_start))
     }
 
     fn vertex_exiting_edges(

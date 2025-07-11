@@ -1,5 +1,5 @@
 use thiserror::Error;
-use tracing::debug;
+use tracing::{debug, info};
 
 use crate::{
     Bearing, DeserializeError, DirectedGraph, Fow, Frc, Length, Line, LocationReference, Point,
@@ -68,8 +68,7 @@ fn decode_line<G: DirectedGraph>(
     graph: &G,
     line: Line,
 ) -> Result<Location, DecodeError> {
-    println!("DECODING");
-    println!("\n{:#?}\n", line.points);
+    debug!("Decoding {line:?} with {config:?}");
 
     // Step – 2 For each location reference point find candidate nodes
     let nodes = find_candidate_nodes(config, graph, &line.points);
@@ -108,7 +107,7 @@ struct CandidateLines<EdgeId> {
 struct AcceptedCandidateLine<EdgeId> {
     edge: EdgeId,
     rating: f64,
-    // offset: Length, // The projection along the line in meter (from start)
+    distance_to_projection: Length,
 }
 
 /// For each location reference point the decoder tries to determine lines which should fulfill the
@@ -148,7 +147,7 @@ where
             lines: vec![],
         };
 
-        println!("Finding candidate lines from nodes");
+        println!("\n\nFinding candidate lines from nodes");
         for candidate_node in nodes {
             let is_junction = graph.is_junction(candidate_node.vertex);
             // only outgoing lines are accepted for the LRPs, except the last LRP where only
@@ -169,109 +168,39 @@ where
 
             // TODO: we don't need the vertex in the API?
             let lines = edges.into_iter().filter_map(|(edge, _)| {
-                let distance_to_projection = if point.is_last() {
-                    // TODO: check if this works since we are using directed edges
-                    graph.get_edge_length(edge)?
-                } else {
-                    Length::ZERO
-                };
-
                 let bearing = if point.is_last() {
-                    graph.get_edge_bearing_between(edge, Length::ZERO, config.bearing_distance)?
-                } else {
                     graph.get_edge_bearing_between(
                         edge,
                         graph.get_edge_length(edge)?,
-                        config.bearing_distance,
+                        config.bearing_distance.reverse(),
                     )?
+                } else {
+                    graph.get_edge_bearing_between(edge, Length::ZERO, config.bearing_distance)?
                 };
 
                 Some(CandidateLine {
                     edge,
                     vertex: candidate_node.vertex,
                     distance_to_lrp: candidate_node.distance_to_lrp,
-                    distance_to_projection,
+                    distance_to_projection: Length::ZERO,
                     is_junction: Some(is_junction),
                     frc: graph.get_edge_frc(edge)?,
                     fow: graph.get_edge_fow(edge)?,
                     length: graph.get_edge_length(edge)?,
-                    bearing: graph.get_edge_bearing_between(
-                        edge,
-                        Length::ZERO,
-                        config.bearing_distance,
-                    )?,
+                    bearing,
                 })
             });
-
-            /*
-            let lines: Vec<_> = if point.is_last() {
-                graph
-                    .vertex_entering_edges(candidate_node.node)
-                    .inspect(|(id, from_vertex)| {
-                        println!(
-                            "Entering {id:?}: {from_vertex:?} -> {:?}",
-                            candidate_node.node
-                        );
-                    })
-                    .filter_map(|(edge, _)| {
-                        Some(NetworkLine {
-                            edge,
-                            vertex: candidate_node.node,
-                            distance_to_lrp: candidate_node.distance_to_lrp,
-                            distance_to_projection: graph.get_edge_length(edge)?,
-                            is_junction,
-                            frc: graph.get_edge_frc(edge)?,
-                            fow: graph.get_edge_fow(edge)?,
-                            length: graph.get_edge_length(edge)?,
-                            bearing: graph.get_edge_bearing_between(
-                                edge,
-                                Length::ZERO,
-                                config.bearing_distance,
-                            )?,
-                        })
-                    })
-                    .collect()
-            } else {
-                graph
-                    .vertex_exiting_edges(candidate_node.node)
-                    .inspect(|(id, to_vertex)| {
-                        println!("Exiting {id:?}: {:?} -> {to_vertex:?}", candidate_node.node);
-                    })
-                    .filter_map(|(edge, _)| {
-                        Some(NetworkLine {
-                            edge,
-                            vertex: candidate_node.node,
-                            distance_to_lrp: candidate_node.distance_to_lrp,
-                            distance_to_projection: Length::ZERO,
-                            is_junction,
-                            frc: graph.get_edge_frc(edge)?,
-                            fow: graph.get_edge_fow(edge)?,
-                            length: graph.get_edge_length(edge)?,
-                            bearing: graph.get_edge_bearing_between(
-                                edge,
-                                Length::ZERO,
-                                config.bearing_distance,
-                            )?,
-                        })
-                    })
-                    .collect()
-            };
-
-            //lines.sort_unstable();
-            //lines.dedup();
-            */
 
             candidate_lines.lines.extend(
                 lines
                     .into_iter()
-                    .filter_map(|line| rate_line(config, graph, *point, line))
-                    .inspect(|candidate| println!("{candidate:?}")),
+                    .filter_map(|line| rate_line::<G>(config, *point, line)),
             );
-
-            //panic!();
         }
 
-        println!("\nFinding candidate lines from projected lines");
+        assert_eq!(candidate_lines.lines.len(), 1);
+
+        println!("\n\nFinding candidate lines from projected lines");
         let mut projected_lines =
             find_projected_candidate_lines(config, graph, &mut candidate_lines);
         dbg!(projected_lines.len());
@@ -293,10 +222,10 @@ fn find_projected_candidate_lines<G>(
 where
     G: DirectedGraph,
 {
+    // TODO???
+    // only outgoing lines are accepted for the LRPs, except the last LRP where only
+    // incoming lines are accepted
     graph
-        // TODO?
-        // only outgoing lines are accepted for the LRPs, except the last LRP
-        // where only incoming lines are accepted
         .nearest_edges_within_distance(candidate_lines.lrp.coordinate, config.max_node_distance)
         .filter_map(|(edge, distance_to_lrp)| {
             let vertex = if candidate_lines.lrp.is_last() {
@@ -308,6 +237,20 @@ where
             let distance_to_projection =
                 graph.get_distance_from_start_vertex(edge, candidate_lines.lrp.coordinate)?;
 
+            let bearing = if candidate_lines.lrp.is_last() {
+                graph.get_edge_bearing_between(
+                    edge,
+                    graph.get_edge_length(edge)? - distance_to_projection,
+                    config.bearing_distance.reverse(),
+                )?
+            } else {
+                graph.get_edge_bearing_between(
+                    edge,
+                    distance_to_projection,
+                    config.bearing_distance,
+                )?
+            };
+
             Some(CandidateLine {
                 edge,
                 vertex,
@@ -317,15 +260,11 @@ where
                 frc: graph.get_edge_frc(edge)?,
                 fow: graph.get_edge_fow(edge)?,
                 length: graph.get_edge_length(edge)?,
-                bearing: graph.get_edge_bearing_between(
-                    edge,
-                    distance_to_projection,
-                    config.bearing_distance,
-                )?,
+                bearing,
             })
         })
         .filter_map(|line| {
-            let mut projected_candidate = rate_line(config, graph, candidate_lines.lrp, line)?;
+            let mut projected_candidate = rate_line::<G>(config, candidate_lines.lrp, line)?;
 
             if !candidate_lines.lines.is_empty() {
                 projected_candidate.rating *= config.projected_line_factor;
@@ -346,7 +285,6 @@ where
 
                 None
             } else {
-                println!("PROJECTED: {projected_candidate:?}");
                 Some(projected_candidate)
             }
         })
@@ -362,7 +300,7 @@ struct CandidateLine<EdgeId, VertexId> {
     /// Distance from the LRP to the vertex (or to the edge if the LRP was projected).
     distance_to_lrp: Length,
     /// Distance from the vertex to the projected LRP into the edge.
-    /// If the LRP is not projected it will be 0 (or equal to the edge length for the last LRP).
+    /// If the LRP is not projected it will be 0.
     distance_to_projection: Length,
     /// True only if the LRP was not projected, and the vertex of the edge that corresponds to the
     /// LRP connects to more than other 2 nodes.
@@ -378,48 +316,64 @@ struct CandidateLine<EdgeId, VertexId> {
     bearing: Bearing,
 }
 
-fn rate_line<G>(
+fn rate_line<G: DirectedGraph>(
     config: &DecoderConfig,
-    graph: &G,
     lrp: Point,
     line: CandidateLine<G::EdgeId, G::VertexId>,
-) -> Option<AcceptedCandidateLine<G::EdgeId>>
-where
-    G: DirectedGraph,
-{
+) -> Option<AcceptedCandidateLine<G::EdgeId>> {
     debug!("Rating: {line:?}");
 
     if let Some(path) = &lrp.path
         && !line.frc.is_within_variance(&path.lfrcnp)
     {
         debug_assert!(!lrp.is_last());
-        debug!("FRC variance out of bounds: {line:?}");
+        debug!("Candidate FRC variance out of bounds: {line:?}");
         return None;
     }
 
-    let mut node_rating = (config.max_node_distance - line.distance_to_lrp).meters() as f64;
-    debug_assert!(node_rating.is_sign_positive());
-
-    if let Some(false) = line.is_junction {
-        node_rating *= config.non_junction_factor;
+    #[derive(Debug)]
+    struct Ratings {
+        distance: f64,
+        bearing: f64,
+        frc: f64,
+        fow: f64,
     }
 
-    let bearing_rating = Bearing::rating_score(line.bearing.rating(&lrp.line.bearing));
+    let ratings = Ratings {
+        distance: (config.max_node_distance - line.distance_to_lrp).meters() as f64,
+        bearing: Bearing::rating_score(line.bearing.rating(&lrp.line.bearing)),
+        frc: Frc::rating_score(line.frc.rating(&lrp.line.frc)),
+        fow: Fow::rating_score(line.fow.rating(&lrp.line.fow)),
+    };
 
-    let frc_rating = Frc::rating_score(line.frc.rating(&lrp.line.frc));
-    let fow_rating = Fow::rating_score(line.fow.rating(&lrp.line.fow));
+    let node_rating = {
+        debug_assert!(ratings.distance.is_sign_positive());
+        let rating = config.node_factor * ratings.distance;
+        if let Some(false) = line.is_junction {
+            rating * config.non_junction_factor
+        } else {
+            rating
+        }
+    };
 
-    let line_rating = bearing_rating + frc_rating + fow_rating;
-    let rating = config.node_factor * node_rating + config.line_factor * line_rating;
-    debug!("Line rating = {rating:.1}");
+    let line_rating = {
+        let rating = ratings.bearing + ratings.frc + ratings.fow;
+        config.line_factor * rating
+    };
+
+    let rating = node_rating + line_rating;
+    debug!("Rating={rating:.1} {ratings:?}");
 
     if rating < config.min_line_rating {
         None
     } else {
-        Some(AcceptedCandidateLine {
+        let accepted_line = AcceptedCandidateLine {
             edge: line.edge,
             rating,
-        })
+            distance_to_projection: line.distance_to_projection,
+        };
+        debug!("Accepted: {accepted_line:?}");
+        Some(accepted_line)
     }
 }
 

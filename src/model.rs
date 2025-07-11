@@ -221,8 +221,16 @@ impl Length {
         Self(OrderedFloat(meters))
     }
 
-    pub fn meters(&self) -> f64 {
-        self.0.into()
+    pub const fn meters(&self) -> f64 {
+        self.0.0
+    }
+
+    pub fn round(self) -> Self {
+        Self(self.0.round().into())
+    }
+
+    pub fn reverse(self) -> Self {
+        Self(self.0 * -1.0)
     }
 }
 
