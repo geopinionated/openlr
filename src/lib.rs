@@ -19,5 +19,5 @@ pub use graph::DirectedGraph;
 pub use model::{
     Bearing, Circle, ClosedLine, Coordinate, Fow, Frc, Grid, GridSize, Length, Line,
     LineAttributes, LocationReference, LocationType, Offset, Orientation, PathAttributes, Poi,
-    Point, PointAlongLine, Polygon, Rating, Rectangle, SideOfRoad,
+    Point, PointAlongLine, Polygon, Rating, RatingScore, Rectangle, SideOfRoad,
 };

@@ -121,6 +121,20 @@ fn graph_edge_bearing_between() {
 
     assert_eq!(
         graph
+            .get_edge_bearing_between(EdgeId(109783), Length::ZERO, Length::from_meters(20.0))
+            .unwrap(),
+        Bearing::from_degrees(200)
+    );
+
+    assert_eq!(
+        graph
+            .get_edge_bearing_between(EdgeId(-109783), Length::ZERO, Length::from_meters(20.0))
+            .unwrap(),
+        Bearing::from_degrees(18)
+    );
+
+    assert_eq!(
+        graph
             .get_edge_bearing_between(
                 EdgeId(5359425),
                 graph.get_edge_length(EdgeId(5359425)).unwrap() - Length::from_meters(1.0),
@@ -174,6 +188,49 @@ fn graph_edge_distance_from_start_vertex_to_projected_coordinate() {
     let graph: NetworkGraph = geojson_graph.into_network_graph();
 
     let coordinate = Coordinate {
+        lon: 13.462836552352906,
+        lat: 52.51499534095764,
+    };
+
+    assert_eq!(
+        graph
+            .get_distance_from_start_vertex(EdgeId(6770340), coordinate)
+            .unwrap()
+            .round(),
+        Length::from_meters(0.0)
+    );
+
+    let coordinate = Coordinate {
+        lon: 13.462836552352906,
+        lat: 52.51499534095764,
+    };
+
+    assert_eq!(
+        graph.get_edge_start_vertex(EdgeId(-109783)).unwrap(),
+        VertexId(20)
+    );
+    assert_eq!(
+        graph.get_edge_end_vertex(EdgeId(-109783)).unwrap(),
+        VertexId(19)
+    );
+
+    assert_eq!(
+        graph
+            .get_distance_from_start_vertex(EdgeId(-109783), coordinate)
+            .unwrap()
+            .round(),
+        Length::from_meters(1.0)
+    );
+
+    assert_eq!(
+        graph
+            .get_distance_from_start_vertex(EdgeId(109783), coordinate)
+            .unwrap()
+            .round(),
+        Length::from_meters(191.0)
+    );
+
+    let coordinate = Coordinate {
         lon: 13.461116552352905,
         lat: 52.51710534095764,
     };
@@ -218,6 +275,11 @@ fn graph_edge_vertices() {
     let geojson = include_str!("data/graph.geojson");
     let geojson_graph = GeojsonGraph::parse_geojson(geojson);
     let graph: NetworkGraph = geojson_graph.into_network_graph();
+
+    assert_eq!(
+        graph.get_edge_start_vertex(EdgeId(-6770340)).unwrap(),
+        VertexId(102)
+    );
 
     assert_eq!(
         graph.vertex_exiting_edges(VertexId(1)).collect::<Vec<_>>(),

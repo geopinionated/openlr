@@ -216,6 +216,7 @@ impl DirectedGraph for NetworkGraph {
         Some(crate::Bearing::from_degrees(bearing.round() as u16))
     }
 
+    // TODO: should this return negative numbers?
     fn get_distance_from_start_vertex(
         &self,
         edge: Self::EdgeId,
@@ -285,7 +286,7 @@ impl DirectedGraph for NetworkGraph {
             .take_while(move |(_, distance_2)| *distance_2 <= max_distance_2)
             //.inspect(|(n, d)| println!("{:?}: {}m", n.vertex, d.sqrt()))
             .map(|(node, distance_2)| {
-                let length = Length::from_meters(distance_2.sqrt().round());
+                let length = Length::from_meters(distance_2.sqrt());
                 (node.vertex, length)
             })
     }
@@ -303,7 +304,7 @@ impl DirectedGraph for NetworkGraph {
             .take_while(move |(_, distance_2)| *distance_2 <= max_distance_2)
             //.inspect(|(n, d)| println!("{:?}: {}m", n.edge, d.sqrt()))
             .map(|(node, distance_2)| {
-                let length = Length::from_meters(distance_2.sqrt().round());
+                let length = Length::from_meters(distance_2.sqrt());
                 (node.edge, length)
             })
     }

@@ -1,4 +1,7 @@
-use std::ops::{Add, Sub};
+use std::{
+    fmt::{self, Debug},
+    ops::{Add, Mul, MulAssign, Sub},
+};
 
 use approx::abs_diff_eq;
 use ordered_float::OrderedFloat;
@@ -11,6 +14,48 @@ pub enum Rating {
     Good = 1,
     Average = 2,
     Poor = 3,
+}
+
+#[derive(Clone, Copy, PartialEq, PartialOrd)]
+pub struct RatingScore(f64);
+
+impl From<f64> for RatingScore {
+    fn from(value: f64) -> Self {
+        Self(value)
+    }
+}
+
+impl Add for RatingScore {
+    type Output = Self;
+    fn add(self, other: Self) -> Self {
+        Self(self.0 + other.0)
+    }
+}
+
+impl Mul<f64> for RatingScore {
+    type Output = Self;
+    fn mul(self, rhs: f64) -> Self::Output {
+        Self(self.0 * rhs)
+    }
+}
+
+impl Mul<RatingScore> for f64 {
+    type Output = RatingScore;
+    fn mul(self, rhs: RatingScore) -> Self::Output {
+        RatingScore(self * rhs.0)
+    }
+}
+
+impl MulAssign<f64> for RatingScore {
+    fn mul_assign(&mut self, rhs: f64) {
+        self.0 = self.0 * rhs;
+    }
+}
+
+impl fmt::Debug for RatingScore {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:.1}", self.0)
+    }
 }
 
 /// Functional Road Class.
@@ -79,12 +124,12 @@ impl Frc {
             .unwrap_or(Rating::Poor)
     }
 
-    pub const fn rating_score(rating: Rating) -> f64 {
+    pub const fn rating_score(rating: Rating) -> RatingScore {
         match rating {
-            Rating::Excellent => 100.0,
-            Rating::Good => 75.0,
-            Rating::Average => 50.0,
-            Rating::Poor => 0.0,
+            Rating::Excellent => RatingScore(100.0),
+            Rating::Good => RatingScore(75.0),
+            Rating::Average => RatingScore(50.0),
+            Rating::Poor => RatingScore(0.0),
         }
     }
 }
@@ -156,11 +201,11 @@ impl Fow {
         }
     }
 
-    pub const fn rating_score(rating: Rating) -> f64 {
+    pub const fn rating_score(rating: Rating) -> RatingScore {
         match rating {
-            Rating::Excellent => 100.0,
-            Rating::Good | Rating::Average => 50.0,
-            Rating::Poor => 25.0,
+            Rating::Excellent => RatingScore(100.0),
+            Rating::Good | Rating::Average => RatingScore(50.0),
+            Rating::Poor => RatingScore(25.0),
         }
     }
 }
@@ -209,13 +254,18 @@ impl Default for Orientation {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub struct Length(OrderedFloat<f64>);
+
+impl fmt::Debug for Length {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Length({:.1}m)", self.0)
+    }
+}
 
 impl Length {
     pub const ZERO: Self = Self(OrderedFloat(0.0));
     pub const MAX: Self = Self(OrderedFloat(f64::MAX));
-    pub const EPSILON: f64 = 0.01;
 
     pub const fn from_meters(meters: f64) -> Self {
         Self(OrderedFloat(meters))
@@ -288,12 +338,12 @@ impl Bearing {
             .unwrap_or(Rating::Poor)
     }
 
-    pub const fn rating_score(rating: Rating) -> f64 {
+    pub const fn rating_score(rating: Rating) -> RatingScore {
         match rating {
-            Rating::Excellent => 100.0,
-            Rating::Good => 50.0,
-            Rating::Average => 25.0,
-            Rating::Poor => 0.0,
+            Rating::Excellent => RatingScore(100.0),
+            Rating::Good => RatingScore(50.0),
+            Rating::Average => RatingScore(25.0),
+            Rating::Poor => RatingScore(0.0),
         }
     }
 }

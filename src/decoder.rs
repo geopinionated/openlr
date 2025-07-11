@@ -1,9 +1,9 @@
 use thiserror::Error;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 use crate::{
     Bearing, DeserializeError, DirectedGraph, Fow, Frc, Length, Line, LocationReference, Point,
-    deserialize_base64_openlr,
+    RatingScore, deserialize_base64_openlr,
 };
 
 #[derive(Error, Debug, PartialEq, Clone, Copy)]
@@ -21,13 +21,13 @@ impl From<DeserializeError> for DecodeError {
 #[derive(Debug, Clone, Copy)]
 struct DecoderConfig {
     max_node_distance: Length,
-    max_bearing_difference: Bearing,
-    min_line_rating: f64,
+    min_line_rating: RatingScore,
     node_factor: f64,
     line_factor: f64,
     non_junction_factor: f64,
     projected_line_factor: f64,
     bearing_distance: Length,
+    max_bearing_difference: Bearing,
 }
 
 impl Default for DecoderConfig {
@@ -35,7 +35,7 @@ impl Default for DecoderConfig {
         Self {
             max_node_distance: Length::from_meters(10.0), // TODO: MaxNodeDistance 100m?
             max_bearing_difference: Bearing::from_degrees(90),
-            min_line_rating: 800.0,
+            min_line_rating: RatingScore::from(800.0),
             node_factor: 3.0,
             line_factor: 3.0,
             non_junction_factor: 0.8,
@@ -106,7 +106,7 @@ struct CandidateLines<EdgeId> {
 #[derive(Debug, Clone, Copy)]
 struct AcceptedCandidateLine<EdgeId> {
     edge: EdgeId,
-    rating: f64,
+    rating: RatingScore,
     distance_to_projection: Length,
 }
 
@@ -187,6 +187,10 @@ fn find_candidates_from_nodes<G: DirectedGraph>(
             ))
         };
 
+        // TEMPORARY deterministic
+        let mut edges: Vec<_> = edges.collect();
+        edges.sort();
+
         let lines = edges.into_iter().filter_map(|(edge, _)| {
             let bearing = if lrp.is_last() {
                 graph.get_edge_bearing_between(
@@ -225,18 +229,28 @@ fn append_projected_lines<G: DirectedGraph>(
     graph: &G,
     candidate_lines: &mut CandidateLines<G::EdgeId>,
 ) {
-    info!("Finding candidates from projected lines");
+    info!("\n\nFinding candidates from projected lines\n\n");
     let projected_lines = graph
         .nearest_edges_within_distance(candidate_lines.lrp.coordinate, config.max_node_distance)
         .filter_map(|(edge, distance_to_lrp)| {
+            println!("\n\nPROJECTED EDGE {edge:?}");
+            println!("{:?}", candidate_lines.lrp.coordinate);
+
             let distance_to_projection =
                 graph.get_distance_from_start_vertex(edge, candidate_lines.lrp.coordinate)?;
+            dbg!(distance_to_projection);
+
+            let length = graph.get_edge_length(edge).unwrap();
+            if distance_to_projection > length {
+                warn!("TOO LONG! {distance_to_projection:?} > {length:?}");
+                return None;
+            }
 
             let bearing = if candidate_lines.lrp.is_last() {
                 graph.get_edge_bearing_between(
                     edge,
-                    graph.get_edge_length(edge)? - distance_to_projection,
-                    config.bearing_distance.reverse(),
+                    dbg!(graph.get_edge_length(edge)? - distance_to_projection),
+                    dbg!(config.bearing_distance.reverse()),
                 )?
             } else {
                 graph.get_edge_bearing_between(
@@ -245,6 +259,12 @@ fn append_projected_lines<G: DirectedGraph>(
                     config.bearing_distance,
                 )?
             };
+
+            //let bearing = graph.get_edge_bearing_between(
+            //    edge,
+            //    distance_to_projection,
+            //    config.bearing_distance,
+            //)?;
 
             let line = CandidateLine {
                 edge,
@@ -259,10 +279,19 @@ fn append_projected_lines<G: DirectedGraph>(
             rate_line::<G>(config, candidate_lines.lrp, line)
         });
 
+    // TEMPORARY deterministic
+    //let mut projected_lines: Vec<_> = projected_lines.collect();
+    //projected_lines.sort_by_key(|l| l.edge);
+
     for mut projected_line in projected_lines {
+        println!(
+            "\nPROJECTED RATED: {:?} {:?}",
+            projected_line.edge, projected_line.rating
+        );
         if !candidate_lines.lines.is_empty() {
             projected_line.rating *= config.projected_line_factor;
             if projected_line.rating < config.min_line_rating {
+                info!("DISCARDING because projected rating became too low");
                 continue;
             }
         }
@@ -273,13 +302,17 @@ fn append_projected_lines<G: DirectedGraph>(
             .find(|candidate| candidate.edge == projected_line.edge)
         {
             if candidate.rating < projected_line.rating {
+                info!("UPDATING with {projected_line:?}");
                 candidate.rating = projected_line.rating;
                 candidate.distance_to_projection = projected_line.distance_to_projection;
             }
+            info!("DISCARDING because already exists with better rating");
         } else {
-            info!("ACCEPTED: {projected_line:?}");
+            info!("ACCEPTED PROJECTION: {projected_line:?}");
             candidate_lines.lines.push(projected_line);
         }
+
+        println!();
     }
 }
 
@@ -322,24 +355,24 @@ fn rate_line<G: DirectedGraph>(
 
     #[derive(Debug)]
     struct Ratings {
-        distance: f64,
-        bearing: f64,
-        frc: f64,
-        fow: f64,
+        distance: Length,
+        bearing: RatingScore,
+        frc: RatingScore,
+        fow: RatingScore,
     }
 
     let ratings = Ratings {
-        distance: (config.max_node_distance - line.distance_to_lrp).meters() as f64,
+        distance: (config.max_node_distance - line.distance_to_lrp),
         bearing: Bearing::rating_score(line.bearing.rating(&lrp.line.bearing)),
         frc: Frc::rating_score(line.frc.rating(&lrp.line.frc)),
         fow: Fow::rating_score(line.fow.rating(&lrp.line.fow)),
     };
 
     let node_rating = {
-        debug_assert!(ratings.distance.is_sign_positive());
-        let rating = config.node_factor * ratings.distance;
+        debug_assert!(ratings.distance.meters().is_sign_positive());
+        let rating = RatingScore::from(config.node_factor * ratings.distance.meters());
         if let Some(false) = line.is_junction {
-            rating * config.non_junction_factor
+            config.non_junction_factor * rating
         } else {
             rating
         }
@@ -351,7 +384,7 @@ fn rate_line<G: DirectedGraph>(
     };
 
     let rating = node_rating + line_rating;
-    debug!("Rating={rating:.1} {ratings:?}");
+    debug!("Rating={rating:?} {ratings:?}");
 
     if rating < config.min_line_rating {
         None
@@ -361,7 +394,6 @@ fn rate_line<G: DirectedGraph>(
             rating,
             distance_to_projection: line.distance_to_projection,
         };
-        debug!("Accepted: {accepted_line:?}");
         Some(accepted_line)
     }
 }
