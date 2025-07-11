@@ -75,7 +75,7 @@ fn decode_line<G: DirectedGraph>(
     //dbg!(&nodes);
 
     // Step – 3 For each location reference point find candidate lines
-    let lines = find_candidate_lines_from_nodes(config, graph, &nodes)?;
+    let lines = find_candidate_lines(config, graph, &nodes)?;
 
     // TODO!!!
     Ok(Location)
@@ -126,7 +126,7 @@ struct AcceptedCandidateLine<EdgeId> {
 ///
 /// If no candidate line can be found for a location reference point, the decoder should report an error
 /// and stop further processing.
-fn find_candidate_lines_from_nodes<G>(
+fn find_candidate_lines<G>(
     config: &DecoderConfig,
     graph: &G,
     nodes: &[CandidateNodes<G::VertexId>],
@@ -134,106 +134,101 @@ fn find_candidate_lines_from_nodes<G>(
 where
     G: DirectedGraph,
 {
-    let lines: Vec<CandidateLines<_>> = vec![];
+    let mut lrp_candidates = Vec::with_capacity(nodes.len());
 
-    for CandidateNodes { lrp: point, nodes } in nodes {
-        debug!(
-            "Evaluating candidate {point:?} with {} candidate nodes",
+    for candidate_nodes in nodes {
+        println!(
+            "\n\nEvaluating (last? {}) candidate {:?} with {} candidate nodes",
+            candidate_nodes.lrp.is_last(),
+            candidate_nodes.lrp,
             nodes.len()
         );
 
-        let mut candidate_lines = CandidateLines {
-            lrp: *point,
-            lines: vec![],
-        };
-
-        println!("\n\nFinding candidate lines from nodes");
-        for candidate_node in nodes {
-            let is_junction = graph.is_junction(candidate_node.vertex);
-            // only outgoing lines are accepted for the LRPs, except the last LRP where only
-            // incoming lines are accepted
-            let edges: Box<dyn Iterator<Item = _>> = if point.is_last() {
-                Box::new(graph.vertex_entering_edges(candidate_node.vertex).inspect(
-                    |(id, from_vertex)| {
-                        debug!("{id:?}: {from_vertex:?} -> {:?}", candidate_node.vertex);
-                    },
-                ))
-            } else {
-                Box::new(graph.vertex_exiting_edges(candidate_node.vertex).inspect(
-                    |(id, to_vertex)| {
-                        debug!("{id:?}: {:?} -> {to_vertex:?}", candidate_node.vertex);
-                    },
-                ))
-            };
-
-            // TODO: we don't need the vertex in the API?
-            let lines = edges.into_iter().filter_map(|(edge, _)| {
-                let bearing = if point.is_last() {
-                    graph.get_edge_bearing_between(
-                        edge,
-                        graph.get_edge_length(edge)?,
-                        config.bearing_distance.reverse(),
-                    )?
-                } else {
-                    graph.get_edge_bearing_between(edge, Length::ZERO, config.bearing_distance)?
-                };
-
-                Some(CandidateLine {
-                    edge,
-                    vertex: candidate_node.vertex,
-                    distance_to_lrp: candidate_node.distance_to_lrp,
-                    distance_to_projection: Length::ZERO,
-                    is_junction: Some(is_junction),
-                    frc: graph.get_edge_frc(edge)?,
-                    fow: graph.get_edge_fow(edge)?,
-                    length: graph.get_edge_length(edge)?,
-                    bearing,
-                })
-            });
-
-            candidate_lines.lines.extend(
-                lines
-                    .into_iter()
-                    .filter_map(|line| rate_line::<G>(config, *point, line)),
-            );
-        }
-
+        let mut candidate_lines = find_candidates_from_nodes(config, graph, candidate_nodes);
         assert_eq!(candidate_lines.lines.len(), 1);
 
-        println!("\n\nFinding candidate lines from projected lines");
-        let mut projected_lines =
-            find_projected_candidate_lines(config, graph, &mut candidate_lines);
-        dbg!(projected_lines.len());
+        append_projected_lines(config, graph, &mut candidate_lines);
+        assert_eq!(candidate_lines.lines.len(), 2);
 
-        candidate_lines.lines.append(&mut projected_lines);
-        dbg!(candidate_lines.lines.len());
-
-        panic!();
+        lrp_candidates.push(candidate_lines);
     }
 
-    Ok(lines)
+    Ok(lrp_candidates)
 }
 
-fn find_projected_candidate_lines<G>(
+fn find_candidates_from_nodes<G: DirectedGraph>(
+    config: &DecoderConfig,
+    graph: &G,
+    candidate_nodes: &CandidateNodes<G::VertexId>,
+) -> CandidateLines<G::EdgeId> {
+    info!("Finding candidates from nodes");
+    let CandidateNodes { lrp, nodes } = candidate_nodes;
+
+    let mut candidate_lines = CandidateLines {
+        lrp: *lrp,
+        lines: vec![],
+    };
+
+    for candidate_node in nodes {
+        let is_junction = graph.is_junction(candidate_node.vertex);
+        // only outgoing lines are accepted for the LRPs, except the last LRP where only
+        // incoming lines are accepted
+        let edges: Box<dyn Iterator<Item = _>> = if lrp.is_last() {
+            Box::new(graph.vertex_entering_edges(candidate_node.vertex).inspect(
+                |(id, from_vertex)| {
+                    debug!("{id:?}: {from_vertex:?} -> {:?}", candidate_node.vertex);
+                },
+            ))
+        } else {
+            Box::new(graph.vertex_exiting_edges(candidate_node.vertex).inspect(
+                |(id, to_vertex)| {
+                    debug!("{id:?}: {:?} -> {to_vertex:?}", candidate_node.vertex);
+                },
+            ))
+        };
+
+        let lines = edges.into_iter().filter_map(|(edge, _)| {
+            let bearing = if lrp.is_last() {
+                graph.get_edge_bearing_between(
+                    edge,
+                    graph.get_edge_length(edge)?,
+                    config.bearing_distance.reverse(),
+                )?
+            } else {
+                graph.get_edge_bearing_between(edge, Length::ZERO, config.bearing_distance)?
+            };
+
+            Some(CandidateLine {
+                edge,
+                distance_to_lrp: candidate_node.distance_to_lrp,
+                distance_to_projection: Length::ZERO,
+                is_junction: Some(is_junction),
+                frc: graph.get_edge_frc(edge)?,
+                fow: graph.get_edge_fow(edge)?,
+                bearing,
+            })
+        });
+
+        candidate_lines.lines.extend(
+            lines
+                .into_iter()
+                .filter_map(|line| rate_line::<G>(config, *lrp, line))
+                .inspect(|line| info!("ACCEPTED: {line:?}")),
+        );
+    }
+
+    candidate_lines
+}
+
+fn append_projected_lines<G: DirectedGraph>(
     config: &DecoderConfig,
     graph: &G,
     candidate_lines: &mut CandidateLines<G::EdgeId>,
-) -> Vec<AcceptedCandidateLine<G::EdgeId>>
-where
-    G: DirectedGraph,
-{
-    // TODO???
-    // only outgoing lines are accepted for the LRPs, except the last LRP where only
-    // incoming lines are accepted
-    graph
+) {
+    info!("Finding candidates from projected lines");
+    let projected_lines = graph
         .nearest_edges_within_distance(candidate_lines.lrp.coordinate, config.max_node_distance)
         .filter_map(|(edge, distance_to_lrp)| {
-            let vertex = if candidate_lines.lrp.is_last() {
-                graph.get_edge_end_vertex(edge)?
-            } else {
-                graph.get_edge_start_vertex(edge)?
-            };
-
             let distance_to_projection =
                 graph.get_distance_from_start_vertex(edge, candidate_lines.lrp.coordinate)?;
 
@@ -251,75 +246,69 @@ where
                 )?
             };
 
-            Some(CandidateLine {
+            let line = CandidateLine {
                 edge,
-                vertex,
                 distance_to_lrp,
                 distance_to_projection,
                 is_junction: None,
                 frc: graph.get_edge_frc(edge)?,
                 fow: graph.get_edge_fow(edge)?,
-                length: graph.get_edge_length(edge)?,
                 bearing,
-            })
-        })
-        .filter_map(|line| {
-            let mut projected_candidate = rate_line::<G>(config, candidate_lines.lrp, line)?;
+            };
 
-            if !candidate_lines.lines.is_empty() {
-                projected_candidate.rating *= config.projected_line_factor;
-                if projected_candidate.rating < config.min_line_rating {
-                    return None;
-                }
+            rate_line::<G>(config, candidate_lines.lrp, line)
+        });
+
+    for mut projected_line in projected_lines {
+        if !candidate_lines.lines.is_empty() {
+            projected_line.rating *= config.projected_line_factor;
+            if projected_line.rating < config.min_line_rating {
+                continue;
             }
+        }
 
-            if let Some(candidate) = candidate_lines
-                .lines
-                .iter_mut()
-                .find(|candidate| candidate.edge == line.edge)
-            {
-                if candidate.rating < projected_candidate.rating {
-                    // TODO: update candidate offset with projected line offset
-                    candidate.rating = projected_candidate.rating;
-                }
-
-                None
-            } else {
-                Some(projected_candidate)
+        if let Some(candidate) = candidate_lines
+            .lines
+            .iter_mut()
+            .find(|candidate| candidate.edge == projected_line.edge)
+        {
+            if candidate.rating < projected_line.rating {
+                candidate.rating = projected_line.rating;
+                candidate.distance_to_projection = projected_line.distance_to_projection;
             }
-        })
-        .collect()
+        } else {
+            info!("ACCEPTED: {projected_line:?}");
+            candidate_lines.lines.push(projected_line);
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
-struct CandidateLine<EdgeId, VertexId> {
-    /// Edge of the line that exits the LRP (or enters the last LRP).
+struct CandidateLine<EdgeId> {
+    /// Edge of the candidate line.
+    /// When not projected, this edge exits the LRP (or enters the last LRP).
     edge: EdgeId,
-    /// Start vertex of the line (or end vertex if it's the last LRP).
-    vertex: VertexId,
-    /// Distance from the LRP to the vertex (or to the edge if the LRP was projected).
+    /// Distance from the LRP to the candidate node (or to the edge if the LRP was projected).
     distance_to_lrp: Length,
-    /// Distance from the vertex to the projected LRP into the edge.
+    /// Distance from the start of the edge to the projected LRP into the edge.
     /// If the LRP is not projected it will be 0.
     distance_to_projection: Length,
-    /// True only if the LRP was not projected, and the vertex of the edge that corresponds to the
-    /// LRP connects to more than other 2 nodes.
+    /// True only if the LRP was not projected, and candidate node connects to more than 2
+    /// other nodes.
     is_junction: Option<bool>,
-    /// Functional Road CLass.
+    /// Functional Road Class of the line.
     frc: Frc,
-    /// Form of Way.
+    /// Form of Way of the line.
     fow: Fow,
-    /// Length of the full line.
-    length: Length,
     /// Bearing of the part of the line that will be considered starting from the distance to the
-    /// LRP projection.
+    /// LRP projection (of a fixed length).
     bearing: Bearing,
 }
 
 fn rate_line<G: DirectedGraph>(
     config: &DecoderConfig,
     lrp: Point,
-    line: CandidateLine<G::EdgeId, G::VertexId>,
+    line: CandidateLine<G::EdgeId>,
 ) -> Option<AcceptedCandidateLine<G::EdgeId>> {
     debug!("Rating: {line:?}");
 
