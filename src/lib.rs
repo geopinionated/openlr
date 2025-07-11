@@ -15,7 +15,7 @@ pub use binary::{
 // --------- TODO --------
 pub use decoder::{DecodeError, decode_base64_openlr};
 pub use error::{DeserializeError, SerializeError};
-pub use graph::Graph;
+pub use graph::DirectedGraph;
 pub use model::{
     Bearing, Circle, ClosedLine, Coordinate, Fow, Frc, Grid, GridSize, Length, Line,
     LineAttributes, LocationReference, LocationType, Offset, Orientation, PathAttributes, Poi,

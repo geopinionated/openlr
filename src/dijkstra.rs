@@ -1,7 +1,7 @@
 use std::collections::{BinaryHeap, HashMap};
 use std::fmt::Debug;
 
-use crate::{Graph, Length};
+use crate::{DirectedGraph, Length};
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct ShortestPath<VertexId> {
@@ -21,7 +21,7 @@ fn shortest_path<G>(
     destination: G::VertexId,
 ) -> Option<ShortestPath<G::VertexId>>
 where
-    G: Graph,
+    G: DirectedGraph,
 {
     //if self.vertices.get(origin).is_none() || self.vertices.get(destination).is_none() {
     //    return None;

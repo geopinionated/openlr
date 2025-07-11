@@ -4,7 +4,7 @@ use std::hash::Hash;
 use crate::{Bearing, Coordinate, Fow, Frc, Length};
 
 /// Geospatial index + Road Network Graph
-pub trait Graph {
+pub trait DirectedGraph {
     type VertexId: Debug + Copy + Ord + Hash + Eq;
     type EdgeId: Debug + Copy + Ord;
     //type Meter: Debug + Copy + Ord + Default + From<f64> + Into<f64>;

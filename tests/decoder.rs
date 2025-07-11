@@ -5,7 +5,7 @@ use geojson::{Feature, FeatureCollection, Value};
 use openlr::decoder_graph::{
     EdgeId, EdgeProperty, GeospatialEdge, GeospatialNode, NetworkGraph, VertexId,
 };
-use openlr::{Bearing, Coordinate, Fow, Frc, Graph, Length, decode_base64_openlr};
+use openlr::{Bearing, Coordinate, DirectedGraph, Fow, Frc, Length, decode_base64_openlr};
 use rstar::RTree;
 use strum::IntoEnumIterator;
 use test_log::test;

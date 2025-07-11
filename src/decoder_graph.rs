@@ -8,7 +8,7 @@ use geo::{
 use graph::prelude::{DirectedCsrGraph, DirectedNeighborsWithValues};
 use rstar::RTree;
 
-use crate::{Bearing, Coordinate, Fow, Frc, Graph, Length};
+use crate::{Bearing, Coordinate, DirectedGraph, Fow, Frc, Length};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct VertexId(pub i64);
@@ -101,7 +101,7 @@ impl rstar::PointDistance for GeospatialEdge {
     }
 }
 
-impl Graph for NetworkGraph {
+impl DirectedGraph for NetworkGraph {
     type EdgeId = EdgeId;
     type VertexId = VertexId;
 
