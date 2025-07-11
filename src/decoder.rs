@@ -148,9 +148,22 @@ where
         println!("Finding candidate lines from nodes");
         for candidate_node in nodes {
             let is_junction = graph.is_junction(candidate_node.node);
-            // only outgoing lines are accepted for the LRPs
-            // except the last LRP where only incoming lines are accepted
-            // TODO: Box<Iterator>?
+            // only outgoing lines are accepted for the LRPs, except the last LRP where only
+            // incoming lines are accepted
+            let edges: Box<dyn Iterator<Item = _>> = if point.is_last() {
+                Box::new(graph.vertex_entering_edges(candidate_node.node).inspect(
+                    |(id, from_vertex)| {
+                        debug!("{id:?}: {from_vertex:?} -> {:?}", candidate_node.node);
+                    },
+                ))
+            } else {
+                Box::new(graph.vertex_exiting_edges(candidate_node.node).inspect(
+                    |(id, to_vertex)| {
+                        debug!("{id:?}: {:?} -> {to_vertex:?}", candidate_node.node);
+                    },
+                ))
+            };
+
             let lines: Vec<_> = if point.is_last() {
                 graph
                     .vertex_entering_edges(candidate_node.node)
