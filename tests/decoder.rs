@@ -8,6 +8,7 @@ use openlr::decoder_graph::{
 use openlr::{Bearing, Coordinate, Fow, Frc, Graph, Length, decode_base64_openlr};
 use rstar::RTree;
 use strum::IntoEnumIterator;
+use test_log::test;
 
 type NodeId = i64;
 type LineId = i64;
@@ -109,6 +110,38 @@ fn graph_edge_bearing() {
     assert_eq!(
         graph.get_edge_bearing(EdgeId(-4925291)).unwrap(),
         Bearing::from_degrees(286)
+    );
+}
+
+#[test]
+fn graph_edge_bearing_between() {
+    let geojson = include_str!("data/graph.geojson");
+    let geojson_graph = GeojsonGraph::parse_geojson(geojson);
+    let graph: NetworkGraph = geojson_graph.into_network_graph();
+
+    assert_eq!(
+        graph
+            .get_edge_bearing_between(EdgeId(-5359425), Length::ZERO, Length::from_meters(20))
+            .unwrap(),
+        Bearing::from_degrees(17)
+    );
+
+    assert_eq!(
+        graph
+            .get_edge_bearing_between(EdgeId(5104156), Length::ZERO, Length::from_meters(10))
+            .unwrap(),
+        Bearing::from_degrees(139)
+    );
+
+    assert_eq!(
+        graph
+            .get_edge_bearing_between(
+                EdgeId(5104156),
+                Length::from_meters(15),
+                Length::from_meters(5)
+            )
+            .unwrap(),
+        Bearing::from_degrees(97)
     );
 }
 
@@ -309,7 +342,7 @@ fn graph_nearest_edges() {
 }
 
 #[test]
-fn graph_nearest_v2_edges_2() {
+fn graph_nearest_edges_2() {
     let geojson = include_str!("data/graph.geojson");
     let geojson_graph = GeojsonGraph::parse_geojson(geojson);
     let graph: NetworkGraph = geojson_graph.into_network_graph();
@@ -385,6 +418,29 @@ fn graph_nearest_nodes() {
             VertexId(74)
         ]
     );
+}
+
+#[test]
+fn graph_is_junction() {
+    let geojson = include_str!("data/graph.geojson");
+    let geojson_graph = GeojsonGraph::parse_geojson(geojson);
+    let graph: NetworkGraph = geojson_graph.into_network_graph();
+
+    assert!(graph.is_junction(VertexId(68)));
+    assert!(graph.is_junction(VertexId(95)));
+    assert!(graph.is_junction(VertexId(60)));
+    assert!(graph.is_junction(VertexId(67)));
+    assert!(graph.is_junction(VertexId(12)));
+    assert!(graph.is_junction(VertexId(36)));
+    assert!(graph.is_junction(VertexId(34)));
+
+    assert!(!graph.is_junction(VertexId(125)));
+    assert!(!graph.is_junction(VertexId(59)));
+    assert!(!graph.is_junction(VertexId(105)));
+    assert!(!graph.is_junction(VertexId(1)));
+    assert!(!graph.is_junction(VertexId(63)));
+    assert!(!graph.is_junction(VertexId(134)));
+    assert!(!graph.is_junction(VertexId(54)));
 }
 
 #[test]

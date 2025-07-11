@@ -1,18 +1,17 @@
 use std::{io, vec};
 
 use thiserror::Error;
+use tracing::warn;
 
 use crate::{
-    Bearing, DeserializeError, Fow, Frc, Graph, Length, Line, LocationReference, Orientation,
-    Point, deserialize_base64_openlr,
+    Bearing, DeserializeError, Fow, Frc, Graph, Length, Line, LocationReference, Point,
+    deserialize_base64_openlr,
 };
 
 #[derive(Error, Debug, PartialEq, Clone, Copy)]
 pub enum DecodeError {
     #[error("Cannot decode: {0}")]
     InvalidData(DeserializeError),
-    //#[error("Candidate line cannot be accepted: {0:?}")]
-    //InvalidCandidateLine(Point),
 }
 
 impl From<DeserializeError> for DecodeError {
@@ -148,6 +147,7 @@ where
 
         println!("Finding candidate lines from nodes");
         for candidate_node in nodes {
+            let is_junction = graph.is_junction(candidate_node.node);
             // only outgoing lines are accepted for the LRPs
             // except the last LRP where only incoming lines are accepted
             // TODO: Box<Iterator>?
@@ -165,6 +165,8 @@ where
                         edge,
                         vertex: candidate_node.node,
                         distance_to_lrp: candidate_node.distance_to_lrp,
+                        distance_to_projection: graph.get_edge_length(edge).unwrap(),
+                        is_junction,
                     })
                     .collect()
             } else {
@@ -178,6 +180,8 @@ where
                         edge,
                         vertex: candidate_node.node,
                         distance_to_lrp: candidate_node.distance_to_lrp,
+                        distance_to_projection: Length::ZERO,
+                        is_junction,
                     })
                     .collect()
             };
@@ -231,6 +235,8 @@ where
                 edge,
                 vertex,
                 distance_to_lrp,
+                distance_to_projection: todo!(),
+                is_junction: false,
             })
         })
         .filter_map(|line| {
@@ -267,14 +273,19 @@ where
 // (AKA: projection along line)
 #[derive(Debug, Clone, Copy)]
 struct NetworkLine<EdgeId, VertexId> {
-    /// the Location Reference Point (LRP)
+    /// The Location Reference Point (LRP).
     lrp: Point,
-    /// edge ID of the line that exits the LRP (or enters the last LRP)
+    /// Edge of the line that exits the LRP (or enters the last LRP).
     edge: EdgeId,
-    /// start vertex of the line (or end vertex if it's the last LRP)
+    /// Start vertex of the line (or end vertex if it's the last LRP).
     vertex: VertexId,
-    /// distance from the LRP to the node (or to the line if the LRP was projected)
+    /// Distance from the LRP to the vertex (or to the edge if the LRP was projected).
     distance_to_lrp: Length,
+    /// Distance from the vertex to the projected LRP into the edge.
+    /// If the LRP is not projected it will be 0 (or equal to the edge length for the last LRP).
+    distance_to_projection: Length,
+    /// True only if the LRP was not projected and the vertex connects to more than other 2 nodes.
+    is_junction: bool,
 }
 
 fn rate_line<G>(
@@ -301,35 +312,19 @@ where
     if let Some(path) = &line.lrp.path
         && !frc.is_within_variance(&path.lfrcnp)
     {
+        warn!("Candidate line variance out of bounds: {line:?}");
         return None;
     }
 
-    // compute rating
-    let (orientation, projection_length) = if line.lrp.is_last() {
-        (Orientation::Backward, length)
-    } else {
-        (Orientation::Forward, Length::ZERO)
-    };
-
-    // Calculates the node value based on the distance between the LRP position and the corresponding node.
     let mut node_rating = (config.max_node_distance - line.distance_to_lrp).meters() as f64;
+    debug_assert!(node_rating.is_sign_positive());
 
-    // Determine whether to apply the non-junction node factor to the node score
-    // Only apply the non-junction node factor when the LRP matches a node and not a line directly
-    let is_junction = if projection_length > Length::ZERO && projection_length < length {
-        panic!("when can this be true?");
-        false
-    } else {
-        // TODO: do we need to compute it every time for the same node?
-        graph.is_junction(line.vertex)
-    };
-    //dbg!(is_junction);
-
-    if !is_junction {
+    if !line.is_junction {
         node_rating *= config.non_junction_factor;
     }
 
     let bearing_rating = Bearing::rating_score(bearing.rating(&line.lrp.line.bearing));
+
     let frc_rating = Frc::rating_score(frc.rating(&line.lrp.line.frc));
     let fow_rating = Fow::rating_score(fow.rating(&line.lrp.line.fow));
 

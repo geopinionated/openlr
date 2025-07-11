@@ -1,7 +1,10 @@
 use core::f64;
 use std::collections::HashMap;
 
-use geo::{BoundingRect, Contains, Distance, Haversine, HaversineClosestPoint, closest_point};
+use geo::{
+    BoundingRect, Contains, Distance, Haversine, HaversineClosestPoint, InterpolatableLine,
+    closest_point,
+};
 use graph::prelude::{DirectedCsrGraph, DirectedNeighborsWithValues};
 use rstar::RTree;
 
@@ -132,6 +135,7 @@ impl Graph for NetworkGraph {
             .get(&EdgeId(edge.0.abs()))
             .map(|properties| properties.length)
     }
+
     fn get_edge_frc(&self, edge: Self::EdgeId) -> Option<Frc> {
         self.edge_properties
             // edge properties do not change if the edge is reversed
@@ -175,6 +179,36 @@ impl Graph for NetworkGraph {
 
         use geo::Bearing;
         let bearing = Haversine.bearing(first, last);
+
+        Some(crate::Bearing::from_degrees(bearing.round() as u16))
+    }
+
+    fn get_edge_bearing_between(
+        &self,
+        edge: Self::EdgeId,
+        distance_start: Length,
+        offset: Length,
+    ) -> Option<Bearing> {
+        let edge_length = self.get_edge_length(edge)?;
+        if distance_start >= edge_length {
+            return None;
+        }
+
+        let distance_end = (distance_start + offset).min(edge_length);
+
+        let ratio_p1 = distance_start.meters() as f64 / edge_length.meters() as f64;
+        let ratio_p2 = distance_end.meters() as f64 / edge_length.meters() as f64;
+
+        let geometry = geo::LineString::from_iter(
+            self.get_edge_coordinates(edge)
+                .map(|coordinate| geo::coord! { x: coordinate.lon, y: coordinate.lat }),
+        );
+
+        let p1 = geometry.point_at_ratio_from_start(&Haversine, ratio_p1)?;
+        let p2 = geometry.point_at_ratio_from_start(&Haversine, ratio_p2)?;
+
+        use geo::Bearing;
+        let bearing = Haversine.bearing(p1, p2);
 
         Some(crate::Bearing::from_degrees(bearing.round() as u16))
     }
