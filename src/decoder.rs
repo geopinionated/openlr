@@ -35,6 +35,7 @@ struct DecoderConfig {
     bearing_distance: Length,
     max_bearing_difference: Bearing,
     max_number_retries: usize,
+    distance_np_variance: Length,
 }
 
 impl Default for DecoderConfig {
@@ -49,6 +50,7 @@ impl Default for DecoderConfig {
             projected_line_factor: 0.95,
             bearing_distance: Length::from_meters(20.0),
             max_number_retries: 3,
+            distance_np_variance: Length::from_meters(150.0),
         }
     }
 }
@@ -112,6 +114,27 @@ fn resolve_routes<G: DirectedGraph>(
 
         let candidate_pairs = resolve_candidate_pairs::<G>(config, line_lrp1, line_lrp2)?;
         dbg!(&candidate_pairs);
+
+        let lfrcnp = line_lrp1.lrp.lfrcnp();
+        let lfrcnp = lfrcnp.value() + Frc::variance(&lfrcnp);
+        dbg!(lfrcnp);
+
+        for CandidateLinePairIndex {
+            rating,
+            line1_index,
+            line2_index,
+        } in candidate_pairs
+        {
+            let line_1 = line_lrp1.lines[line1_index];
+            let line_2 = line_lrp2.lines[line2_index];
+
+            if line_1.edge == line_2.edge {
+                todo!("handle start == end");
+            }
+
+            //
+            let max_distance_np = config.distance_np_variance + line_lrp1.lrp.dnp();
+        }
     }
 
     todo!()

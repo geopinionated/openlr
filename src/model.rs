@@ -432,6 +432,16 @@ impl Point {
     pub const fn is_last(&self) -> bool {
         self.path.is_none()
     }
+
+    /// Gets the lowest FRC to the next point.
+    pub fn lfrcnp(&self) -> Frc {
+        self.path.map(|path| path.lfrcnp).unwrap_or(Frc::Frc7)
+    }
+
+    /// Gets the distance to the next point.
+    pub fn dnp(&self) -> Length {
+        self.path.map(|path| path.dnp).unwrap_or(Length::ZERO)
+    }
 }
 
 /// Offsets are used to locate the start and end of a location more precisely than
