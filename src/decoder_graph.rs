@@ -259,18 +259,28 @@ impl DirectedGraph for NetworkGraph {
         &self,
         vertex: Self::VertexId,
     ) -> impl Iterator<Item = (Self::EdgeId, Self::VertexId)> {
-        self.network
+        let mut edges: Vec<_> = self
+            .network
             .out_neighbors_with_values(vertex.index())
             .map(|item| (item.value, VertexId(item.target as i64)))
+            .collect();
+
+        edges.sort();
+        edges.into_iter()
     }
 
     fn vertex_entering_edges(
         &self,
         vertex: Self::VertexId,
     ) -> impl Iterator<Item = (Self::EdgeId, Self::VertexId)> {
-        self.network
+        let mut edges: Vec<_> = self
+            .network
             .in_neighbors_with_values(vertex.index())
             .map(|item| (item.value, VertexId(item.target as i64)))
+            .collect();
+
+        edges.sort();
+        edges.into_iter()
     }
 
     fn nearest_vertices_within_distance(

@@ -25,6 +25,12 @@ impl From<f64> for RatingScore {
     }
 }
 
+impl From<Length> for RatingScore {
+    fn from(length: Length) -> Self {
+        Self(length.meters())
+    }
+}
+
 impl Add for RatingScore {
     type Output = Self;
     fn add(self, other: Self) -> Self {
@@ -257,9 +263,15 @@ impl Default for Orientation {
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub struct Length(OrderedFloat<f64>);
 
+impl fmt::Display for Length {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:.1}m", self.0)
+    }
+}
+
 impl fmt::Debug for Length {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Length({:.1}m)", self.0)
+        write!(f, "Length({:.1})", self.0)
     }
 }
 
@@ -351,10 +363,20 @@ impl Bearing {
 /// Coordinate pair stands for a pair of WGS84 longitude (lon) and latitude (lat) values.
 /// This coordinate pair specifies a geometric point in a digital map.
 /// The lon and lat values are stored in decamicrodegree resolution (five decimals).
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Clone, Copy, Default)]
 pub struct Coordinate {
     pub lon: f64,
     pub lat: f64,
+}
+
+impl Debug for Coordinate {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "Coordinate {{ lon: {:.5}, lat: {:.5} }}",
+            self.lon, self.lat
+        )
+    }
 }
 
 impl Coordinate {
