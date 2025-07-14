@@ -39,18 +39,13 @@ pub fn shortest_path<G>(
 where
     G: DirectedGraph,
 {
-    //if self.vertices.get(origin).is_none() || self.vertices.get(destination).is_none() {
-    //    return None;
-    //}
+    // (current) shortest distance from origin to this vertex
+    let mut best_cost_from_origin = HashMap::from([(origin, Length::ZERO)]);
 
-    // best_cost_from_origin[node]: represents the current known shortest distance from origin to node
-    let mut best_cost_from_origin: HashMap<G::VertexId, Length> = HashMap::new();
-    best_cost_from_origin.insert(origin, Length::ZERO);
+    // previous vertex (value) on the current best known path from origin to this vertex (key)
+    let mut prev_vertex: HashMap<G::VertexId, (G::EdgeId, G::VertexId)> = HashMap::new();
 
-    // prev_hop[node]: represents the previous-hop node on the current best known path from origin to node
-    let mut prev_hop: HashMap<G::VertexId, (G::VertexId, G::EdgeId)> = HashMap::new();
-
-    // The set of discovered nodes that may need to be visited. Initially, only the start node is known.
+    // priority queue of discovered nodes that may need to be visited
     let mut frontier = BinaryHeap::from([State {
         vertex: origin,
         distance: Length::ZERO,
@@ -58,21 +53,18 @@ where
 
     while let Some(state) = frontier.pop() {
         if state.vertex == destination {
-            // Unpacking: the best path from target back to origin
-            let mut shortest_path = vec![];
+            // Unpacking: the shortest path from destination back to origin
+            let mut path = vec![];
             let mut next = &destination;
-            while let Some((previous, edge)) = prev_hop.get(next) {
+            while let Some((edge, previous)) = prev_vertex.get(next) {
                 next = previous;
-                shortest_path.push(*edge);
-                if previous == &origin {
-                    break;
-                }
+                path.push(*edge);
             }
-            shortest_path.reverse();
+            path.reverse();
 
             return Some(ShortestPath {
                 distance: state.distance,
-                path: shortest_path,
+                path,
             });
         }
 
@@ -86,7 +78,6 @@ where
 
         for (edge, vertex_to) in graph.vertex_exiting_edges(state.vertex) {
             let edge_length = graph.get_edge_length(edge)?;
-
             let cost_from_origin = state.distance + edge_length;
 
             let best_origin_to_neighbor_cost = *best_cost_from_origin
@@ -102,7 +93,7 @@ where
 
                 // Relaxation: we have now found a better way that we are going to explore
                 best_cost_from_origin.insert(neighbor.vertex, neighbor.distance);
-                prev_hop.insert(neighbor.vertex, (state.vertex, edge));
+                prev_vertex.insert(neighbor.vertex, (edge, state.vertex));
                 frontier.push(neighbor);
             }
         }
