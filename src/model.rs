@@ -16,18 +16,18 @@ pub enum Rating {
     Poor = 3,
 }
 
-#[derive(Clone, Copy, PartialEq, PartialOrd)]
-pub struct RatingScore(f64);
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct RatingScore(OrderedFloat<f64>);
 
 impl From<f64> for RatingScore {
     fn from(value: f64) -> Self {
-        Self(value)
+        Self(value.into())
     }
 }
 
 impl From<Length> for RatingScore {
     fn from(length: Length) -> Self {
-        Self(length.meters())
+        Self(length.meters().into())
     }
 }
 
@@ -48,7 +48,7 @@ impl Mul<f64> for RatingScore {
 impl Mul<RatingScore> for f64 {
     type Output = RatingScore;
     fn mul(self, rhs: RatingScore) -> Self::Output {
-        RatingScore(self * rhs.0)
+        RatingScore(OrderedFloat(self) * rhs.0)
     }
 }
 
@@ -130,12 +130,12 @@ impl Frc {
             .unwrap_or(Rating::Poor)
     }
 
-    pub const fn rating_score(rating: Rating) -> RatingScore {
+    pub fn rating_score(rating: Rating) -> RatingScore {
         match rating {
-            Rating::Excellent => RatingScore(100.0),
-            Rating::Good => RatingScore(75.0),
-            Rating::Average => RatingScore(50.0),
-            Rating::Poor => RatingScore(0.0),
+            Rating::Excellent => RatingScore::from(100.0),
+            Rating::Good => RatingScore::from(75.0),
+            Rating::Average => RatingScore::from(50.0),
+            Rating::Poor => RatingScore::from(0.0),
         }
     }
 }
@@ -207,11 +207,11 @@ impl Fow {
         }
     }
 
-    pub const fn rating_score(rating: Rating) -> RatingScore {
+    pub fn rating_score(rating: Rating) -> RatingScore {
         match rating {
-            Rating::Excellent => RatingScore(100.0),
-            Rating::Good | Rating::Average => RatingScore(50.0),
-            Rating::Poor => RatingScore(25.0),
+            Rating::Excellent => RatingScore::from(100.0),
+            Rating::Good | Rating::Average => RatingScore::from(50.0),
+            Rating::Poor => RatingScore::from(25.0),
         }
     }
 }
@@ -350,12 +350,12 @@ impl Bearing {
             .unwrap_or(Rating::Poor)
     }
 
-    pub const fn rating_score(rating: Rating) -> RatingScore {
+    pub fn rating_score(rating: Rating) -> RatingScore {
         match rating {
-            Rating::Excellent => RatingScore(100.0),
-            Rating::Good => RatingScore(50.0),
-            Rating::Average => RatingScore(25.0),
-            Rating::Poor => RatingScore(0.0),
+            Rating::Excellent => RatingScore::from(100.0),
+            Rating::Good => RatingScore::from(50.0),
+            Rating::Average => RatingScore::from(25.0),
+            Rating::Poor => RatingScore::from(0.0),
         }
     }
 }

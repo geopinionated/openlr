@@ -1,3 +1,5 @@
+use std::cmp::Reverse;
+
 use thiserror::Error;
 use tracing::{debug, info, trace, warn};
 
@@ -10,6 +12,8 @@ use crate::{
 pub enum DecodeError {
     #[error("Cannot decode: {0}")]
     InvalidData(DeserializeError),
+    #[error("Cannot find candidate lines for: {0:?}")]
+    CandidatesNotFound(Point),
 }
 
 impl From<DeserializeError> for DecodeError {
@@ -74,6 +78,7 @@ fn decode_line<G: DirectedGraph>(
     let nodes = find_candidate_nodes(config, graph, &line.points);
 
     // Step – 3 For each location reference point find candidate lines
+    // Step – 4 Rate candidate lines for each location reference point
     let lines = find_candidate_lines(config, graph, &nodes)?;
 
     println!("\n\n");
@@ -83,6 +88,7 @@ fn decode_line<G: DirectedGraph>(
             println!("\t{line:?}");
         }
     }
+    println!("\n\n");
 
     // TODO!!!
     Ok(Location)
@@ -117,6 +123,29 @@ struct AcceptedCandidateLine<EdgeId> {
     distance_to_projection: Length,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct CandidateLine<EdgeId> {
+    /// Edge of the candidate line.
+    /// When not projected, this edge exits the LRP (or enters the last LRP).
+    edge: EdgeId,
+    /// Distance from the LRP to the candidate line: candidate node vertex or to candidate line
+    /// edge if the LRP was projected.
+    distance_to_lrp: Length,
+    /// Distance from the start of the edge to the projected LRP into the edge.
+    /// If the LRP is not projected it will be 0.
+    distance_to_projection: Length,
+    /// True only if the LRP was not projected, and candidate node connects to more than 2
+    /// other nodes.
+    is_junction: Option<bool>,
+    /// Functional Road Class of the line.
+    frc: Frc,
+    /// Form of Way of the line.
+    fow: Fow,
+    /// Bearing of the part of the line that will be considered starting from the distance to the
+    /// LRP projection (of a fixed length).
+    bearing: Bearing,
+}
+
 /// For each location reference point the decoder tries to determine lines which should fulfill the
 /// following constraints:
 /// - The start node, end node for the last location reference point or projection point shall be
@@ -145,15 +174,16 @@ where
     let mut candidate_lines = Vec::with_capacity(candidate_nodes.len());
 
     for lrp_nodes in candidate_nodes {
-        println!("\n\n");
-        //
-
         let mut lrp_lines = find_line_candidates_from_nodes(config, graph, lrp_nodes);
-        //assert_eq!(lrp_lines.lines.len(), 1); // TODO
-
         append_projected_lines(config, graph, &mut lrp_lines);
-        //assert_eq!(lrp_lines.lines.len(), 2); // TODO
 
+        if lrp_lines.lines.is_empty() {
+            return Err(DecodeError::CandidatesNotFound(lrp_lines.lrp));
+        }
+
+        lrp_lines
+            .lines
+            .sort_unstable_by_key(|line| Reverse(line.rating));
         candidate_lines.push(lrp_lines);
     }
 
@@ -215,7 +245,7 @@ fn find_line_candidates_from_nodes<G: DirectedGraph>(
         candidate_lines.lines.extend(
             candidates
                 .filter_map(|line| rate_line::<G>(config, *lrp, line))
-                .inspect(|line| debug!("{line:?}")),
+                .inspect(|line| debug!("Accepted candidate: {line:?}")),
         );
     }
 
@@ -233,25 +263,14 @@ fn append_projected_lines<G: DirectedGraph>(
     let projected_lines = graph
         .nearest_edges_within_distance(lrp.coordinate, config.max_node_distance)
         .filter_map(|(edge, distance_to_lrp)| {
-            println!("===== PROJECTED: {edge:?}");
             let distance_to_projection =
                 graph.get_distance_from_start_vertex(edge, lrp.coordinate)?;
 
-            // TODO!!
-            let length = graph.get_edge_length(edge).unwrap();
-            if distance_to_projection > length {
-                warn!("TOO LONG! {distance_to_projection:?} > {length:?}");
-                //return None;
-            }
-
             let bearing = if lrp.is_last() {
-                dbg!(distance_to_projection);
-                dbg!(graph.get_edge_length(edge)? - distance_to_projection);
                 graph.get_edge_bearing_between(
                     edge,
-                    //dbg!(graph.get_edge_length(edge)? - distance_to_projection),
                     distance_to_projection,
-                    dbg!(config.bearing_distance.reverse()),
+                    config.bearing_distance.reverse(),
                 )?
             } else {
                 graph.get_edge_bearing_between(
@@ -278,15 +297,10 @@ fn append_projected_lines<G: DirectedGraph>(
         if !candidate_lines.lines.is_empty() {
             projected_line.rating *= config.projected_line_factor;
             if projected_line.rating < config.min_line_rating {
-                info!("DISCARDING because projected rating became too low");
+                debug!("Discarding {projected_line:?} because rating became too low");
                 continue;
             }
         }
-
-        println!(
-            "\nPROJECTED RATED: {:?} {:?}",
-            projected_line.edge, projected_line.rating
-        );
 
         if let Some(candidate) = candidate_lines
             .lines
@@ -294,46 +308,34 @@ fn append_projected_lines<G: DirectedGraph>(
             .find(|candidate| candidate.edge == projected_line.edge)
         {
             if candidate.rating < projected_line.rating {
-                info!("UPDATING with {projected_line:?}");
+                debug!("Overriding candidate line with {projected_line:?}");
                 candidate.rating = projected_line.rating;
                 candidate.distance_to_projection = projected_line.distance_to_projection;
+            } else {
+                debug!("Discarding {projected_line:?}: already exists with better rating");
             }
-            info!(
-                "DISCARDING because already exists with better rating {:?} > {:?}",
-                candidate.rating, projected_line.rating
-            );
         } else {
-            info!("ACCEPTED PROJECTION: {projected_line:?}");
+            debug!("Accepted candidate: {projected_line:?}");
             candidate_lines.lines.push(projected_line);
         }
-
-        println!();
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-struct CandidateLine<EdgeId> {
-    /// Edge of the candidate line.
-    /// When not projected, this edge exits the LRP (or enters the last LRP).
-    edge: EdgeId,
-    /// Distance from the LRP to the candidate line: candidate node vertex or to candidate line
-    /// edge if the LRP was projected.
-    distance_to_lrp: Length,
-    /// Distance from the start of the edge to the projected LRP into the edge.
-    /// If the LRP is not projected it will be 0.
-    distance_to_projection: Length,
-    /// True only if the LRP was not projected, and candidate node connects to more than 2
-    /// other nodes.
-    is_junction: Option<bool>,
-    /// Functional Road Class of the line.
-    frc: Frc,
-    /// Form of Way of the line.
-    fow: Fow,
-    /// Bearing of the part of the line that will be considered starting from the distance to the
-    /// LRP projection (of a fixed length).
-    bearing: Bearing,
-}
-
+/// All candidate lines for a location reference point shall be rated according to the following
+/// criteria:
+/// - The start node, end node for the last location reference point or projection point shall be as
+///   close as possible to the coordinates of the location reference point.
+/// - The functional road class of the candidate line should match the functional road class of the
+///   location reference point
+/// - The form of way of the candidate line should match the form of way of the location reference
+///   point.
+/// - The bearing of the candidate line should match indicated bearing angles of the location
+/// reference point.
+///
+/// Slight variances in the concrete values are allowed and shall be considered in the rating
+/// function.
+///
+/// The candidate lines should be ordered in a way that the best matching line comes first.
 fn rate_line<G: DirectedGraph>(
     config: &DecoderConfig,
     lrp: Point,
@@ -379,11 +381,12 @@ fn rate_line<G: DirectedGraph>(
     };
 
     let rating = node_rating + line_rating;
-    debug!("Rating = {rating:?} {ratings:?}");
 
     if rating < config.min_line_rating {
+        debug!("Rating (too low) = {rating:?} {ratings:?}");
         None
     } else {
+        debug!("Rating (accepted) = {rating:?} {ratings:?}");
         Some(AcceptedCandidateLine {
             edge: line.edge,
             rating,
