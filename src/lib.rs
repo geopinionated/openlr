@@ -14,7 +14,7 @@ pub use binary::{
 };
 // --------- TODO --------
 pub use decoder::{DecodeError, decode_base64_openlr};
-pub use dijkstra::{ShortestPath, shortest_path};
+pub use dijkstra::{ShortestPath, ShortestPathConfig, shortest_path};
 pub use error::{DeserializeError, SerializeError};
 pub use graph::DirectedGraph;
 pub use model::{

@@ -1,10 +1,7 @@
 use core::f64;
 use std::collections::HashMap;
 
-use geo::{
-    BoundingRect, Contains, Distance, Haversine, HaversineClosestPoint, InterpolatableLine,
-    closest_point,
-};
+use geo::{BoundingRect, Distance, Haversine, HaversineClosestPoint, InterpolatableLine};
 use graph::prelude::{DirectedCsrGraph, DirectedNeighborsWithValues};
 use rstar::RTree;
 

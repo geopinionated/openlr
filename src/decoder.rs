@@ -2,12 +2,11 @@ use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap};
 
 use thiserror::Error;
-use tracing::field::debug;
 use tracing::{debug, info};
 
 use crate::{
     Bearing, DeserializeError, DirectedGraph, Fow, Frc, Length, Line, LocationReference, Point,
-    RatingScore, deserialize_base64_openlr,
+    RatingScore, ShortestPathConfig, deserialize_base64_openlr, shortest_path,
 };
 
 #[derive(Error, Debug, PartialEq, Clone, Copy)]
@@ -107,17 +106,17 @@ fn resolve_routes<G: DirectedGraph>(
     config: &DecoderConfig,
     graph: &G,
     candidate_lines: &[CandidateLines<G::EdgeId>],
-) -> Result<(), DecodeError> {
+) -> Result<Vec<Vec<G::EdgeId>>, DecodeError> {
     // iterate over all LRP pairs
-    for lines in candidate_lines.windows(2) {
-        let [line_lrp1, line_lrp2] = [&lines[0], &lines[1]];
+    for points in candidate_lines.windows(2) {
+        let [lrp1, lrp2] = [&points[0], &points[1]];
 
-        let candidate_pairs = resolve_candidate_pairs::<G>(config, line_lrp1, line_lrp2)?;
+        let candidate_pairs = resolve_candidate_pairs::<G>(config, lrp1, lrp2)?;
         dbg!(&candidate_pairs);
 
-        let lfrcnp = line_lrp1.lrp.lfrcnp();
-        let lfrcnp = lfrcnp.value() + Frc::variance(&lfrcnp);
-        dbg!(lfrcnp);
+        let lfrcnp = lrp1.lrp.lfrcnp();
+        let lowest_frc_value = lfrcnp.value() + Frc::variance(&lfrcnp);
+        let lowest_frc = Frc::from_value(lowest_frc_value).unwrap_or(Frc::Frc7);
 
         for CandidateLinePairIndex {
             rating,
@@ -125,19 +124,52 @@ fn resolve_routes<G: DirectedGraph>(
             line2_index,
         } in candidate_pairs
         {
-            let line_1 = line_lrp1.lines[line1_index];
-            let line_2 = line_lrp2.lines[line2_index];
+            let line1 = lrp1.lines[line1_index];
+            let line2 = lrp2.lines[line2_index];
 
-            if line_1.edge == line_2.edge {
+            if line1.edge == line2.edge {
                 todo!("handle start == end");
             }
 
-            //
-            let max_distance_np = config.distance_np_variance + line_lrp1.lrp.dnp();
+            let max_distance = max_route_distance(config, graph, &lrp1.lrp, line1, line2);
+
+            let origin = todo!();
+            let destination = todo!();
+
+            let path = shortest_path(
+                &ShortestPathConfig {
+                    lowest_frc,
+                    max_distance,
+                },
+                graph,
+                origin,
+                destination,
+            );
         }
     }
 
     todo!()
+}
+
+fn max_route_distance<G: DirectedGraph>(
+    config: &DecoderConfig,
+    graph: &G,
+    lrp: &Point,
+    line1: AcceptedCandidateLine<G::EdgeId>,
+    line2: AcceptedCandidateLine<G::EdgeId>,
+) -> Length {
+    let mut max_distance = lrp.dnp() + config.distance_np_variance;
+
+    // shortest path can only stop at distances between real nodes, therefore we need to
+    // add the complete length when computing max distance bound if the lines were projected
+    if line1.is_projected() {
+        max_distance += graph.get_edge_length(line1.edge).unwrap_or(Length::ZERO);
+    }
+    if line2.is_projected() {
+        max_distance += graph.get_edge_length(line2.edge).unwrap_or(Length::ZERO);
+    }
+
+    max_distance
 }
 
 // TODO: we should consider previous candidate line as well!!!
@@ -228,6 +260,7 @@ struct CandidateLines<EdgeId> {
     lines: Vec<AcceptedCandidateLine<EdgeId>>,
 }
 
+// TODO: just store directly AcceptedCandidateLine instead of index?
 #[derive(Debug, Clone, Copy)]
 struct CandidateLinePairIndex {
     rating: RatingScore,
@@ -238,8 +271,14 @@ struct CandidateLinePairIndex {
 #[derive(Debug, Clone, Copy)]
 struct AcceptedCandidateLine<EdgeId> {
     edge: EdgeId,
+    distance_to_projection: Option<Length>,
     rating: RatingScore,
-    distance_to_projection: Length,
+}
+
+impl<EdgeId> AcceptedCandidateLine<EdgeId> {
+    const fn is_projected(&self) -> bool {
+        self.distance_to_projection.is_some()
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -251,8 +290,8 @@ struct CandidateLine<EdgeId> {
     /// edge if the LRP was projected.
     distance_to_lrp: Length,
     /// Distance from the start of the edge to the projected LRP into the edge.
-    /// If the LRP is not projected it will be 0.
-    distance_to_projection: Length,
+    /// If the LRP is not projected it will be None.
+    distance_to_projection: Option<Length>,
     /// True only if the LRP was not projected, and candidate node connects to more than 2
     /// other nodes.
     is_junction: Option<bool>,
@@ -350,7 +389,7 @@ fn find_line_candidates_from_nodes<G: DirectedGraph>(
             Some(CandidateLine {
                 edge,
                 distance_to_lrp,
-                distance_to_projection: Length::ZERO,
+                distance_to_projection: None,
                 is_junction: Some(is_junction),
                 frc: graph.get_edge_frc(edge)?,
                 fow: graph.get_edge_fow(edge)?,
@@ -399,7 +438,7 @@ fn append_projected_lines<G: DirectedGraph>(
             let line = CandidateLine {
                 edge,
                 distance_to_lrp,
-                distance_to_projection,
+                distance_to_projection: Some(distance_to_projection),
                 is_junction: None,
                 frc: graph.get_edge_frc(edge)?,
                 fow: graph.get_edge_fow(edge)?,
@@ -505,8 +544,8 @@ fn rate_line<G: DirectedGraph>(
         debug!("Rating (accepted) = {rating:?} {ratings:?}");
         Some(AcceptedCandidateLine {
             edge: line.edge,
-            rating,
             distance_to_projection: line.distance_to_projection,
+            rating,
         })
     }
 }

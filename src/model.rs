@@ -1,5 +1,5 @@
 use std::fmt::{self, Debug};
-use std::ops::{Add, Mul, MulAssign, Sub};
+use std::ops::{Add, AddAssign, Mul, MulAssign, Sub};
 
 use approx::abs_diff_eq;
 use ordered_float::OrderedFloat;
@@ -104,6 +104,10 @@ impl Frc {
     /// the importance of the class.
     pub const fn value(&self) -> i8 {
         self.into_byte() as i8
+    }
+
+    pub fn from_value(value: i8) -> Option<Self> {
+        Self::try_from_byte(value as u8).ok()
     }
 
     /// Variance is an estimate of how a FRC can differ from another FRC of different class.
@@ -306,6 +310,12 @@ impl Add for Length {
 
     fn add(self, other: Self) -> Self {
         Self(OrderedFloat(self.meters() + other.meters()))
+    }
+}
+
+impl AddAssign for Length {
+    fn add_assign(&mut self, rhs: Self) {
+        self.0 += rhs.0;
     }
 }
 

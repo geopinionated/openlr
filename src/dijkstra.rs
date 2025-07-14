@@ -2,7 +2,22 @@ use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap};
 use std::fmt::Debug;
 
-use crate::{DirectedGraph, Length};
+use crate::{DirectedGraph, Frc, Length};
+
+#[derive(Debug, Clone, Copy)]
+pub struct ShortestPathConfig {
+    pub lowest_frc: Frc,
+    pub max_distance: Length,
+}
+
+impl Default for ShortestPathConfig {
+    fn default() -> Self {
+        Self {
+            lowest_frc: Frc::Frc7,
+            max_distance: Length::MAX,
+        }
+    }
+}
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct ShortestPath<EdgeId> {
@@ -32,6 +47,7 @@ impl<VertexId: Eq> PartialOrd for State<VertexId> {
 }
 
 pub fn shortest_path<G>(
+    config: &ShortestPathConfig,
     graph: &G,
     origin: G::VertexId,
     destination: G::VertexId,
@@ -40,7 +56,7 @@ where
     G: DirectedGraph,
 {
     // (current) shortest distance from origin to this vertex
-    let mut best_cost_from_origin = HashMap::from([(origin, Length::ZERO)]);
+    let mut shortest_distances = HashMap::from([(origin, Length::ZERO)]);
 
     // previous vertex (value) on the current best known path from origin to this vertex (key)
     let mut prev_vertex: HashMap<G::VertexId, (G::EdgeId, G::VertexId)> = HashMap::new();
@@ -69,30 +85,33 @@ where
         }
 
         // check if we already know a cheaper way to get to the end of this path from the origin
-        let best_origin_to_path_end_cost = *best_cost_from_origin
+        let shortest_distance = *shortest_distances
             .get(&state.vertex)
             .unwrap_or(&Length::MAX);
-        if state.distance > best_origin_to_path_end_cost {
+        if state.distance > shortest_distance {
             continue;
         }
 
         for (edge, vertex_to) in graph.vertex_exiting_edges(state.vertex) {
-            let edge_length = graph.get_edge_length(edge)?;
-            let cost_from_origin = state.distance + edge_length;
+            let distance = state.distance + graph.get_edge_length(edge)?;
+            if distance > config.max_distance {
+                continue;
+            }
 
-            let best_origin_to_neighbor_cost = *best_cost_from_origin
-                .get(&vertex_to)
-                .unwrap_or(&Length::MAX);
+            if graph.get_edge_frc(edge)? > config.lowest_frc {
+                continue;
+            }
 
+            let shortest_distance = *shortest_distances.get(&vertex_to).unwrap_or(&Length::MAX);
             // check if we can follow the current path to reach the neighbor in a cheaper way
-            if cost_from_origin < best_origin_to_neighbor_cost {
+            if distance < shortest_distance {
                 let neighbor = State {
                     vertex: vertex_to,
-                    distance: cost_from_origin,
+                    distance,
                 };
 
                 // Relaxation: we have now found a better way that we are going to explore
-                best_cost_from_origin.insert(neighbor.vertex, neighbor.distance);
+                shortest_distances.insert(neighbor.vertex, neighbor.distance);
                 prev_vertex.insert(neighbor.vertex, (edge, state.vertex));
                 frontier.push(neighbor);
             }
