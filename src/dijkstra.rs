@@ -1,25 +1,41 @@
+use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap};
 use std::fmt::Debug;
 
 use crate::{DirectedGraph, Length};
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct ShortestPath<VertexId> {
+pub struct ShortestPath<EdgeId> {
     pub distance: Length,
-    pub path: Vec<VertexId>,
+    pub path: Vec<EdgeId>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-struct State<VertexId, Distance> {
-    distance: Distance, // current best cost from origin to this vertex
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct State<VertexId> {
+    distance: Length, // current best cost from origin to this vertex
     vertex: VertexId,
 }
 
-fn shortest_path<G>(
+// The priority queue depends on the implementation of the Ord trait.
+// By default std::BinaryHeap is a max-heap.
+// Explicitly implement the trait so the queue becomes a min-heap.
+impl<VertexId: Eq> Ord for State<VertexId> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        other.distance.cmp(&self.distance)
+    }
+}
+
+impl<VertexId: Eq> PartialOrd for State<VertexId> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+pub fn shortest_path<G>(
     graph: &G,
     origin: G::VertexId,
     destination: G::VertexId,
-) -> Option<ShortestPath<G::VertexId>>
+) -> Option<ShortestPath<G::EdgeId>>
 where
     G: DirectedGraph,
 {
@@ -32,7 +48,7 @@ where
     best_cost_from_origin.insert(origin, Length::ZERO);
 
     // prev_hop[node]: represents the previous-hop node on the current best known path from origin to node
-    let mut prev_hop: HashMap<G::VertexId, G::VertexId> = HashMap::new();
+    let mut prev_hop: HashMap<G::VertexId, (G::VertexId, G::EdgeId)> = HashMap::new();
 
     // The set of discovered nodes that may need to be visited. Initially, only the start node is known.
     let mut frontier = BinaryHeap::from([State {
@@ -43,12 +59,12 @@ where
     while let Some(state) = frontier.pop() {
         if state.vertex == destination {
             // Unpacking: the best path from target back to origin
-            let mut shortest_path = vec![destination];
+            let mut shortest_path = vec![];
             let mut next = &destination;
-            while let Some(node) = prev_hop.get(next) {
-                next = node;
-                shortest_path.push(*node);
-                if node == &origin {
+            while let Some((previous, edge)) = prev_hop.get(next) {
+                next = previous;
+                shortest_path.push(*edge);
+                if previous == &origin {
                     break;
                 }
             }
@@ -86,7 +102,7 @@ where
 
                 // Relaxation: we have now found a better way that we are going to explore
                 best_cost_from_origin.insert(neighbor.vertex, neighbor.distance);
-                prev_hop.insert(neighbor.vertex, state.vertex);
+                prev_hop.insert(neighbor.vertex, (state.vertex, edge));
                 frontier.push(neighbor);
             }
         }

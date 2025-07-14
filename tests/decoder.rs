@@ -5,7 +5,10 @@ use geojson::{Feature, FeatureCollection, Value};
 use openlr::decoder_graph::{
     EdgeId, EdgeProperty, GeospatialEdge, GeospatialNode, NetworkGraph, VertexId,
 };
-use openlr::{Bearing, Coordinate, DirectedGraph, Fow, Frc, Length, decode_base64_openlr};
+use openlr::{
+    Bearing, Coordinate, DirectedGraph, Fow, Frc, Length, ShortestPath, decode_base64_openlr,
+    shortest_path,
+};
 use rstar::RTree;
 use strum::IntoEnumIterator;
 use test_log::test;
@@ -46,6 +49,61 @@ fn decode_line_location_reference() {
     let graph: NetworkGraph = geojson_graph.into_network_graph();
 
     let location = decode_base64_openlr(&graph, "CwmShiVYczPJBgCs/y0zAQ==").unwrap();
+}
+
+#[test]
+fn graph_shortest_path() {
+    let geojson = include_str!("data/graph.geojson");
+    let geojson_graph = GeojsonGraph::parse_geojson(geojson);
+    let graph: NetworkGraph = geojson_graph.into_network_graph();
+
+    assert_eq!(
+        shortest_path(&graph, VertexId(68), VertexId(68)).unwrap(),
+        ShortestPath {
+            distance: Length::ZERO,
+            path: vec![],
+        }
+    );
+
+    assert_eq!(
+        shortest_path(&graph, VertexId(1), VertexId(2)).unwrap(),
+        ShortestPath {
+            distance: Length::from_meters(217.0),
+            path: vec![EdgeId(16218)],
+        }
+    );
+
+    assert_eq!(shortest_path(&graph, VertexId(2), VertexId(1)), None);
+
+    assert_eq!(
+        shortest_path(&graph, VertexId(68), VertexId(20)).unwrap(),
+        ShortestPath {
+            distance: Length::from_meters(379.0),
+            path: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
+        }
+    );
+
+    assert_eq!(
+        shortest_path(&graph, VertexId(1), VertexId(37)).unwrap(),
+        ShortestPath {
+            distance: Length::from_meters(753.0),
+            path: vec![
+                EdgeId(16218),
+                EdgeId(16219),
+                EdgeId(7430347),
+                EdgeId(4232179),
+                EdgeId(961826)
+            ],
+        }
+    );
+
+    assert_eq!(
+        shortest_path(&graph, VertexId(36), VertexId(34)).unwrap(),
+        ShortestPath {
+            distance: Length::from_meters(16.0),
+            path: vec![EdgeId(-4232179)],
+        }
+    );
 }
 
 #[test]
