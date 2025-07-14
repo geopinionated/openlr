@@ -166,7 +166,7 @@ impl Length {
 
     /// Returns the distance to next LR-point interval.
     pub(crate) fn dnp_into_byte(self) -> u8 {
-        (self.meters() as f64 / Self::DISTANCE_PER_INTERVAL - 0.5).round() as u8
+        (self.meters() / Self::DISTANCE_PER_INTERVAL - 0.5).round() as u8
     }
 
     /// Returns the length of a radius in meters from big-endian slice of (up to 4) bytes.

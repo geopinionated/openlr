@@ -1,7 +1,5 @@
-use std::{
-    fmt::{self, Debug},
-    ops::{Add, Mul, MulAssign, Sub},
-};
+use std::fmt::{self, Debug};
+use std::ops::{Add, Mul, MulAssign, Sub};
 
 use approx::abs_diff_eq;
 use ordered_float::OrderedFloat;
@@ -16,7 +14,7 @@ pub enum Rating {
     Poor = 3,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct RatingScore(OrderedFloat<f64>);
 
 impl From<f64> for RatingScore {
@@ -49,6 +47,13 @@ impl Mul<RatingScore> for f64 {
     type Output = RatingScore;
     fn mul(self, rhs: RatingScore) -> Self::Output {
         RatingScore(OrderedFloat(self) * rhs.0)
+    }
+}
+
+impl Mul<RatingScore> for RatingScore {
+    type Output = Self;
+    fn mul(self, rhs: Self) -> Self::Output {
+        Self(self.0 * rhs.0)
     }
 }
 

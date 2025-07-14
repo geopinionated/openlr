@@ -1,7 +1,9 @@
 use std::cmp::Reverse;
+use std::collections::{BinaryHeap, HashMap};
 
 use thiserror::Error;
-use tracing::{debug, info, trace, warn};
+use tracing::field::debug;
+use tracing::{debug, info};
 
 use crate::{
     Bearing, DeserializeError, DirectedGraph, Fow, Frc, Length, Line, LocationReference, Point,
@@ -32,6 +34,7 @@ struct DecoderConfig {
     projected_line_factor: f64,
     bearing_distance: Length,
     max_bearing_difference: Bearing,
+    max_number_retries: usize,
 }
 
 impl Default for DecoderConfig {
@@ -45,6 +48,7 @@ impl Default for DecoderConfig {
             non_junction_factor: 0.8,
             projected_line_factor: 0.95,
             bearing_distance: Length::from_meters(20.0),
+            max_number_retries: 3,
         }
     }
 }
@@ -82,7 +86,7 @@ fn decode_line<G: DirectedGraph>(
     let lines = find_candidate_lines(config, graph, &nodes)?;
 
     println!("\n\n");
-    for CandidateLines { lrp, lines } in lines {
+    for CandidateLines { lrp, lines } in &lines {
         println!("\n{:?}", lrp.coordinate);
         for line in lines {
             println!("\t{line:?}");
@@ -90,8 +94,93 @@ fn decode_line<G: DirectedGraph>(
     }
     println!("\n\n");
 
+    // Step – 5 Determine shortest-path(s) between two subsequent location reference points
+    let routes = resolve_routes(config, graph, &lines)?;
+
     // TODO!!!
     Ok(Location)
+}
+
+fn resolve_routes<G: DirectedGraph>(
+    config: &DecoderConfig,
+    graph: &G,
+    candidate_lines: &[CandidateLines<G::EdgeId>],
+) -> Result<(), DecodeError> {
+    // iterate over all LRP pairs
+    for lines in candidate_lines.windows(2) {
+        let [line_lrp1, line_lrp2] = [&lines[0], &lines[1]];
+
+        let candidate_pairs = resolve_candidate_pairs::<G>(config, line_lrp1, line_lrp2)?;
+        dbg!(&candidate_pairs);
+    }
+
+    todo!()
+}
+
+// TODO: we should consider previous candidate line as well!!!
+// TODO: apply same line degradation to LRP 2 candidate line
+fn resolve_candidate_pairs<G: DirectedGraph>(
+    config: &DecoderConfig,
+    line_lrp1: &CandidateLines<G::EdgeId>,
+    line_lrp2: &CandidateLines<G::EdgeId>,
+) -> Result<Vec<CandidateLinePairIndex>, DecodeError> {
+    let max_size = line_lrp1.lines.len() * line_lrp2.lines.len();
+    let size = max_size.min(config.max_number_retries + 1);
+    debug!("Resolving candidate pair ratings with size={size}");
+
+    let mut pair_ratings: BinaryHeap<Reverse<RatingScore>> = BinaryHeap::with_capacity(size + 1);
+    let mut rating_pairs: HashMap<RatingScore, Vec<_>> = HashMap::with_capacity(size + 1);
+
+    for (line1_index, &line_lrp1) in line_lrp1.lines.iter().enumerate() {
+        for (line2_index, &line_lrp2) in line_lrp2.lines.iter().enumerate() {
+            let pair_rating = line_lrp1.rating * line_lrp2.rating;
+            pair_ratings.push(Reverse(pair_rating));
+
+            if pair_ratings.len() < size {
+                rating_pairs
+                    .entry(pair_rating)
+                    .or_default()
+                    .push(CandidateLinePairIndex {
+                        rating: pair_rating,
+                        line1_index,
+                        line2_index,
+                    });
+
+                continue;
+            }
+
+            let worst_rating = match pair_ratings.pop() {
+                Some(Reverse(rating)) if pair_rating <= rating => continue,
+                Some(Reverse(rating)) => rating,
+                None => continue,
+            };
+
+            rating_pairs
+                .entry(pair_rating)
+                .or_default()
+                .push(CandidateLinePairIndex {
+                    rating: pair_rating,
+                    line1_index,
+                    line2_index,
+                });
+
+            if let Some(pairs) = rating_pairs.get_mut(&worst_rating)
+                && pairs.len() > 1
+            {
+                pairs.pop();
+            } else {
+                rating_pairs.remove(&worst_rating);
+            }
+        }
+    }
+
+    let mut candidates = vec![];
+    while let Some(Reverse(rating)) = pair_ratings.pop() {
+        candidates.extend(rating_pairs.get(&rating).into_iter().flatten());
+    }
+    candidates.reverse();
+
+    Ok(candidates)
 }
 
 /// List of candidate nodes for a Location Reference Point.
@@ -114,6 +203,13 @@ struct CandidateNode<VertexId> {
 struct CandidateLines<EdgeId> {
     lrp: Point,
     lines: Vec<AcceptedCandidateLine<EdgeId>>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct CandidateLinePairIndex {
+    rating: RatingScore,
+    line1_index: usize,
+    line2_index: usize,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -163,14 +259,11 @@ struct CandidateLine<EdgeId> {
 ///
 /// If no candidate line can be found for a location reference point, the decoder should report an
 /// error and stop further processing.
-fn find_candidate_lines<G>(
+fn find_candidate_lines<G: DirectedGraph>(
     config: &DecoderConfig,
     graph: &G,
     candidate_nodes: &[CandidateNodes<G::VertexId>],
-) -> Result<Vec<CandidateLines<G::EdgeId>>, DecodeError>
-where
-    G: DirectedGraph,
-{
+) -> Result<Vec<CandidateLines<G::EdgeId>>, DecodeError> {
     let mut candidate_lines = Vec::with_capacity(candidate_nodes.len());
 
     for lrp_nodes in candidate_nodes {
@@ -330,7 +423,7 @@ fn append_projected_lines<G: DirectedGraph>(
 /// - The form of way of the candidate line should match the form of way of the location reference
 ///   point.
 /// - The bearing of the candidate line should match indicated bearing angles of the location
-/// reference point.
+///   reference point.
 ///
 /// Slight variances in the concrete values are allowed and shall be considered in the rating
 /// function.
