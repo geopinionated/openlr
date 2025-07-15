@@ -3,7 +3,7 @@ use std::io::ErrorKind;
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq, Clone, Copy)]
-pub enum DecodeError {
+pub enum DeserializeError {
     #[error("OpenLR invalid Base 64")]
     InvalidBase64,
     #[error("OpenLR buffer I/O error: {0:?}")]
@@ -23,7 +23,7 @@ pub enum DecodeError {
 }
 
 #[derive(Error, Debug, PartialEq, Clone, Copy)]
-pub enum EncodeError {
+pub enum SerializeError {
     #[error("OpenLR buffer I/O error: {0:?}")]
     IO(ErrorKind),
     #[error("OpenLR Bearing is not valid, expected [0, 360): {0}")]
@@ -40,19 +40,19 @@ pub enum EncodeError {
     InvalidGridSize,
 }
 
-impl From<base64::DecodeError> for DecodeError {
+impl From<base64::DecodeError> for DeserializeError {
     fn from(_: base64::DecodeError) -> Self {
         Self::InvalidBase64
     }
 }
 
-impl From<std::io::Error> for DecodeError {
+impl From<std::io::Error> for DeserializeError {
     fn from(error: std::io::Error) -> Self {
         Self::IO(error.kind())
     }
 }
 
-impl From<std::io::Error> for EncodeError {
+impl From<std::io::Error> for SerializeError {
     fn from(error: std::io::Error) -> Self {
         Self::IO(error.kind())
     }

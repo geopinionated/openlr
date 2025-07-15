@@ -5,19 +5,21 @@ use base64::prelude::BASE64_STANDARD;
 
 use crate::binary::encoding::EncodedAttributes;
 use crate::{
-    Bearing, Circle, ClosedLine, Coordinate, DecodeError, Fow, Frc, Grid, GridSize, Length, Line,
-    LineAttributes, LocationReference, LocationType, Offset, PathAttributes, Poi, Point,
+    Bearing, Circle, ClosedLine, Coordinate, DeserializeError, Fow, Frc, Grid, GridSize, Length,
+    Line, LineAttributes, LocationReference, LocationType, Offset, PathAttributes, Poi, Point,
     PointAlongLine, Polygon, Rectangle,
 };
 
-/// Decodes an OpenLR Location Reference encoded in Base64.
-pub fn decode_base64_openlr(data: impl AsRef<[u8]>) -> Result<LocationReference, DecodeError> {
+/// Deserializes an OpenLR Location Reference encoded in Base64.
+pub fn deserialize_base64_openlr(
+    data: impl AsRef<[u8]>,
+) -> Result<LocationReference, DeserializeError> {
     let data = BASE64_STANDARD.decode(data)?;
-    decode_binary_openlr(&data)
+    deserialize_binary_openlr(&data)
 }
 
-/// Decodes a binary representation of an OpenLR Location Reference.
-pub fn decode_binary_openlr(data: &[u8]) -> Result<LocationReference, DecodeError> {
+/// Deserializes a binary representation of an OpenLR Location Reference.
+pub fn deserialize_binary_openlr(data: &[u8]) -> Result<LocationReference, DeserializeError> {
     use LocationReference::*;
 
     let mut reader = OpenLrBinaryReader::new(data);
@@ -51,14 +53,14 @@ impl<'a> OpenLrBinaryReader<'a> {
         self.cursor.get_ref().len()
     }
 
-    fn read_header(&mut self) -> Result<LocationType, DecodeError> {
+    fn read_header(&mut self) -> Result<LocationType, DeserializeError> {
         let mut header = [0u8; 1];
         self.cursor.read_exact(&mut header)?;
         let header = header[0];
 
         let version = header & 0b111;
         if version != 3 {
-            return Err(DecodeError::VersionNotSupported(version));
+            return Err(DeserializeError::VersionNotSupported(version));
         }
 
         let location_type = (header >> 3) & 0b1111;
@@ -72,13 +74,13 @@ impl<'a> OpenLrBinaryReader<'a> {
             8 if self.len() > 13 => LocationType::Grid,
             8 => LocationType::Rectangle,
             11 => LocationType::ClosedLine,
-            _ => return Err(DecodeError::InvalidHeader(header)),
+            _ => return Err(DeserializeError::InvalidHeader(header)),
         };
 
         Ok(location_type)
     }
 
-    fn read_line(&mut self) -> Result<Line, DecodeError> {
+    fn read_line(&mut self) -> Result<Line, DeserializeError> {
         let relative_points_count = (self.len() - 9) / 7;
         let mut line = Line::with_capacity(1 + relative_points_count);
 
@@ -121,7 +123,7 @@ impl<'a> OpenLrBinaryReader<'a> {
         Ok(line)
     }
 
-    fn read_closed_line(&mut self) -> Result<ClosedLine, DecodeError> {
+    fn read_closed_line(&mut self) -> Result<ClosedLine, DeserializeError> {
         let relative_points_count = (self.len() - 12) / 7;
         let mut line = ClosedLine::with_capacity(1 + relative_points_count);
 
@@ -157,7 +159,7 @@ impl<'a> OpenLrBinaryReader<'a> {
         Ok(line)
     }
 
-    fn read_point_along_line(&mut self) -> Result<PointAlongLine, DecodeError> {
+    fn read_point_along_line(&mut self) -> Result<PointAlongLine, DeserializeError> {
         let coordinate = self.read_coordinate()?;
         let attributes = self.read_attributes()?;
         let dnp = self.read_dnp()?;
@@ -196,19 +198,19 @@ impl<'a> OpenLrBinaryReader<'a> {
         })
     }
 
-    fn read_poi(&mut self) -> Result<Poi, DecodeError> {
+    fn read_poi(&mut self) -> Result<Poi, DeserializeError> {
         let point = self.read_point_along_line()?;
         let poi = self.read_relative_coordinate(point.points[0].coordinate)?;
         Ok(Poi { point, poi })
     }
 
-    fn read_circle(&mut self) -> Result<Circle, DecodeError> {
+    fn read_circle(&mut self) -> Result<Circle, DeserializeError> {
         let center = self.read_coordinate()?;
         let radius = self.read_radius()?;
         Ok(Circle { center, radius })
     }
 
-    fn read_rectangle(&mut self) -> Result<Rectangle, DecodeError> {
+    fn read_rectangle(&mut self) -> Result<Rectangle, DeserializeError> {
         let lower_left = self.read_coordinate()?;
 
         let upper_right = if self.len() > 11 {
@@ -223,7 +225,7 @@ impl<'a> OpenLrBinaryReader<'a> {
         })
     }
 
-    fn read_grid(&mut self) -> Result<Grid, DecodeError> {
+    fn read_grid(&mut self) -> Result<Grid, DeserializeError> {
         let lower_left = self.read_coordinate()?;
 
         let upper_right = if self.len() > 15 {
@@ -242,7 +244,7 @@ impl<'a> OpenLrBinaryReader<'a> {
         Ok(Grid { rect, size })
     }
 
-    fn read_polygon(&mut self) -> Result<Polygon, DecodeError> {
+    fn read_polygon(&mut self) -> Result<Polygon, DeserializeError> {
         let relative_corners_count = (self.len() - 7) / 4;
         let mut polygon = Polygon::with_capacity(1 + relative_corners_count);
 
@@ -257,8 +259,8 @@ impl<'a> OpenLrBinaryReader<'a> {
         Ok(polygon)
     }
 
-    fn read_coordinate(&mut self) -> Result<Coordinate, DecodeError> {
-        let mut read_degrees = || -> Result<f64, DecodeError> {
+    fn read_coordinate(&mut self) -> Result<Coordinate, DeserializeError> {
+        let mut read_degrees = || -> Result<f64, DeserializeError> {
             let mut c = [0u8; 3];
             self.cursor.read_exact(&mut c)?;
             Ok(Coordinate::degrees_from_be_bytes(c))
@@ -272,8 +274,8 @@ impl<'a> OpenLrBinaryReader<'a> {
     fn read_relative_coordinate(
         &mut self,
         previous: Coordinate,
-    ) -> Result<Coordinate, DecodeError> {
-        let mut read_degrees = |previous| -> Result<f64, DecodeError> {
+    ) -> Result<Coordinate, DeserializeError> {
+        let mut read_degrees = |previous| -> Result<f64, DeserializeError> {
             let mut c = [0u8; 2];
             self.cursor.read_exact(&mut c)?;
             Ok(Coordinate::degrees_from_be_bytes_relative(c, previous))
@@ -284,7 +286,7 @@ impl<'a> OpenLrBinaryReader<'a> {
         Ok(Coordinate { lon, lat })
     }
 
-    fn read_attributes(&mut self) -> Result<EncodedAttributes, DecodeError> {
+    fn read_attributes(&mut self) -> Result<EncodedAttributes, DeserializeError> {
         let mut attributes = [0u8; 2];
         self.cursor.read_exact(&mut attributes)?;
 
@@ -301,25 +303,25 @@ impl<'a> OpenLrBinaryReader<'a> {
         })
     }
 
-    fn read_dnp(&mut self) -> Result<Length, DecodeError> {
+    fn read_dnp(&mut self) -> Result<Length, DeserializeError> {
         let mut dnp = [0u8; 1];
         self.cursor.read_exact(&mut dnp)?;
         Ok(Length::dnp_from_byte(dnp[0]))
     }
 
-    fn read_offset(&mut self) -> Result<Offset, DecodeError> {
+    fn read_offset(&mut self) -> Result<Offset, DeserializeError> {
         let mut offset = [0u8; 1];
         self.cursor.read_exact(&mut offset)?;
         Ok(Offset::from_byte(offset[0]))
     }
 
-    fn read_radius(&mut self) -> Result<Length, DecodeError> {
+    fn read_radius(&mut self) -> Result<Length, DeserializeError> {
         let mut radius = [0u8; 4];
         let length = self.cursor.read(&mut radius)?;
         Ok(Length::radius_from_be_bytes(&radius[..length]))
     }
 
-    fn read_grid_size(&mut self) -> Result<GridSize, DecodeError> {
+    fn read_grid_size(&mut self) -> Result<GridSize, DeserializeError> {
         let mut size = [0u8; 4];
         self.cursor.read_exact(&mut size)?;
         Ok(GridSize::from_be_bytes(size))
@@ -333,32 +335,32 @@ mod tests {
     use crate::{Orientation, SideOfRoad};
 
     #[test]
-    fn openlr_decode_version_1_not_supported() {
+    fn openlr_deserialize_version_1_not_supported() {
         assert_eq!(
-            decode_base64_openlr("CQcm6yX4vTPGFwM7AskzCw==").unwrap_err(),
-            DecodeError::VersionNotSupported(1)
+            deserialize_base64_openlr("CQcm6yX4vTPGFwM7AskzCw==").unwrap_err(),
+            DeserializeError::VersionNotSupported(1)
         );
     }
 
     #[test]
-    fn openlr_decode_version_2_not_supported() {
+    fn openlr_deserialize_version_2_not_supported() {
         assert_eq!(
-            decode_base64_openlr("CgRbWyNG9BpsCQCb/jsbtAT/6/+jK1kC").unwrap_err(),
-            DecodeError::VersionNotSupported(2)
+            deserialize_base64_openlr("CgRbWyNG9BpsCQCb/jsbtAT/6/+jK1kC").unwrap_err(),
+            DeserializeError::VersionNotSupported(2)
         );
     }
 
     #[test]
-    fn openlr_decode_invalid_header() {
+    fn openlr_deserialize_invalid_header() {
         assert_eq!(
-            decode_base64_openlr("ewGkNSK5Wg==").unwrap_err(),
-            DecodeError::InvalidHeader(0b01111011)
+            deserialize_base64_openlr("ewGkNSK5Wg==").unwrap_err(),
+            DeserializeError::InvalidHeader(0b01111011)
         );
     }
 
     #[test]
-    fn openlr_decode_line_location_reference_001() {
-        let location = decode_base64_openlr("CwRbWyNG9RpsCQCb/jsbtAT/6/+jK1lE").unwrap();
+    fn openlr_deserialize_line_location_reference_001() {
+        let location = deserialize_base64_openlr("CwRbWyNG9RpsCQCb/jsbtAT/6/+jK1lE").unwrap();
 
         assert_eq!(
             location,
@@ -416,8 +418,8 @@ mod tests {
     }
 
     #[test]
-    fn openlr_decode_line_location_reference_002() {
-        let location = decode_base64_openlr("CwB67CGukRxiCACyAbwaMXU=").unwrap();
+    fn openlr_deserialize_line_location_reference_002() {
+        let location = deserialize_base64_openlr("CwB67CGukRxiCACyAbwaMXU=").unwrap();
 
         assert_eq!(
             location,
@@ -460,8 +462,8 @@ mod tests {
     }
 
     #[test]
-    fn openlr_decode_line_location_reference_003() {
-        let location = decode_base64_openlr("CwcX6CItqAs6AQAAAAALGg==").unwrap();
+    fn openlr_deserialize_line_location_reference_003() {
+        let location = deserialize_base64_openlr("CwcX6CItqAs6AQAAAAALGg==").unwrap();
 
         assert_eq!(
             location,
@@ -501,8 +503,8 @@ mod tests {
     }
 
     #[test]
-    fn openlr_decode_line_location_reference_004() {
-        let location = decode_base64_openlr("CwRbWyNG9BpgAACa/jsboAD/6/+kKwA=").unwrap();
+    fn openlr_deserialize_line_location_reference_004() {
+        let location = deserialize_base64_openlr("CwRbWyNG9BpgAACa/jsboAD/6/+kKwA=").unwrap();
 
         assert_eq!(
             location,
@@ -557,8 +559,8 @@ mod tests {
     }
 
     #[test]
-    fn openlr_decode_coordinate_location_reference_001() {
-        let location = decode_base64_openlr("I+djotZ9eA==").unwrap();
+    fn openlr_deserialize_coordinate_location_reference_001() {
+        let location = deserialize_base64_openlr("I+djotZ9eA==").unwrap();
 
         assert_eq!(
             location,
@@ -570,8 +572,8 @@ mod tests {
     }
 
     #[test]
-    fn openlr_decode_coordinate_location_reference_002() {
-        let location = decode_base64_openlr("IyVUdwmSoA==").unwrap();
+    fn openlr_deserialize_coordinate_location_reference_002() {
+        let location = deserialize_base64_openlr("IyVUdwmSoA==").unwrap();
 
         assert_eq!(
             location,
@@ -583,8 +585,8 @@ mod tests {
     }
 
     #[test]
-    fn openlr_decode_point_along_line_location_reference_001() {
-        let location = decode_base64_openlr("K/6P+SKSuBJGGAUn/1gSUyM=").unwrap();
+    fn openlr_deserialize_point_along_line_location_reference_001() {
+        let location = deserialize_base64_openlr("K/6P+SKSuBJGGAUn/1gSUyM=").unwrap();
 
         assert_eq!(
             location,
@@ -626,8 +628,8 @@ mod tests {
     }
 
     #[test]
-    fn openlr_decode_point_along_line_location_reference_002() {
-        let location = decode_base64_openlr("KwBVwSCh+RRXAf/i/9AUXP8=").unwrap();
+    fn openlr_deserialize_point_along_line_location_reference_002() {
+        let location = deserialize_base64_openlr("KwBVwSCh+RRXAf/i/9AUXP8=").unwrap();
 
         assert_eq!(
             location,
@@ -669,8 +671,8 @@ mod tests {
     }
 
     #[test]
-    fn openlr_decode_poi_location_reference_001() {
-        let location = decode_base64_openlr("KwOg5iUNnCOTAv+D/5QjQ1j/gP/r").unwrap();
+    fn openlr_deserialize_poi_location_reference_001() {
+        let location = deserialize_base64_openlr("KwOg5iUNnCOTAv+D/5QjQ1j/gP/r").unwrap();
 
         assert_eq!(
             location,
@@ -718,8 +720,8 @@ mod tests {
     }
 
     #[test]
-    fn openlr_decode_circle_location_reference_001() {
-        let location = decode_base64_openlr("AwOgxCUNmwEs").unwrap();
+    fn openlr_deserialize_circle_location_reference_001() {
+        let location = deserialize_base64_openlr("AwOgxCUNmwEs").unwrap();
 
         assert_eq!(
             location,
@@ -734,8 +736,8 @@ mod tests {
     }
 
     #[test]
-    fn openlr_decode_circle_location_reference_002() {
-        let location = decode_base64_openlr("A/2lJCfIiAfQ").unwrap();
+    fn openlr_deserialize_circle_location_reference_002() {
+        let location = deserialize_base64_openlr("A/2lJCfIiAfQ").unwrap();
 
         assert_eq!(
             location,
@@ -750,8 +752,8 @@ mod tests {
     }
 
     #[test]
-    fn openlr_decode_rectangle_location_reference_001() {
-        let location = decode_base64_openlr("Qxl5HRKFDR33oB/agA==").unwrap();
+    fn openlr_deserialize_rectangle_location_reference_001() {
+        let location = deserialize_base64_openlr("Qxl5HRKFDR33oB/agA==").unwrap();
 
         assert_eq!(
             location,
@@ -769,8 +771,8 @@ mod tests {
     }
 
     #[test]
-    fn openlr_decode_rectangle_location_reference_002() {
-        let location = decode_base64_openlr("QwOgcSUNGgGIAX8=").unwrap();
+    fn openlr_deserialize_rectangle_location_reference_002() {
+        let location = deserialize_base64_openlr("QwOgcSUNGgGIAX8=").unwrap();
 
         assert_eq!(
             location,
@@ -788,8 +790,8 @@ mod tests {
     }
 
     #[test]
-    fn openlr_decode_grid_location_reference_001() {
-        let location = decode_base64_openlr("Q/xfwiMc5QsGuyx13wILASg=").unwrap();
+    fn openlr_deserialize_grid_location_reference_001() {
+        let location = deserialize_base64_openlr("Q/xfwiMc5QsGuyx13wILASg=").unwrap();
 
         assert_eq!(
             location,
@@ -813,8 +815,8 @@ mod tests {
     }
 
     #[test]
-    fn openlr_decode_grid_location_reference_002() {
-        let location = decode_base64_openlr("QwOgNiUM5wFVANsAAwAC").unwrap();
+    fn openlr_deserialize_grid_location_reference_002() {
+        let location = deserialize_base64_openlr("QwOgNiUM5wFVANsAAwAC").unwrap();
 
         assert_eq!(
             location,
@@ -838,8 +840,8 @@ mod tests {
     }
 
     #[test]
-    fn openlr_decode_polygon_location_reference_001() {
-        let location = decode_base64_openlr("EwOgUCUNEwJFAH//yAEv/vIAxw==").unwrap();
+    fn openlr_deserialize_polygon_location_reference_001() {
+        let location = deserialize_base64_openlr("EwOgUCUNEwJFAH//yAEv/vIAxw==").unwrap();
 
         assert_eq!(
             location,
@@ -867,8 +869,8 @@ mod tests {
     }
 
     #[test]
-    fn openlr_decode_closed_line_location_reference_001() {
-        let location = decode_base64_openlr("WwRboCNGfhJrBAAJ/zkb9AgTFQ==").unwrap();
+    fn openlr_deserialize_closed_line_location_reference_001() {
+        let location = deserialize_base64_openlr("WwRboCNGfhJrBAAJ/zkb9AgTFQ==").unwrap();
 
         assert_eq!(
             location,
