@@ -1,10 +1,11 @@
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
+use geo::CoordsIter;
 use geojson::{Feature, FeatureCollection, Value};
 use openlr::{Coordinate, Fow, Frc, Length};
 
-static GEOJSON_GRAPH: LazyLock<GeojsonGraph> = LazyLock::new(|| {
+pub static GEOJSON_GRAPH: LazyLock<GeojsonGraph> = LazyLock::new(|| {
     let geojson = include_str!("../data/graph.geojson");
     GeojsonGraph::parse_geojson(geojson)
 });
@@ -15,27 +16,27 @@ type NodeId = i64;
 type LineId = i64;
 
 #[derive(Debug, Default)]
-struct GeojsonGraph {
-    nodes: HashMap<NodeId, Node>,
-    lines: HashMap<LineId, Line>,
+pub struct GeojsonGraph {
+    pub nodes: HashMap<NodeId, Node>,
+    pub lines: HashMap<LineId, Line>,
 }
 
 #[derive(Debug)]
-struct Node {
-    id: NodeId,
-    location: Coordinate,
-    outgoing_lines: Vec<(LineId, NodeId)>,
+pub struct Node {
+    pub id: NodeId,
+    pub location: Coordinate,
+    pub outgoing_lines: Vec<(LineId, NodeId)>,
 }
 
 #[derive(Debug)]
-struct Line {
-    id: LineId,
-    start_id: NodeId,
-    end_id: NodeId,
-    length: Length,
-    fow: Fow,
-    frc: Frc,
-    geometry: Vec<Coordinate>,
+pub struct Line {
+    pub id: LineId,
+    pub start_id: NodeId,
+    pub end_id: NodeId,
+    pub length: Length,
+    pub fow: Fow,
+    pub frc: Frc,
+    pub geometry: geo::LineString,
 }
 
 impl GeojsonGraph {
@@ -81,7 +82,7 @@ impl GeojsonGraph {
             let geometry = geometry.as_ref().unwrap();
             let properties = properties.as_ref().unwrap();
 
-            if let Value::LineString(line) = &geometry.value {
+            if let Value::LineString(lines) = &geometry.value {
                 let id = properties.get("id").unwrap().as_i64().unwrap();
                 let mut start_id = properties.get("startId").unwrap().as_i64().unwrap();
                 let mut end_id = properties.get("endId").unwrap().as_i64().unwrap();
@@ -90,19 +91,17 @@ impl GeojsonGraph {
                 let fow = properties.get("fow").unwrap().as_i64().unwrap() as i8;
                 let direction = properties.get("direction").unwrap().as_i64().unwrap();
 
-                let mut geometry: Vec<Coordinate> = line
+                let geometry = lines
                     .iter()
-                    .map(|line| Coordinate {
-                        lon: line[0],
-                        lat: line[1],
-                    })
-                    .collect();
+                    .map(|line| geo::coord! { x: line[0], y: line[1] });
 
-                if direction == 3 {
+                let geometry = if direction == 3 {
                     // backward direction
-                    geometry.reverse();
                     std::mem::swap(&mut start_id, &mut end_id);
-                }
+                    geo::LineString::from_iter(geometry.rev())
+                } else {
+                    geo::LineString::from_iter(geometry)
+                };
 
                 let node = graph.nodes.get_mut(&start_id).unwrap();
                 node.outgoing_lines.push((id, end_id));
@@ -143,7 +142,7 @@ fn geojson_graph_line_attributes() {
     assert_eq!(line.length, Length::from_meters(217.0));
     assert_eq!(line.frc, Frc::Frc2);
     assert_eq!(line.fow, Fow::SingleCarriageway);
-    assert_eq!(line.geometry.len(), 7);
+    assert_eq!(line.geometry.coords_count(), 7);
 
     let line = graph.lines.get(&8323959).unwrap();
     assert_eq!(line.id, 8323959);
@@ -152,7 +151,7 @@ fn geojson_graph_line_attributes() {
     assert_eq!(line.length, Length::from_meters(11.0));
     assert_eq!(line.frc, Frc::Frc6);
     assert_eq!(line.fow, Fow::SingleCarriageway);
-    assert_eq!(line.geometry.len(), 2);
+    assert_eq!(line.geometry.coords_count(), 2);
 }
 
 #[test]
