@@ -1,8 +1,79 @@
-use std::fmt::{self, Debug};
-use std::ops::{Add, AddAssign, Sub, SubAssign};
+use std::fmt;
+use std::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
 
 use approx::abs_diff_eq;
 use ordered_float::OrderedFloat;
+use strum::IntoEnumIterator;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, strum::EnumIter)]
+#[repr(u8)]
+pub enum Rating {
+    Excellent = 0,
+    Good = 1,
+    Average = 2,
+    Poor = 3,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct RatingScore(OrderedFloat<f64>);
+
+impl fmt::Debug for RatingScore {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:.1}", self.0)
+    }
+}
+
+impl From<f64> for RatingScore {
+    fn from(value: f64) -> Self {
+        Self(OrderedFloat(value))
+    }
+}
+
+impl From<RatingScore> for f64 {
+    fn from(score: RatingScore) -> Self {
+        score.0.into()
+    }
+}
+
+impl From<Length> for RatingScore {
+    fn from(length: Length) -> Self {
+        Self(length.meters().into())
+    }
+}
+
+impl Add for RatingScore {
+    type Output = Self;
+    fn add(self, other: Self) -> Self {
+        Self(self.0 + other.0)
+    }
+}
+
+impl Mul<f64> for RatingScore {
+    type Output = Self;
+    fn mul(self, rhs: f64) -> Self::Output {
+        Self(self.0 * rhs)
+    }
+}
+
+impl Mul<RatingScore> for f64 {
+    type Output = RatingScore;
+    fn mul(self, rhs: RatingScore) -> Self::Output {
+        RatingScore(OrderedFloat(self) * rhs.0)
+    }
+}
+
+impl Mul<RatingScore> for RatingScore {
+    type Output = Self;
+    fn mul(self, rhs: Self) -> Self::Output {
+        Self(self.0 * rhs.0)
+    }
+}
+
+impl MulAssign<f64> for RatingScore {
+    fn mul_assign(&mut self, rhs: f64) {
+        self.0 = self.0 * rhs;
+    }
+}
 
 /// Functional Road Class.
 /// The functional road class (FRC) of a line is a road classification
@@ -44,6 +115,44 @@ impl Frc {
     pub fn from_value(value: i8) -> Option<Self> {
         Self::try_from_byte(value.try_into().ok()?).ok()
     }
+
+    /// Variance is an estimate of how a FRC can differ from another FRC of different class.
+    /// The higher the variance the more the two classes can differ and still be considered
+    /// equal during the decoding process.
+    pub const fn variance(&self) -> i8 {
+        match self {
+            Self::Frc0 | Self::Frc1 | Self::Frc2 | Self::Frc3 => 2,
+            Self::Frc4 | Self::Frc5 | Self::Frc6 | Self::Frc7 => 3,
+        }
+    }
+
+    pub const fn is_within_variance(&self, other: &Self) -> bool {
+        self.value() <= other.value() + other.variance()
+    }
+
+    pub fn rating(&self, other: &Self) -> Rating {
+        let delta = (self.value() - other.value()).abs();
+
+        let rating_interval = |rating| match rating {
+            Rating::Excellent => 0,
+            Rating::Good => 1,
+            Rating::Average => 2,
+            Rating::Poor => 3,
+        };
+
+        Rating::iter()
+            .find(|&rating| delta <= rating_interval(rating))
+            .unwrap_or(Rating::Poor)
+    }
+
+    pub fn rating_score(rating: Rating) -> RatingScore {
+        match rating {
+            Rating::Excellent => RatingScore::from(100.0),
+            Rating::Good => RatingScore::from(75.0),
+            Rating::Average => RatingScore::from(50.0),
+            Rating::Poor => RatingScore::from(0.0),
+        }
+    }
 }
 
 /// Form of Way.
@@ -80,6 +189,45 @@ pub enum Fow {
 impl Default for Fow {
     fn default() -> Self {
         Self::Other
+    }
+}
+
+impl Fow {
+    pub const fn rating(&self, other: &Self) -> Rating {
+        use Fow::*;
+        match (self, other) {
+            (Undefined, _) | (_, Undefined) => Rating::Average,
+            (Motorway, Motorway) => Rating::Excellent,
+            (Motorway, MultipleCarriageway) => Rating::Good,
+            (Motorway, _) => Rating::Poor,
+            (MultipleCarriageway, MultipleCarriageway) => Rating::Excellent,
+            (MultipleCarriageway, Motorway) => Rating::Good,
+            (MultipleCarriageway, _) => Rating::Poor,
+            (SingleCarriageway, SingleCarriageway) => Rating::Excellent,
+            (SingleCarriageway, MultipleCarriageway) => Rating::Good,
+            (SingleCarriageway, Roundabout | TrafficSquare) => Rating::Average,
+            (SingleCarriageway, _) => Rating::Poor,
+            (Roundabout, Roundabout) => Rating::Excellent,
+            (Roundabout, MultipleCarriageway | SingleCarriageway | TrafficSquare) => {
+                Rating::Average
+            }
+            (Roundabout, _) => Rating::Poor,
+            (TrafficSquare, TrafficSquare) => Rating::Excellent,
+            (TrafficSquare, SingleCarriageway | Roundabout) => Rating::Average,
+            (TrafficSquare, _) => Rating::Poor,
+            (SlipRoad, SlipRoad) => Rating::Excellent,
+            (SlipRoad, _) => Rating::Poor,
+            (Other, Other) => Rating::Excellent,
+            (Other, _) => Rating::Poor,
+        }
+    }
+
+    pub fn rating_score(rating: Rating) -> RatingScore {
+        match rating {
+            Rating::Excellent => RatingScore::from(100.0),
+            Rating::Good | Rating::Average => RatingScore::from(50.0),
+            Rating::Poor => RatingScore::from(25.0),
+        }
     }
 }
 
@@ -211,6 +359,30 @@ impl Bearing {
         let degrees = if delta > 180 { 360 - delta } else { delta };
         Self::from_degrees(degrees)
     }
+
+    pub fn rating(&self, other: &Self) -> Rating {
+        let difference = self.difference(other);
+
+        let rating_interval = |rating| match rating {
+            Rating::Excellent => 6,
+            Rating::Good => 12,
+            Rating::Average => 18,
+            Rating::Poor => 24,
+        };
+
+        Rating::iter()
+            .find(|&rating| difference.degrees() <= rating_interval(rating))
+            .unwrap_or(Rating::Poor)
+    }
+
+    pub fn rating_score(rating: Rating) -> RatingScore {
+        match rating {
+            Rating::Excellent => RatingScore::from(100.0),
+            Rating::Good => RatingScore::from(50.0),
+            Rating::Average => RatingScore::from(25.0),
+            Rating::Poor => RatingScore::from(0.0),
+        }
+    }
 }
 
 /// Coordinate pair stands for a pair of WGS84 longitude (lon) and latitude (lat) values.
@@ -222,7 +394,7 @@ pub struct Coordinate {
     pub lat: f64,
 }
 
-impl Debug for Coordinate {
+impl fmt::Debug for Coordinate {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -515,6 +687,20 @@ impl LocationReference {
             Self::Grid(_) => LocationType::Grid,
             Self::Polygon(_) => LocationType::Polygon,
             Self::ClosedLine(_) => LocationType::ClosedLine,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use strum::IntoEnumIterator;
+
+    use super::*;
+
+    #[test]
+    fn fow_rating() {
+        for (fow1, fow2) in Fow::iter().zip(Fow::iter()) {
+            assert_eq!(fow1.rating(&fow2), fow2.rating(&fow1));
         }
     }
 }
