@@ -9,21 +9,21 @@ use crate::{DirectedGraph, Frc, Length};
 #[derive(Debug, Clone, Copy)]
 pub struct ShortestPathConfig {
     pub lowest_frc: Frc,
-    pub max_distance: Length,
+    pub max_length: Length,
 }
 
 impl Default for ShortestPathConfig {
     fn default() -> Self {
         Self {
             lowest_frc: Frc::Frc7,
-            max_distance: Length::MAX,
+            max_length: Length::MAX,
         }
     }
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct ShortestPath<EdgeId> {
-    pub distance: Length,
+    pub length: Length,
     pub edges: Vec<EdgeId>,
 }
 
@@ -83,7 +83,7 @@ where
             edges.reverse();
 
             return Some(ShortestPath {
-                distance: state.distance,
+                length: state.distance,
                 edges,
             });
         }
@@ -98,7 +98,7 @@ where
 
         for (edge, vertex_to) in graph.vertex_exiting_edges(state.vertex) {
             let distance = state.distance + graph.get_edge_length(edge)?;
-            if distance > config.max_distance {
+            if distance > config.max_length {
                 continue;
             }
 

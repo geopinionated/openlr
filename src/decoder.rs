@@ -6,8 +6,8 @@ use thiserror::Error;
 use tracing::{debug, info};
 
 use crate::{
-    Bearing, DeserializeError, DirectedGraph, Fow, Frc, Length, Line, LocationReference, Poi,
-    Point, RatingScore, ShortestPath, ShortestPathConfig, deserialize_base64_openlr, shortest_path,
+    Bearing, DeserializeError, DirectedGraph, Fow, Frc, Length, Line, LocationReference, Point,
+    RatingScore, ShortestPath, ShortestPathConfig, deserialize_base64_openlr, shortest_path,
 };
 
 #[derive(Error, Debug, PartialEq, Clone, Copy)]
@@ -57,20 +57,28 @@ impl Default for DecoderConfig {
     }
 }
 
-/// TODO
-pub struct Location;
+#[derive(Debug, Clone, PartialEq)]
+pub enum Location<EdgeId> {
+    Line(LineLocation<EdgeId>),
+}
+
+// TODO: Offsets!!!
+#[derive(Debug, Clone, PartialEq)]
+pub struct LineLocation<EdgeId> {
+    pub edges: Vec<EdgeId>,
+}
 
 pub fn decode_base64_openlr<G: DirectedGraph>(
     graph: &G,
     data: impl AsRef<[u8]>,
-) -> Result<Location, DecodeError> {
+) -> Result<Location<G::EdgeId>, DecodeError> {
     // Step – 1 Decode physical data and check its validity
     let location = deserialize_base64_openlr(data)?;
 
     let config = DecoderConfig::default();
 
     match location {
-        LocationReference::Line(line) => decode_line(&config, graph, line),
+        LocationReference::Line(line) => decode_line(&config, graph, line).map(Location::Line),
         _ => unimplemented!(),
     }
 }
@@ -79,7 +87,7 @@ fn decode_line<G: DirectedGraph>(
     config: &DecoderConfig,
     graph: &G,
     line: Line,
-) -> Result<Location, DecodeError> {
+) -> Result<LineLocation<G::EdgeId>, DecodeError> {
     info!("Decoding {line:?} with {config:?}");
 
     // Step – 2 For each location reference point find candidate nodes
@@ -105,14 +113,28 @@ fn decode_line<G: DirectedGraph>(
     }
     println!("\n\n");
 
-    // TODO!!!
-    Ok(Location)
+    // TODO: Offsets!!!
+    // Step – 7 Concatenate shortest-path(s) and trim path according to the offsets
+    let edges: Vec<_> = routes.into_iter().flat_map(|route| route.edges).collect();
+
+    // check that the whole path is properly connected
+    for pair in edges.windows(2) {
+        let [edge1, edge2] = [pair[0], pair[1]];
+        let vertex = graph.get_edge_end_vertex(edge1).unwrap();
+        assert!(
+            graph.vertex_exiting_edges(vertex).any(|(e, _)| e == edge2),
+            "{edge1:?} {edge2:?} {vertex:?}"
+        );
+    }
+
+    Ok(LineLocation { edges })
 }
 
 /// Shortest path from the LRP to the next one.
 #[derive(Debug, Default)]
 struct Route<EdgeId> {
     lrp: Point,
+    length: Length,
     edges: Vec<EdgeId>,
 }
 
@@ -161,6 +183,7 @@ fn resolve_routes<G: DirectedGraph>(
         if let Some(path) = resolve_candidate_pairs_path(config, graph, &pairs, lowest_frc) {
             routes.push(Route {
                 lrp: *lrp1,
+                length: path.length,
                 edges: path.edges,
             });
         } else {
@@ -197,12 +220,15 @@ fn resolve_candidate_pairs_path<G: DirectedGraph>(
 
         let path_config = ShortestPathConfig {
             lowest_frc,
-            max_distance: max_route_distance(config, graph, line_lrp1, line_lrp2),
+            max_length: max_route_length(config, graph, line_lrp1, line_lrp2),
         };
 
         if let Some(path) = shortest_path(&path_config, graph, origin, destination) {
-            let min_distance = line_lrp1.lrp.dnp() - config.distance_np_variance;
-            if path.distance >= min_distance {
+            // Step – 6 Check validity of the calculated shortest-path(s)
+            debug_assert!(path.length <= path_config.max_length);
+            let min_length = line_lrp1.lrp.dnp() - config.distance_np_variance;
+
+            if path.length >= min_length {
                 return Some(path);
             }
         }
@@ -211,7 +237,7 @@ fn resolve_candidate_pairs_path<G: DirectedGraph>(
     None
 }
 
-fn max_route_distance<G: DirectedGraph>(
+fn max_route_length<G: DirectedGraph>(
     config: &DecoderConfig,
     graph: &G,
     line_lrp1: &AcceptedCandidateLine<G::EdgeId>,

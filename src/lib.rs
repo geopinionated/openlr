@@ -13,7 +13,7 @@ pub use binary::{
     serialize_binary_openlr,
 };
 // --------- TODO --------
-pub use decoder::{DecodeError, decode_base64_openlr};
+pub use decoder::{DecodeError, LineLocation, Location, decode_base64_openlr};
 pub use dijkstra::{ShortestPath, ShortestPathConfig, shortest_path};
 pub use error::{DeserializeError, SerializeError};
 pub use graph::DirectedGraph;

@@ -6,8 +6,8 @@ use openlr::decoder_graph::{
     EdgeId, EdgeProperty, GeospatialEdge, GeospatialNode, NetworkGraph, VertexId,
 };
 use openlr::{
-    Bearing, Coordinate, DirectedGraph, Fow, Frc, Length, ShortestPath, ShortestPathConfig,
-    decode_base64_openlr, shortest_path,
+    Bearing, Coordinate, DirectedGraph, Fow, Frc, Length, LineLocation, Location, ShortestPath,
+    ShortestPathConfig, decode_base64_openlr, shortest_path,
 };
 use rstar::RTree;
 use strum::IntoEnumIterator;
@@ -49,6 +49,12 @@ fn decode_line_location_reference() {
     let graph: NetworkGraph = geojson_graph.into_network_graph();
 
     let location = decode_base64_openlr(&graph, "CwmShiVYczPJBgCs/y0zAQ==").unwrap();
+    assert_eq!(
+        location,
+        Location::Line(LineLocation {
+            edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
+        })
+    );
 }
 
 #[test]
@@ -66,7 +72,7 @@ fn graph_shortest_path() {
         )
         .unwrap(),
         ShortestPath {
-            distance: Length::ZERO,
+            length: Length::ZERO,
             edges: vec![],
         }
     );
@@ -80,7 +86,7 @@ fn graph_shortest_path() {
         )
         .unwrap(),
         ShortestPath {
-            distance: Length::from_meters(217.0),
+            length: Length::from_meters(217.0),
             edges: vec![EdgeId(16218)],
         }
     );
@@ -104,7 +110,7 @@ fn graph_shortest_path() {
         )
         .unwrap(),
         ShortestPath {
-            distance: Length::from_meters(379.0),
+            length: Length::from_meters(379.0),
             edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
         }
     );
@@ -118,7 +124,7 @@ fn graph_shortest_path() {
         )
         .unwrap(),
         ShortestPath {
-            distance: Length::from_meters(753.0),
+            length: Length::from_meters(753.0),
             edges: vec![
                 EdgeId(16218),
                 EdgeId(16219),
@@ -132,7 +138,7 @@ fn graph_shortest_path() {
     assert_eq!(
         shortest_path(
             &ShortestPathConfig {
-                max_distance: Length::from_meters(752.0),
+                max_length: Length::from_meters(752.0),
                 ..Default::default()
             },
             &graph,
@@ -151,7 +157,7 @@ fn graph_shortest_path() {
         )
         .unwrap(),
         ShortestPath {
-            distance: Length::from_meters(16.0),
+            length: Length::from_meters(16.0),
             edges: vec![EdgeId(-4232179)],
         }
     );
