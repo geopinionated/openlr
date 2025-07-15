@@ -2,6 +2,8 @@ use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap};
 use std::fmt::Debug;
 
+use tracing::debug;
+
 use crate::{DirectedGraph, Frc, Length};
 
 #[derive(Debug, Clone, Copy)]
@@ -22,7 +24,7 @@ impl Default for ShortestPathConfig {
 #[derive(Debug, PartialEq, Eq)]
 pub struct ShortestPath<EdgeId> {
     pub distance: Length,
-    pub path: Vec<EdgeId>,
+    pub edges: Vec<EdgeId>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -55,6 +57,8 @@ pub fn shortest_path<G>(
 where
     G: DirectedGraph,
 {
+    debug!("Computing shortest path {origin:?} -> {destination:?} with {config:?}");
+
     // (current) shortest distance from origin to this vertex
     let mut shortest_distances = HashMap::from([(origin, Length::ZERO)]);
 
@@ -70,17 +74,17 @@ where
     while let Some(state) = frontier.pop() {
         if state.vertex == destination {
             // Unpacking: the shortest path from destination back to origin
-            let mut path = vec![];
+            let mut edges = vec![];
             let mut next = &destination;
             while let Some((edge, previous)) = prev_vertex.get(next) {
                 next = previous;
-                path.push(*edge);
+                edges.push(*edge);
             }
-            path.reverse();
+            edges.reverse();
 
             return Some(ShortestPath {
                 distance: state.distance,
-                path,
+                edges,
             });
         }
 

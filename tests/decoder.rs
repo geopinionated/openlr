@@ -67,7 +67,7 @@ fn graph_shortest_path() {
         .unwrap(),
         ShortestPath {
             distance: Length::ZERO,
-            path: vec![],
+            edges: vec![],
         }
     );
 
@@ -81,7 +81,7 @@ fn graph_shortest_path() {
         .unwrap(),
         ShortestPath {
             distance: Length::from_meters(217.0),
-            path: vec![EdgeId(16218)],
+            edges: vec![EdgeId(16218)],
         }
     );
 
@@ -105,7 +105,7 @@ fn graph_shortest_path() {
         .unwrap(),
         ShortestPath {
             distance: Length::from_meters(379.0),
-            path: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
+            edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
         }
     );
 
@@ -119,7 +119,7 @@ fn graph_shortest_path() {
         .unwrap(),
         ShortestPath {
             distance: Length::from_meters(753.0),
-            path: vec![
+            edges: vec![
                 EdgeId(16218),
                 EdgeId(16219),
                 EdgeId(7430347),
@@ -152,7 +152,7 @@ fn graph_shortest_path() {
         .unwrap(),
         ShortestPath {
             distance: Length::from_meters(16.0),
-            path: vec![EdgeId(-4232179)],
+            edges: vec![EdgeId(-4232179)],
         }
     );
 }
