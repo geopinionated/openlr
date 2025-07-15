@@ -330,6 +330,8 @@ impl<'a> OpenLrBinaryReader<'a> {
 
 #[cfg(test)]
 mod tests {
+    use test_log::test;
+
     use super::*;
     use crate::model::Offsets;
     use crate::{Orientation, SideOfRoad};

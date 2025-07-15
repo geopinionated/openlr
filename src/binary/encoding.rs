@@ -307,6 +307,7 @@ const fn signum(value: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use approx::assert_relative_eq;
+    use test_log::test;
 
     use super::*;
 
