@@ -193,6 +193,14 @@ impl Default for Fow {
 }
 
 impl Fow {
+    pub const fn value(&self) -> i8 {
+        self.into_byte() as i8
+    }
+
+    pub fn from_value(value: i8) -> Option<Self> {
+        Self::try_from_byte(value.try_into().ok()?).ok()
+    }
+
     pub const fn rating(&self, other: &Self) -> Rating {
         use Fow::*;
         match (self, other) {
@@ -694,6 +702,7 @@ impl LocationReference {
 #[cfg(test)]
 mod tests {
     use strum::IntoEnumIterator;
+    use test_log::test;
 
     use super::*;
 

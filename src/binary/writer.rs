@@ -272,6 +272,8 @@ impl OpenLrBinaryWriter {
 
 #[cfg(test)]
 mod tests {
+    use test_log::test;
+
     use super::*;
     use crate::model::Offsets;
     use crate::{
