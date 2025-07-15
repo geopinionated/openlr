@@ -2,6 +2,8 @@ use std::io::ErrorKind;
 
 use thiserror::Error;
 
+use crate::LocationType;
+
 #[derive(Error, Debug, PartialEq, Clone, Copy)]
 pub enum DeserializeError {
     #[error("OpenLR invalid Base 64")]
@@ -38,6 +40,20 @@ pub enum SerializeError {
     InvalidRectangle,
     #[error("OpenLR Grid size must have number of columns and rows > 1")]
     InvalidGridSize,
+}
+
+#[derive(Error, Debug, PartialEq, Clone, Copy)]
+pub enum DecodeError {
+    #[error("Decoding {0:?} is not supported")]
+    LocationTypeNotSupported(LocationType),
+    #[error("Cannot deserialize: {0}")]
+    InvalidData(DeserializeError),
+}
+
+impl From<DeserializeError> for DecodeError {
+    fn from(error: DeserializeError) -> Self {
+        Self::InvalidData(error)
+    }
 }
 
 impl From<base64::DecodeError> for DeserializeError {

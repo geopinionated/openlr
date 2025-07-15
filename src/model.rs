@@ -699,6 +699,13 @@ impl LocationReference {
     }
 }
 
+/// Defines a location (in a map) which can be encoded using the OpenLR encoder
+/// and is also the result of the decoding process.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Location {
+    Line,
+}
+
 #[cfg(test)]
 mod tests {
     use strum::IntoEnumIterator;
