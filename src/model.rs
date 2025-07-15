@@ -1,9 +1,13 @@
+use std::fmt::{self, Debug};
+use std::ops::{Add, AddAssign, Sub, SubAssign};
+
 use approx::abs_diff_eq;
+use ordered_float::OrderedFloat;
 
 /// Functional Road Class.
 /// The functional road class (FRC) of a line is a road classification
 /// based on the importance of the road represented by the line.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, strum::EnumIter)]
 #[repr(u8)]
 pub enum Frc {
     /// Main road, highest importance
@@ -30,9 +34,21 @@ impl Default for Frc {
     }
 }
 
+impl Frc {
+    /// Gets the value of this Functional Road Class, the lower the value the higher
+    /// the importance of the class.
+    pub const fn value(&self) -> i8 {
+        self.into_byte() as i8
+    }
+
+    pub fn from_value(value: i8) -> Option<Self> {
+        Self::try_from_byte(value.try_into().ok()?).ok()
+    }
+}
+
 /// Form of Way.
 /// The form of way (FOW) describes the physical road type of a line.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, strum::EnumIter)]
 #[repr(u8)]
 pub enum Fow {
     /// The physical road type is unknown.
@@ -111,16 +127,65 @@ impl Default for Orientation {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
-pub struct Length(u32);
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
+pub struct Length(OrderedFloat<f64>);
+
+impl fmt::Display for Length {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:.1}m", self.meters())
+    }
+}
+
+impl fmt::Debug for Length {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Length({:.1})", self.0)
+    }
+}
 
 impl Length {
-    pub const fn from_meters(meters: u32) -> Self {
-        Self(meters)
+    pub const ZERO: Self = Self(OrderedFloat(0.0));
+    pub const MAX: Self = Self(OrderedFloat(f64::MAX));
+
+    pub const fn from_meters(meters: f64) -> Self {
+        Self(OrderedFloat(meters))
     }
 
-    pub const fn meters(&self) -> u32 {
-        self.0
+    pub const fn meters(&self) -> f64 {
+        self.0.0
+    }
+
+    pub fn round(self) -> Self {
+        Self(self.0.round().into())
+    }
+
+    pub fn reverse(self) -> Self {
+        Self(self.0 * -1.0)
+    }
+}
+
+impl Add for Length {
+    type Output = Self;
+    fn add(self, other: Self) -> Self {
+        Self(self.0 + other.0)
+    }
+}
+
+impl AddAssign for Length {
+    fn add_assign(&mut self, rhs: Self) {
+        self.0 += rhs.0;
+    }
+}
+
+impl Sub for Length {
+    type Output = Self;
+    fn sub(self, other: Self) -> Self {
+        Self(self.0 - other.0)
+    }
+}
+
+impl SubAssign for Length {
+    fn sub_assign(&mut self, rhs: Self) {
+        self.0 -= rhs.0;
     }
 }
 
@@ -131,6 +196,8 @@ impl Length {
 pub struct Bearing(u16);
 
 impl Bearing {
+    pub const NORTH: Self = Self(0);
+
     pub const fn from_degrees(degrees: u16) -> Self {
         Self(degrees)
     }
@@ -138,15 +205,31 @@ impl Bearing {
     pub const fn degrees(&self) -> u16 {
         self.0
     }
+
+    pub const fn difference(&self, other: &Self) -> Self {
+        let delta = (self.0 as i32 - other.0 as i32).unsigned_abs() as u16;
+        let degrees = if delta > 180 { 360 - delta } else { delta };
+        Self::from_degrees(degrees)
+    }
 }
 
 /// Coordinate pair stands for a pair of WGS84 longitude (lon) and latitude (lat) values.
 /// This coordinate pair specifies a geometric point in a digital map.
 /// The lon and lat values are stored in decamicrodegree resolution (five decimals).
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Clone, Copy, Default)]
 pub struct Coordinate {
     pub lon: f64,
     pub lat: f64,
+}
+
+impl Debug for Coordinate {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "Coordinate {{ lon: {:.5}, lat: {:.5} }}",
+            self.lon, self.lat
+        )
+    }
 }
 
 impl Coordinate {
@@ -166,7 +249,7 @@ impl PartialEq for Coordinate {
 pub struct LineAttributes {
     pub frc: Frc,
     pub fow: Fow,
-    pub bear: Bearing,
+    pub bearing: Bearing,
 }
 
 /// The path attributes are part of a location reference point (except for the last
@@ -189,6 +272,24 @@ pub struct Point {
     pub coordinate: Coordinate,
     pub line: LineAttributes,
     pub path: Option<PathAttributes>,
+}
+
+impl Point {
+    /// Returns true only if this point is the last point of a Reference Location,
+    /// and therefore it doesn't have Path attributes.
+    pub const fn is_last(&self) -> bool {
+        self.path.is_none()
+    }
+
+    /// Gets the lowest FRC to the next point.
+    pub fn lfrcnp(&self) -> Frc {
+        self.path.map(|path| path.lfrcnp).unwrap_or(Frc::Frc7)
+    }
+
+    /// Gets the distance to the next point.
+    pub fn dnp(&self) -> Length {
+        self.path.map(|path| path.dnp).unwrap_or(Length::ZERO)
+    }
 }
 
 /// Offsets are used to locate the start and end of a location more precisely than
