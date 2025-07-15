@@ -2,6 +2,7 @@
 
 mod binary;
 mod error;
+mod graph;
 mod model;
 
 pub use binary::{
@@ -9,6 +10,7 @@ pub use binary::{
     serialize_binary_openlr,
 };
 pub use error::{DeserializeError, SerializeError};
+pub use graph::DirectedGraph;
 pub use model::{
     Bearing, Circle, ClosedLine, Coordinate, Fow, Frc, Grid, GridSize, Length, Line,
     LineAttributes, LocationReference, LocationType, Offset, Orientation, PathAttributes, Poi,
