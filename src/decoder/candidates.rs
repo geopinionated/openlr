@@ -75,10 +75,10 @@ pub fn find_candidate_nodes<'a, G, I>(
     config: &DecoderConfig,
     graph: &G,
     points: I,
-) -> impl Iterator<Item = CandidateNodes<G::VertexId>>
+) -> impl ExactSizeIterator<Item = CandidateNodes<G::VertexId>>
 where
     G: DirectedGraph,
-    I: IntoIterator<Item = &'a Point>,
+    I: ExactSizeIterator<Item = &'a Point>,
 {
     let DecoderConfig {
         max_node_distance, ..
@@ -117,11 +117,14 @@ where
 ///
 /// If no candidate line can be found for a location reference point, the decoder should report an
 /// error and stop further processing.
-pub fn find_candidate_lines<G: DirectedGraph>(
+pub fn find_candidate_lines<G: DirectedGraph, I>(
     config: &DecoderConfig,
     graph: &G,
-    candidate_nodes: &[CandidateNodes<G::VertexId>],
-) -> Result<Vec<CandidateLines<G::EdgeId>>, DecodeError> {
+    candidate_nodes: I,
+) -> Result<Vec<CandidateLines<G::EdgeId>>, DecodeError>
+where
+    I: ExactSizeIterator<Item = CandidateNodes<G::VertexId>>,
+{
     let mut candidate_lines = Vec::with_capacity(candidate_nodes.len());
 
     for lrp_nodes in candidate_nodes {
@@ -145,17 +148,14 @@ pub fn find_candidate_lines<G: DirectedGraph>(
 fn find_candidate_lines_from_nodes<G: DirectedGraph>(
     config: &DecoderConfig,
     graph: &G,
-    candidate_nodes: &CandidateNodes<G::VertexId>,
+    candidate_nodes: CandidateNodes<G::VertexId>,
 ) -> CandidateLines<G::EdgeId> {
     let CandidateNodes { lrp, nodes } = candidate_nodes;
     debug!("Finding lines from {} nodes of {lrp:?}", nodes.len());
 
-    let candidate_lines = CandidateLines {
-        lrp: *lrp,
-        lines: vec![],
-    };
+    let mut candidate_lines = CandidateLines { lrp, lines: vec![] };
 
-    for &CandidateNode {
+    for CandidateNode {
         vertex,
         distance_to_lrp,
     } in nodes
@@ -170,7 +170,7 @@ fn find_candidate_lines_from_nodes<G: DirectedGraph>(
             Box::new(graph.vertex_exiting_edges(vertex))
         };
 
-        let _candidates = edges.into_iter().filter_map(|(edge, _)| {
+        let candidates = edges.into_iter().filter_map(|(edge, _)| {
             let bearing = if lrp.is_last() {
                 graph.get_edge_bearing_between(
                     edge,
@@ -182,7 +182,7 @@ fn find_candidate_lines_from_nodes<G: DirectedGraph>(
             };
 
             Some(ProvisionalCandidateLine {
-                lrp: *lrp,
+                lrp,
                 edge,
                 distance_to_lrp,
                 distance_to_projection: None,
@@ -192,8 +192,79 @@ fn find_candidate_lines_from_nodes<G: DirectedGraph>(
             })
         });
 
-        // TODO: rate and line and discard if rating is too low
+        candidate_lines.lines.extend(
+            candidates
+                .filter_map(|line| rate_line::<G>(config, lrp, line))
+                .inspect(|line| debug!("Accepted candidate: {line:?}")),
+        );
     }
 
     candidate_lines
+}
+
+/// All candidate lines for a location reference point shall be rated according to the following
+/// criteria:
+/// - The start node, end node for the last location reference point or projection point shall be as
+///   close as possible to the coordinates of the location reference point.
+/// - The functional road class of the candidate line should match the functional road class of the
+///   location reference point.
+/// - The form of way of the candidate line should match the form of way of the location reference
+///   point.
+/// - The bearing of the candidate line should match indicated bearing angles of the location
+///   reference point.
+///
+/// Slight variances in the concrete values are allowed and shall be considered in the rating
+/// function.
+///
+/// The candidate lines should be ordered in a way that the best matching line comes first.
+fn rate_line<G: DirectedGraph>(
+    config: &DecoderConfig,
+    lrp: Point,
+    line: ProvisionalCandidateLine<G::EdgeId>,
+) -> Option<CandidateLine<G::EdgeId>> {
+    debug!("Rating: {line:?}");
+
+    if let Some(path) = &lrp.path
+        && !line.frc.is_within_variance(&path.lfrcnp)
+    {
+        debug!("Candidate FRC variance out of bounds: {line:?}");
+        return None;
+    }
+
+    if line.bearing.difference(&lrp.line.bearing) > config.max_bearing_difference {
+        debug!("Candidate bearing out of bounds: {line:?}");
+        return None;
+    }
+
+    #[derive(Debug)]
+    struct Ratings {
+        distance: RatingScore,
+        bearing: RatingScore,
+        frc: RatingScore,
+        fow: RatingScore,
+    }
+
+    let ratings = Ratings {
+        distance: RatingScore::from(config.max_node_distance - line.distance_to_lrp),
+        bearing: Bearing::rating_score(line.bearing.rating(&lrp.line.bearing)),
+        frc: Frc::rating_score(line.frc.rating(&lrp.line.frc)),
+        fow: Fow::rating_score(line.fow.rating(&lrp.line.fow)),
+    };
+
+    let node_rating = config.node_factor * ratings.distance;
+    let line_rating = config.line_factor * (ratings.bearing + ratings.frc + ratings.fow);
+    let rating = node_rating + line_rating;
+
+    if rating < config.min_line_rating {
+        debug!("Rating too low = {rating:?} {ratings:?}");
+        None
+    } else {
+        debug!("Rating accepted = {rating:?} {ratings:?}");
+        Some(CandidateLine {
+            lrp: line.lrp,
+            edge: line.edge,
+            distance_to_projection: line.distance_to_projection,
+            rating,
+        })
+    }
 }

@@ -1,11 +1,13 @@
 mod graph;
 
 use openlr::{
-    Bearing, Coordinate, DecoderConfig, Fow, Frc, Length, LineAttributes, PathAttributes, Point,
-    decode_base64_openlr, find_candidate_nodes,
+    Bearing, CandidateNode, CandidateNodes, Coordinate, DecoderConfig, Fow, Frc, Length,
+    LineAttributes, PathAttributes, Point, RatingScore, decode_base64_openlr, find_candidate_lines,
+    find_candidate_nodes,
 };
+use test_log::test;
 
-use crate::graph::{NETWORK_GRAPH, NetworkGraph, VertexId};
+use crate::graph::{EdgeId, NETWORK_GRAPH, NetworkGraph, VertexId};
 
 #[test]
 fn decode_line_location_reference_001() {
@@ -58,7 +60,7 @@ fn find_candidate_nodes_001() {
         },
     ];
 
-    let nodes: Vec<_> = find_candidate_nodes(&config, graph, &points)
+    let nodes: Vec<_> = find_candidate_nodes(&config, graph, points.iter())
         .flat_map(|candidate| candidate.nodes)
         .map(|node| (node.vertex, (node.distance_to_lrp.meters() * 100.0).round()))
         .collect();
@@ -84,7 +86,7 @@ fn find_candidate_nodes_002() {
         path: None,
     }];
 
-    let nodes: Vec<_> = find_candidate_nodes(&config, graph, &points)
+    let nodes: Vec<_> = find_candidate_nodes(&config, graph, points.iter())
         .flat_map(|candidate| candidate.nodes)
         .map(|node| (node.vertex, node.distance_to_lrp.meters().round()))
         .collect();
@@ -97,4 +99,75 @@ fn find_candidate_nodes_002() {
             (VertexId(105), 55.0)
         ]
     );
+}
+
+#[test]
+fn find_candidate_lines_001() {
+    let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+    let config = DecoderConfig {
+        max_node_distance: Length::from_meters(100.0),
+        max_bearing_difference: Bearing::from_degrees(90),
+        min_line_rating: RatingScore::from(800.0),
+        ..Default::default()
+    };
+
+    let points = [
+        CandidateNodes {
+            lrp: Point {
+                coordinate: Coordinate {
+                    lon: 13.46112,
+                    lat: 52.51711,
+                },
+                line: LineAttributes {
+                    frc: Frc::Frc6,
+                    fow: Fow::SingleCarriageway,
+                    bearing: Bearing::from_degrees(107),
+                },
+                path: Some(PathAttributes {
+                    lfrcnp: Frc::Frc6,
+                    dnp: Length::from_meters(381.0),
+                }),
+            },
+            nodes: vec![CandidateNode {
+                vertex: VertexId(68),
+                distance_to_lrp: Length::from_meters(1.74),
+            }],
+        },
+        CandidateNodes {
+            lrp: Point {
+                coordinate: Coordinate {
+                    lon: 13.46284,
+                    lat: 52.51500,
+                },
+                line: LineAttributes {
+                    frc: Frc::Frc6,
+                    fow: Fow::SingleCarriageway,
+                    bearing: Bearing::from_degrees(17),
+                },
+                path: None,
+            },
+            nodes: vec![CandidateNode {
+                vertex: VertexId(20),
+                distance_to_lrp: Length::from_meters(2.16),
+            }],
+        },
+    ];
+
+    let lines: Vec<_> = find_candidate_lines(&config, graph, points.into_iter())
+        .unwrap()
+        .into_iter()
+        .map(|candidate| {
+            candidate
+                .lines
+                .into_iter()
+                .map(|line| {
+                    assert!(line.rating >= config.min_line_rating);
+                    (line.edge, line.distance_to_projection)
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect();
+
+    assert_eq!(lines, [[(EdgeId(8717174), None)], [(EdgeId(109783), None)]]);
 }
