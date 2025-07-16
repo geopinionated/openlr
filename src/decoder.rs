@@ -37,6 +37,8 @@ pub struct DecoderConfig {
     pub node_factor: f64,
     /// Line weight applied by the rating function.
     pub line_factor: f64,
+    /// Projected line weight applied by the rating function.
+    pub projected_line_factor: f64,
     /// Minimum rating score for a line to be accepted as candidate.
     pub min_line_rating: RatingScore,
 }
@@ -49,6 +51,7 @@ impl Default for DecoderConfig {
             max_bearing_difference: Bearing::from_degrees(90),
             node_factor: 3.0,
             line_factor: 3.0,
+            projected_line_factor: 0.95,
             min_line_rating: RatingScore::from(800.0),
         }
     }
