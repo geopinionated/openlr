@@ -27,12 +27,16 @@ use crate::{
 pub struct DecoderConfig {
     /// Maximum distance from the LRP to the nodes of the graph that will be considered.
     pub max_node_distance: Length,
+    /// The length of the segment used to compute the lines bearing (distance from the start of
+    /// the segment to its end).
+    pub bearing_distance: Length,
 }
 
 impl Default for DecoderConfig {
     fn default() -> Self {
         Self {
             max_node_distance: Length::from_meters(100.0),
+            bearing_distance: Length::from_meters(20.0),
         }
     }
 }

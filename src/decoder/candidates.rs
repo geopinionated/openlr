@@ -1,6 +1,9 @@
-use tracing::debug;
+use std::cmp::Reverse;
 
-use crate::{DecoderConfig, DirectedGraph, Length, Point};
+use tracing::{debug, trace};
+
+use crate::model::RatingScore;
+use crate::{Bearing, DecodeError, DecoderConfig, DirectedGraph, Fow, Frc, Length, Point};
 
 /// List of candidate nodes for a Location Reference Point.
 /// Nodes are sorted based on their distance to the point (closest to farthest).
@@ -14,6 +17,47 @@ pub struct CandidateNodes<VertexId> {
 pub struct CandidateNode<VertexId> {
     pub vertex: VertexId,
     pub distance_to_lrp: Length,
+}
+
+/// List of candidate lines for a Location Reference Point.
+/// Lines are sorted based on their rating (descending - higher rating is better).
+#[derive(Debug)]
+pub struct CandidateLines<EdgeId> {
+    pub lrp: Point,
+    pub lines: Vec<CandidateLine<EdgeId>>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct CandidateLine<EdgeId> {
+    pub lrp: Point,
+    pub edge: EdgeId,
+    pub rating: RatingScore,
+    /// If this line is the result of a projection of the LRP into it, this represents the distance
+    /// from the beginning of the line (start vertex) to the point where the LRP was projected.
+    pub distance_to_projection: Option<Length>,
+}
+
+/// Candidate line that is yet to be rated.
+#[derive(Debug, Clone)]
+struct ProvisionalCandidateLine<EdgeId> {
+    /// Location Reference Point associated to the line.
+    lrp: Point,
+    /// Edge of the candidate line.
+    /// When not projected, this edge exits the LRP (or enters the last LRP).
+    edge: EdgeId,
+    /// Linear distance from the LRP to the candidate line (i.e. to the candidate node vertex,
+    /// or to candidate line edge if the LRP was projected).
+    distance_to_lrp: Length,
+    /// Distance from the start of the edge to the projected LRP into the edge.
+    /// If the LRP is not projected it will be None.
+    distance_to_projection: Option<Length>,
+    /// Functional Road Class of the line.
+    frc: Frc,
+    /// Form of Way of the line.
+    fow: Fow,
+    /// Bearing of the part of the line that will be considered starting from the distance to the
+    /// LRP projection (of a fixed length).
+    bearing: Bearing,
 }
 
 /// Each location reference point contains coordinates specifying a node in the encoder map. The
@@ -54,4 +98,102 @@ where
         debug_assert!(nodes.is_sorted_by_key(|n| n.distance_to_lrp));
         CandidateNodes { lrp, nodes }
     })
+}
+
+/// For each location reference point the decoder tries to determine lines which should fulfill the
+/// following constraints:
+/// - The start node, end node for the last location reference point or projection point shall be
+///   close to the coordinates of the location reference point.
+/// - The candidate lines should be outgoing lines (incoming lines for the last location reference
+///   point) of the candidate nodes or projection points determined in the previous step.
+/// - The candidate lines should match the attributes functional road class, form of way and
+///   bearing as extracted from the physical data. Slight variances are allowed and shall be taken
+///   into account in step 4.
+///
+/// The direct search of lines using a projection point may also be executed even if candidate nodes
+/// are found. This might increase the number of candidate nodes but it could help to determine the
+/// correct candidate line in the next step if the nodes in the encoder and decoder map differ
+/// significantly.
+///
+/// If no candidate line can be found for a location reference point, the decoder should report an
+/// error and stop further processing.
+pub fn find_candidate_lines<G: DirectedGraph>(
+    config: &DecoderConfig,
+    graph: &G,
+    candidate_nodes: &[CandidateNodes<G::VertexId>],
+) -> Result<Vec<CandidateLines<G::EdgeId>>, DecodeError> {
+    let mut candidate_lines = Vec::with_capacity(candidate_nodes.len());
+
+    for lrp_nodes in candidate_nodes {
+        let mut lrp_lines = find_candidate_lines_from_nodes(config, graph, lrp_nodes);
+
+        // TODO: append lines by projecting the LRP
+
+        if lrp_lines.lines.is_empty() {
+            return Err(DecodeError::CandidatesNotFound(lrp_lines.lrp));
+        }
+
+        lrp_lines
+            .lines
+            .sort_unstable_by_key(|line| Reverse(line.rating));
+        candidate_lines.push(lrp_lines);
+    }
+
+    Ok(candidate_lines)
+}
+
+fn find_candidate_lines_from_nodes<G: DirectedGraph>(
+    config: &DecoderConfig,
+    graph: &G,
+    candidate_nodes: &CandidateNodes<G::VertexId>,
+) -> CandidateLines<G::EdgeId> {
+    let CandidateNodes { lrp, nodes } = candidate_nodes;
+    debug!("Finding lines from {} nodes of {lrp:?}", nodes.len());
+
+    let candidate_lines = CandidateLines {
+        lrp: *lrp,
+        lines: vec![],
+    };
+
+    for &CandidateNode {
+        vertex,
+        distance_to_lrp,
+    } in nodes
+    {
+        // only outgoing lines are accepted for the LRPs
+        // except for the last LRP where only incoming lines are accepted
+        let edges: Box<dyn Iterator<Item = _>> = if lrp.is_last() {
+            trace!("Finding candidate lines to {vertex:?}");
+            Box::new(graph.vertex_entering_edges(vertex))
+        } else {
+            trace!("Finding candidate lines from {vertex:?}");
+            Box::new(graph.vertex_exiting_edges(vertex))
+        };
+
+        let _candidates = edges.into_iter().filter_map(|(edge, _)| {
+            let bearing = if lrp.is_last() {
+                graph.get_edge_bearing_between(
+                    edge,
+                    graph.get_edge_length(edge)?,
+                    config.bearing_distance.reverse(),
+                )?
+            } else {
+                graph.get_edge_bearing_between(edge, Length::ZERO, config.bearing_distance)?
+            };
+
+            Some(ProvisionalCandidateLine {
+                lrp: *lrp,
+                edge,
+                distance_to_lrp,
+                distance_to_projection: None,
+                frc: graph.get_edge_frc(edge)?,
+                fow: graph.get_edge_fow(edge)?,
+                bearing,
+            })
+        });
+
+        // TODO: rate and line and discard if rating is too low
+    }
+
+    candidate_lines
 }

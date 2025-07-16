@@ -13,6 +13,7 @@ fn decode_line_location_reference_001() {
 
     let config = DecoderConfig {
         max_node_distance: Length::from_meters(10.0),
+        ..Default::default()
     };
 
     let _ = decode_base64_openlr(&config, graph, "CwmShiVYczPJBgCs/y0zAQ==");
@@ -24,6 +25,7 @@ fn find_candidate_nodes_001() {
 
     let config = DecoderConfig {
         max_node_distance: Length::from_meters(10.0),
+        ..Default::default()
     };
 
     let points = [
@@ -70,6 +72,7 @@ fn find_candidate_nodes_002() {
 
     let config = DecoderConfig {
         max_node_distance: Length::from_meters(100.0),
+        ..Default::default()
     };
 
     let points = [Point {
