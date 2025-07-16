@@ -163,11 +163,20 @@ fn find_candidate_lines_001() {
                 .into_iter()
                 .map(|line| {
                     assert!(line.rating >= config.min_line_rating);
-                    (line.edge, line.distance_to_projection)
+                    (line.edge, line.distance_to_projection.map(|d| d.round()))
                 })
                 .collect::<Vec<_>>()
         })
         .collect();
 
-    assert_eq!(lines, [[(EdgeId(8717174), None)], [(EdgeId(109783), None)]]);
+    assert_eq!(
+        lines,
+        [
+            vec![
+                (EdgeId(8717174), None),
+                (EdgeId(4925291), Some(Length::from_meters(142.0))) // projected line
+            ],
+            vec![(EdgeId(109783), None)]
+        ]
+    );
 }

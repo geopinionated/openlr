@@ -129,8 +129,7 @@ where
 
     for lrp_nodes in candidate_nodes {
         let mut lrp_lines = find_candidate_lines_from_nodes(config, graph, lrp_nodes);
-
-        // TODO: append lines by projecting the LRP
+        append_projected_candidate_lines(config, graph, &mut lrp_lines);
 
         if lrp_lines.lines.is_empty() {
             return Err(DecodeError::CandidatesNotFound(lrp_lines.lrp));
@@ -202,6 +201,76 @@ fn find_candidate_lines_from_nodes<G: DirectedGraph>(
     candidate_lines
 }
 
+fn append_projected_candidate_lines<G: DirectedGraph>(
+    config: &DecoderConfig,
+    graph: &G,
+    candidate_lines: &mut CandidateLines<G::EdgeId>,
+) {
+    let lrp = candidate_lines.lrp;
+    debug!("Finding candidates from projected lines of {lrp:?}");
+
+    let projected_lines = graph
+        .nearest_edges_within_distance(lrp.coordinate, config.max_node_distance)
+        .filter_map(|(edge, distance_to_lrp)| {
+            let distance_to_projection = graph
+                .get_distance_from_start_vertex(edge, lrp.coordinate)
+                .filter(|&distance| distance > Length::ZERO)?;
+
+            let bearing = if lrp.is_last() {
+                graph.get_edge_bearing_between(
+                    edge,
+                    distance_to_projection,
+                    config.bearing_distance.reverse(),
+                )?
+            } else {
+                graph.get_edge_bearing_between(
+                    edge,
+                    distance_to_projection,
+                    config.bearing_distance,
+                )?
+            };
+
+            let line = ProvisionalCandidateLine {
+                lrp,
+                edge,
+                distance_to_lrp,
+                distance_to_projection: Some(distance_to_projection),
+                frc: graph.get_edge_frc(edge)?,
+                fow: graph.get_edge_fow(edge)?,
+                bearing,
+            };
+
+            rate_line::<G>(config, lrp, line)
+        });
+
+    for mut projected_line in projected_lines {
+        if !candidate_lines.lines.is_empty() {
+            projected_line.rating *= config.projected_line_factor;
+            if projected_line.rating < config.min_line_rating {
+                debug!("Discarding {projected_line:?} because rating became too low");
+                continue;
+            }
+        }
+
+        if let Some(candidate) = candidate_lines
+            .lines
+            .iter_mut()
+            .find(|candidate| candidate.edge == projected_line.edge)
+        {
+            if candidate.rating < projected_line.rating {
+                debug!("Overriding candidate line with {projected_line:?}");
+                candidate.rating = projected_line.rating;
+                candidate.distance_to_projection = projected_line.distance_to_projection;
+            } else {
+                debug!("Discarding {projected_line:?}: already exists with better rating");
+            }
+        } else {
+            debug!("Accepted candidate: {projected_line:?}");
+            candidate_lines.lines.push(projected_line);
+        }
+    }
+}
+
 /// All candidate lines for a location reference point shall be rated according to the following
 /// criteria:
 /// - The start node, end node for the last location reference point or projection point shall be as
@@ -222,17 +291,17 @@ fn rate_line<G: DirectedGraph>(
     lrp: Point,
     line: ProvisionalCandidateLine<G::EdgeId>,
 ) -> Option<CandidateLine<G::EdgeId>> {
-    debug!("Rating: {line:?}");
+    trace!("Rating: {line:?}");
 
     if let Some(path) = &lrp.path
         && !line.frc.is_within_variance(&path.lfrcnp)
     {
-        debug!("Candidate FRC variance out of bounds: {line:?}");
+        trace!("Candidate FRC variance out of bounds: {line:?}");
         return None;
     }
 
     if line.bearing.difference(&lrp.line.bearing) > config.max_bearing_difference {
-        debug!("Candidate bearing out of bounds: {line:?}");
+        trace!("Candidate bearing out of bounds: {line:?}");
         return None;
     }
 
@@ -256,10 +325,10 @@ fn rate_line<G: DirectedGraph>(
     let rating = node_rating + line_rating;
 
     if rating < config.min_line_rating {
-        debug!("Rating too low = {rating:?} {ratings:?}");
+        trace!("Rating too low = {rating:?} {ratings:?}");
         None
     } else {
-        debug!("Rating accepted = {rating:?} {ratings:?}");
+        trace!("Rating accepted = {rating:?} {ratings:?}");
         Some(CandidateLine {
             lrp: line.lrp,
             edge: line.edge,
