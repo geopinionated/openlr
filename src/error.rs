@@ -2,7 +2,7 @@ use std::io::ErrorKind;
 
 use thiserror::Error;
 
-use crate::LocationType;
+use crate::{LocationType, Point};
 
 #[derive(Error, Debug, PartialEq, Clone, Copy)]
 pub enum DeserializeError {
@@ -48,6 +48,8 @@ pub enum DecodeError {
     LocationTypeNotSupported(LocationType),
     #[error("Cannot deserialize: {0}")]
     InvalidData(DeserializeError),
+    #[error("Cannot find candidates for {0:?}")]
+    CandidatesNotFound(Point),
 }
 
 impl From<DeserializeError> for DecodeError {
