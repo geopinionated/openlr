@@ -1,6 +1,13 @@
-use base64::DecodeError;
+use std::cmp::Reverse;
+use std::collections::{BinaryHeap, HashMap};
+use std::fmt::Debug;
 
-use crate::{CandidateLines, DecoderConfig, DirectedGraph, Length, Point};
+use base64::DecodeError;
+use tracing::debug;
+
+use crate::{
+    CandidateLinePair, CandidateLines, DecoderConfig, DirectedGraph, Length, Point, RatingScore,
+};
 
 /// Shortest path from the LRP to the next one.
 #[derive(Debug, Default)]
@@ -46,10 +53,161 @@ pub fn resolve_routes<G: DirectedGraph>(
 
     for candidates_pair in candidate_lines.windows(2) {
         let [candidates_lrp1, candidates_lrp2] = [&candidates_pair[0], &candidates_pair[1]];
+        let pairs = resolve_top_k_candidate_pairs(config, candidates_lrp1, candidates_lrp2)?;
 
-        // TODO: resolve candidate pairs order
         // TODO: for each pair calculate shortest path
     }
 
     Ok(routes)
+}
+
+fn resolve_top_k_candidate_pairs<EdgeId: Debug + Copy>(
+    config: &DecoderConfig,
+    lines_lrp1: &CandidateLines<EdgeId>,
+    lines_lrp2: &CandidateLines<EdgeId>,
+) -> Result<Vec<CandidateLinePair<EdgeId>>, DecodeError> {
+    let max_size = lines_lrp1.lines.len() * lines_lrp2.lines.len();
+    let k_size = max_size.min(config.max_number_retries + 1);
+    debug!("Resolving candidate pair ratings with size={k_size}");
+
+    let mut pair_ratings: BinaryHeap<Reverse<RatingScore>> = BinaryHeap::with_capacity(k_size + 1);
+    let mut rating_pairs: HashMap<RatingScore, Vec<_>> = HashMap::with_capacity(k_size + 1);
+
+    for &line_lrp1 in &lines_lrp1.lines {
+        for &line_lrp2 in &lines_lrp2.lines {
+            let pair_rating = line_lrp1.rating * line_lrp2.rating;
+            pair_ratings.push(Reverse(pair_rating));
+
+            if pair_ratings.len() <= k_size {
+                rating_pairs
+                    .entry(pair_rating)
+                    .or_default()
+                    .push(CandidateLinePair {
+                        line_lrp1,
+                        line_lrp2,
+                    });
+
+                continue;
+            }
+
+            let worst_rating = match pair_ratings.pop() {
+                Some(Reverse(rating)) if pair_rating <= rating => continue,
+                Some(Reverse(rating)) => rating,
+                None => continue,
+            };
+
+            rating_pairs
+                .entry(pair_rating)
+                .or_default()
+                .push(CandidateLinePair {
+                    line_lrp1,
+                    line_lrp2,
+                });
+
+            if let Some(pairs) = rating_pairs.get_mut(&worst_rating)
+                && pairs.len() > 1
+            {
+                pairs.pop();
+            } else {
+                rating_pairs.remove(&worst_rating);
+            }
+        }
+    }
+
+    let mut candidates = Vec::with_capacity(k_size);
+    while let Some(Reverse(rating)) = pair_ratings.pop() {
+        candidates.extend(rating_pairs.remove(&rating).into_iter().flatten());
+    }
+    candidates.reverse();
+
+    debug_assert_eq!(candidates.len(), k_size);
+    debug_assert!(candidates.is_sorted_by_key(|pair| Reverse(pair.rating())));
+
+    Ok(candidates)
+}
+
+#[cfg(test)]
+mod tests {
+    use test_log::test;
+
+    use super::*;
+    use crate::CandidateLine;
+
+    #[test]
+    fn resolve_top_k_candidate_pairs_001() {
+        let config = DecoderConfig {
+            max_number_retries: 3,
+            ..Default::default()
+        };
+
+        let line1 = CandidateLine {
+            lrp: Point::default(),
+            edge: 1,
+            distance_to_projection: None,
+            rating: RatingScore::from(926.3),
+        };
+
+        let line2 = CandidateLine {
+            lrp: Point::default(),
+            edge: 2,
+            distance_to_projection: Some(Length::from_meters(141.6)),
+            rating: RatingScore::from(880.4),
+        };
+
+        let line3 = CandidateLine {
+            lrp: Point::default(),
+            edge: 3,
+            distance_to_projection: None,
+            rating: RatingScore::from(924.9),
+        };
+
+        let line4 = CandidateLine {
+            lrp: Point::default(),
+            edge: 4,
+            distance_to_projection: None,
+            rating: RatingScore::from(100.0),
+        };
+
+        let line5 = CandidateLine {
+            lrp: Point::default(),
+            edge: 5,
+            distance_to_projection: None,
+            rating: RatingScore::from(10.0),
+        };
+
+        let pairs = resolve_top_k_candidate_pairs(
+            &config,
+            &CandidateLines {
+                lrp: Point::default(),
+                lines: vec![line1, line2],
+            },
+            &CandidateLines {
+                lrp: Point::default(),
+                lines: vec![line3, line4, line5],
+            },
+        )
+        .unwrap();
+
+        assert_eq!(
+            pairs,
+            [
+                CandidateLinePair {
+                    line_lrp1: line1,
+                    line_lrp2: line3
+                },
+                CandidateLinePair {
+                    line_lrp1: line2,
+                    line_lrp2: line3
+                },
+                CandidateLinePair {
+                    line_lrp1: line1,
+                    line_lrp2: line4
+                },
+                CandidateLinePair {
+                    line_lrp1: line2,
+                    line_lrp2: line4
+                }
+            ]
+        );
+    }
 }

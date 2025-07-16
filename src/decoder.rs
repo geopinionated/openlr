@@ -42,6 +42,8 @@ pub struct DecoderConfig {
     pub projected_line_factor: f64,
     /// Minimum rating score for a line to be accepted as candidate.
     pub min_line_rating: RatingScore,
+    /// Maximum number of resolver retries.
+    pub max_number_retries: usize,
 }
 
 impl Default for DecoderConfig {
@@ -54,6 +56,7 @@ impl Default for DecoderConfig {
             line_factor: 3.0,
             projected_line_factor: 0.95,
             min_line_rating: RatingScore::from(800.0),
+            max_number_retries: 3,
         }
     }
 }

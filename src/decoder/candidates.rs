@@ -21,13 +21,13 @@ pub struct CandidateNode<VertexId> {
 
 /// List of candidate lines for a Location Reference Point.
 /// Lines are sorted based on their rating (descending - higher rating is better).
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct CandidateLines<EdgeId> {
     pub lrp: Point,
     pub lines: Vec<CandidateLine<EdgeId>>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CandidateLine<EdgeId> {
     pub lrp: Point,
     pub edge: EdgeId,
@@ -35,6 +35,18 @@ pub struct CandidateLine<EdgeId> {
     /// If this line is the result of a projection of the LRP into it, this represents the distance
     /// from the beginning of the line (start vertex) to the point where the LRP was projected.
     pub distance_to_projection: Option<Length>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CandidateLinePair<EdgeId> {
+    pub line_lrp1: CandidateLine<EdgeId>,
+    pub line_lrp2: CandidateLine<EdgeId>,
+}
+
+impl<EdgeId> CandidateLinePair<EdgeId> {
+    pub fn rating(&self) -> RatingScore {
+        self.line_lrp1.rating * self.line_lrp2.rating
+    }
 }
 
 /// Candidate line that is yet to be rated.
