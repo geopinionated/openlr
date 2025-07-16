@@ -55,6 +55,7 @@ pub trait DirectedGraph {
 
     /// Gets an iterator over all the vertices that are within a max distance from the coordinate.
     /// For each vertex also returns the distance from the coordinate.
+    /// Vertices must be returned sorted by their distance to the coordinate.
     /// Returns an empty iterator if no vertex could be found within distance.
     fn nearest_vertices_within_distance(
         &self,
@@ -64,6 +65,7 @@ pub trait DirectedGraph {
 
     /// Gets an iterator over all the edges that are within a max distance from the coordinate.
     /// For each edges also returns the distance from the coordinate.
+    /// Edges must be returned sorted by their distance to the coordinate.
     /// Returns an empty iterator if no vertex could be found within distance.
     fn nearest_edges_within_distance(
         &self,
