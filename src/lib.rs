@@ -5,6 +5,7 @@ mod decoder;
 mod error;
 mod graph;
 mod model;
+mod routing;
 
 pub use binary::{
     deserialize_base64_openlr, deserialize_binary_openlr, serialize_base64_openlr,
@@ -23,3 +24,4 @@ pub use model::{
     LineAttributes, Location, LocationReference, LocationType, Offset, Orientation, PathAttributes,
     Poi, Point, PointAlongLine, Polygon, Rating, RatingScore, Rectangle, SideOfRoad,
 };
+pub use routing::{ShortestPath, ShortestPathConfig, shortest_path};

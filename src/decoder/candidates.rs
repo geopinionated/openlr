@@ -37,6 +37,12 @@ pub struct CandidateLine<EdgeId> {
     pub distance_to_projection: Option<Length>,
 }
 
+impl<EdgeId> CandidateLine<EdgeId> {
+    pub const fn is_projected(&self) -> bool {
+        self.distance_to_projection.is_some()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct CandidateLinePair<EdgeId> {
     pub line_lrp1: CandidateLine<EdgeId>,
