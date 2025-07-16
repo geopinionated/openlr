@@ -10,6 +10,7 @@
 //! 7. Concatenate shortest-path(s) to form the location and trim path according to the offsets.
 
 pub mod candidates;
+pub mod resolver;
 
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
