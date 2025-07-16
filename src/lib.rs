@@ -11,8 +11,8 @@ pub use binary::{
     serialize_binary_openlr,
 };
 pub use decoder::candidates::{
-    CandidateLine, CandidateLines, CandidateNode, CandidateNodes, find_candidate_lines,
-    find_candidate_nodes,
+    CandidateLine, CandidateLinePair, CandidateLines, CandidateNode, CandidateNodes,
+    find_candidate_lines, find_candidate_nodes,
 };
 pub use decoder::resolver::{Route, resolve_routes};
 pub use decoder::{DecoderConfig, decode_base64_openlr, decode_binary_openlr};
