@@ -10,7 +10,7 @@ use crate::{
 };
 
 /// Shortest path from the LRP to the next one.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq)]
 pub struct Route<EdgeId> {
     pub lrp: Point,
     pub length: Length,
