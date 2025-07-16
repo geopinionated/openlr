@@ -2,11 +2,11 @@ use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap};
 use std::fmt::Debug;
 
-use base64::DecodeError;
 use tracing::debug;
 
 use crate::{
-    CandidateLinePair, CandidateLines, DecoderConfig, DirectedGraph, Length, Point, RatingScore,
+    CandidateLine, CandidateLinePair, CandidateLines, DecodeError, DecoderConfig, DirectedGraph,
+    Frc, Length, Point, RatingScore, ShortestPath, ShortestPathConfig, shortest_path,
 };
 
 /// Shortest path from the LRP to the next one.
@@ -55,10 +55,88 @@ pub fn resolve_routes<G: DirectedGraph>(
         let [candidates_lrp1, candidates_lrp2] = [&candidates_pair[0], &candidates_pair[1]];
         let pairs = resolve_top_k_candidate_pairs(config, candidates_lrp1, candidates_lrp2)?;
 
-        // TODO: for each pair calculate shortest path
+        let CandidateLines { lrp: lrp1, .. } = candidates_lrp1;
+        let CandidateLines { lrp: lrp2, .. } = candidates_lrp2;
+
+        let lowest_frc_value = lrp1.lfrcnp().value() + Frc::variance(&lrp1.lfrcnp());
+        let lowest_frc = Frc::from_value(lowest_frc_value).unwrap_or(Frc::Frc7);
+
+        if let Some(path) = resolve_candidate_pairs_path(config, graph, &pairs, lowest_frc) {
+            routes.push(Route {
+                lrp: *lrp1,
+                length: path.length,
+                edges: path.edges,
+            });
+        } else {
+            return Err(DecodeError::RouteNotFound((*lrp1, *lrp2)));
+        }
     }
 
     Ok(routes)
+}
+
+fn resolve_candidate_pairs_path<G: DirectedGraph>(
+    config: &DecoderConfig,
+    graph: &G,
+    pairs: &[CandidateLinePair<G::EdgeId>],
+    lowest_frc: Frc,
+) -> Option<ShortestPath<G::EdgeId>> {
+    debug!("Resolving pairs {pairs:?} with lowest {lowest_frc:?}");
+
+    for CandidateLinePair {
+        line_lrp1,
+        line_lrp2,
+    } in pairs
+    {
+        // TODO: handle start line = end line
+
+        let origin = graph.get_edge_start_vertex(line_lrp1.edge)?;
+        let destination = if line_lrp2.lrp.is_last() {
+            graph.get_edge_end_vertex(line_lrp2.edge)?
+        } else {
+            graph.get_edge_start_vertex(line_lrp2.edge)?
+        };
+
+        let path_config = ShortestPathConfig {
+            lowest_frc,
+            max_length: max_route_length(config, graph, line_lrp1, line_lrp2),
+        };
+
+        if let Some(path) = shortest_path(&path_config, graph, origin, destination) {
+            debug_assert!(path.length <= path_config.max_length);
+            let min_length = line_lrp1.lrp.dnp() - config.next_point_variance;
+
+            if path.length >= min_length {
+                return Some(path);
+            }
+        }
+    }
+
+    None
+}
+
+fn max_route_length<G: DirectedGraph>(
+    config: &DecoderConfig,
+    graph: &G,
+    line_lrp1: &CandidateLine<G::EdgeId>,
+    line_lrp2: &CandidateLine<G::EdgeId>,
+) -> Length {
+    let mut max_distance = line_lrp1.lrp.dnp() + config.next_point_variance;
+
+    // shortest path can only stop at distances between real vertices, therefore we need to
+    // add the complete length when computing max distance upper bound if the lines were projected
+    if line_lrp1.is_projected() {
+        max_distance += graph
+            .get_edge_length(line_lrp1.edge)
+            .unwrap_or(Length::ZERO);
+    }
+    if line_lrp2.is_projected() {
+        max_distance += graph
+            .get_edge_length(line_lrp2.edge)
+            .unwrap_or(Length::ZERO);
+    }
+
+    max_distance
 }
 
 fn resolve_top_k_candidate_pairs<EdgeId: Debug + Copy>(

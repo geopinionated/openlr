@@ -21,7 +21,7 @@ use crate::error::DecodeError;
 use crate::model::{LineLocation, RatingScore};
 use crate::{
     Bearing, DeserializeError, DirectedGraph, Length, Line, Location, LocationReference,
-    deserialize_binary_openlr, find_candidate_lines,
+    deserialize_binary_openlr, find_candidate_lines, resolve_routes,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -44,6 +44,8 @@ pub struct DecoderConfig {
     pub min_line_rating: RatingScore,
     /// Maximum number of resolver retries.
     pub max_number_retries: usize,
+    /// Variance allowed to the resolver when computing distance between LRPs.
+    pub next_point_variance: Length,
 }
 
 impl Default for DecoderConfig {
@@ -57,6 +59,7 @@ impl Default for DecoderConfig {
             projected_line_factor: 0.95,
             min_line_rating: RatingScore::from(800.0),
             max_number_retries: 3,
+            next_point_variance: Length::from_meters(150.0),
         }
     }
 }
@@ -103,6 +106,10 @@ fn decode_line<G: DirectedGraph>(
     // Step – 3 For each location reference point find candidate lines
     // Step – 4 Rate candidate lines for each location reference point
     let lines = find_candidate_lines(config, graph, nodes)?;
+
+    // Step – 5 Determine shortest-path(s) between all subsequent location reference points
+    // Step – 6 Check validity of the calculated shortest-path(s)
+    let routes = resolve_routes(config, graph, &lines)?;
 
     todo!()
 }

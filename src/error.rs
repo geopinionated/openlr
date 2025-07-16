@@ -50,6 +50,8 @@ pub enum DecodeError {
     InvalidData(DeserializeError),
     #[error("Cannot find candidates for {0:?}")]
     CandidatesNotFound(Point),
+    #[error("Cannot find route between LRPs {0:?}")]
+    RouteNotFound((Point, Point)),
 }
 
 impl From<DeserializeError> for DecodeError {
