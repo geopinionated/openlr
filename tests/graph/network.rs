@@ -11,7 +11,7 @@ pub static NETWORK_GRAPH: LazyLock<NetworkGraph> =
     LazyLock::new(|| NetworkGraph::from_geojson_graph(&GEOJSON_GRAPH));
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct VertexId(i64);
+pub struct VertexId(pub i64);
 
 impl VertexId {
     const fn index(&self) -> usize {
@@ -20,7 +20,7 @@ impl VertexId {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct EdgeId(i64);
+pub struct EdgeId(pub i64);
 
 impl EdgeId {
     const fn is_reversed(&self) -> bool {

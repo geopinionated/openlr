@@ -283,18 +283,12 @@ impl Default for Orientation {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub struct Length(OrderedFloat<f64>);
 
 impl fmt::Display for Length {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:.1}m", self.meters())
-    }
-}
-
-impl fmt::Debug for Length {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Length({:.1})", self.0)
     }
 }
 
@@ -703,8 +697,12 @@ impl LocationReference {
 /// and is also the result of the decoding process.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Location {
-    Line,
+    Line(LineLocation),
 }
+
+/// Location (in a map) that represents a Line Location Reference.
+#[derive(Debug, Clone, PartialEq)]
+pub struct LineLocation;
 
 #[cfg(test)]
 mod tests {
