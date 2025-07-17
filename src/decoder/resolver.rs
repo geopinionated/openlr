@@ -59,6 +59,7 @@ pub fn resolve_routes<G: DirectedGraph>(
     debug!("Resolving routes for {} candidates", candidate_lines.len());
 
     if let Some(routes) = resolve_single_line_routes(candidate_lines) {
+        debug_assert!(is_route_connected(graph, &routes));
         return Ok(routes);
     }
 
@@ -89,7 +90,23 @@ pub fn resolve_routes<G: DirectedGraph>(
         }
     }
 
+    debug_assert!(is_route_connected(graph, &routes));
     Ok(routes)
+}
+
+fn is_route_connected<G: DirectedGraph>(graph: &G, routes: &[Route<G::EdgeId>]) -> bool {
+    let edges: Vec<_> = routes.iter().flat_map(|r| &r.edges).copied().collect();
+
+    for window in edges.windows(2) {
+        let [e1, e2] = [window[0], window[1]];
+        match graph.get_edge_end_vertex(e1) {
+            Some(v) if !graph.vertex_exiting_edges(v).any(|(e, _)| e == e2) => return false,
+            None => return false,
+            Some(_) => (),
+        };
+    }
+
+    true
 }
 
 /// If all the best candidate lines are equal there is no need to compute top K candidates and

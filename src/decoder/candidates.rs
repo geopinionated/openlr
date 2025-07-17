@@ -102,7 +102,8 @@ pub fn find_candidate_nodes<'a, G, I>(
 ) -> impl ExactSizeIterator<Item = CandidateNodes<G::VertexId>>
 where
     G: DirectedGraph,
-    I: ExactSizeIterator<Item = &'a Point>,
+    I: IntoIterator,
+    I::IntoIter: ExactSizeIterator<Item = &'a Point>,
 {
     let DecoderConfig {
         max_node_distance, ..
@@ -147,8 +148,10 @@ pub fn find_candidate_lines<G: DirectedGraph, I>(
     candidate_nodes: I,
 ) -> Result<Vec<CandidateLines<G::EdgeId>>, DecodeError>
 where
-    I: ExactSizeIterator<Item = CandidateNodes<G::VertexId>>,
+    I: IntoIterator,
+    I::IntoIter: ExactSizeIterator<Item = CandidateNodes<G::VertexId>>,
 {
+    let candidate_nodes = candidate_nodes.into_iter();
     let mut candidate_lines = Vec::with_capacity(candidate_nodes.len());
 
     for lrp_nodes in candidate_nodes {

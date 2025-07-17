@@ -101,7 +101,7 @@ fn decode_line<G: DirectedGraph>(
     info!("Decoding {line:?} with {config:?}");
 
     // Step – 2 For each location reference point find candidate nodes
-    let nodes = find_candidate_nodes(config, graph, line.points.iter());
+    let nodes = find_candidate_nodes(config, graph, &line.points);
 
     // Step – 3 For each location reference point find candidate lines
     // Step – 4 Rate candidate lines for each location reference point
@@ -110,6 +110,9 @@ fn decode_line<G: DirectedGraph>(
     // Step – 5 Determine shortest-path(s) between all subsequent location reference points
     // Step – 6 Check validity of the calculated shortest-path(s)
     let routes = resolve_routes(config, graph, &lines)?;
+
+    // Step – 7 Concatenate shortest-path(s) to form the location
+    // and trim path according to the offsets
 
     todo!()
 }
