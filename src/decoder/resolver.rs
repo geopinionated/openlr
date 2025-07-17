@@ -56,12 +56,16 @@ pub fn resolve_routes<G: DirectedGraph>(
     graph: &G,
     candidate_lines: &[CandidateLines<G::EdgeId>],
 ) -> Result<Vec<Route<G::EdgeId>>, DecodeError> {
-    let mut routes: Vec<Route<_>> = Vec::with_capacity(candidate_lines.len() - 1);
+    debug!("Resolving routes for {} candidates", candidate_lines.len());
 
-    // TODO: check for single route
+    if let Some(routes) = resolve_single_line_routes(candidate_lines) {
+        return Ok(routes);
+    }
 
-    for candidates_pair in candidate_lines.windows(2) {
-        let [candidates_lrp1, candidates_lrp2] = [&candidates_pair[0], &candidates_pair[1]];
+    let mut routes: Vec<Route<G::EdgeId>> = Vec::with_capacity(candidate_lines.len() - 1);
+
+    for window in candidate_lines.windows(2) {
+        let [candidates_lrp1, candidates_lrp2] = [&window[0], &window[1]];
         let pairs = resolve_top_k_candidate_pairs(config, candidates_lrp1, candidates_lrp2)?;
 
         let CandidateLines { lrp: lrp1, .. } = candidates_lrp1;
@@ -86,6 +90,42 @@ pub fn resolve_routes<G: DirectedGraph>(
     }
 
     Ok(routes)
+}
+
+/// If all the best candidate lines are equal there is no need to compute top K candidates and
+/// their shortest paths, we can just return the best candidate line for each LRP.
+fn resolve_single_line_routes<EdgeId: Copy + PartialEq>(
+    candidate_lines: &[CandidateLines<EdgeId>],
+) -> Option<Vec<Route<EdgeId>>> {
+    if let Some(best_candidate) = candidate_lines.first().and_then(|c| c.best_candidate())
+        && candidate_lines
+            .iter()
+            .all(|c| c.best_candidate().map(|line| line.edge) == Some(best_candidate.edge))
+    {
+        let pairs = candidate_lines.windows(2).filter_map(|window| {
+            Some(CandidateLinePair {
+                line_lrp1: window[0].best_candidate()?,
+                line_lrp2: window[1].best_candidate()?,
+            })
+        });
+
+        let routes = pairs
+            .enumerate()
+            .map(|(i, candidates)| {
+                let edges = if i == 0 {
+                    vec![best_candidate.edge]
+                } else {
+                    vec![]
+                };
+
+                Route { edges, candidates }
+            })
+            .collect();
+
+        Some(routes)
+    } else {
+        None
+    }
 }
 
 fn resolve_candidate_pairs_path<G, I>(

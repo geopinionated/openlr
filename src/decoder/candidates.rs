@@ -27,6 +27,12 @@ pub struct CandidateLines<EdgeId> {
     pub lines: Vec<CandidateLine<EdgeId>>,
 }
 
+impl<EdgeId: Copy> CandidateLines<EdgeId> {
+    pub fn best_candidate(&self) -> Option<CandidateLine<EdgeId>> {
+        self.lines.first().copied()
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CandidateLine<EdgeId> {
     pub lrp: Point,
