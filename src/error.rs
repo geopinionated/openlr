@@ -52,6 +52,8 @@ pub enum DecodeError {
     CandidatesNotFound(Point),
     #[error("Cannot find route between LRPs {0:?}")]
     RouteNotFound((Point, Point)),
+    #[error("Cannot connect route to shortest path {0:?}")]
+    AlternativeRouteNotFound((Point, Point)),
 }
 
 impl From<DeserializeError> for DecodeError {

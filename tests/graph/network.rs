@@ -464,6 +464,11 @@ fn network_graph_edge_bearing() {
         get_edge_bearing(EdgeId(-4925291)),
         Bearing::from_degrees(286)
     );
+
+    assert_eq!(
+        get_edge_bearing(EdgeId(7531947)),
+        Bearing::from_degrees(100)
+    );
 }
 
 #[test]

@@ -16,6 +16,16 @@ pub struct Route<EdgeId> {
     pub candidates: CandidateLinePair<EdgeId>,
 }
 
+impl<EdgeId: Copy> Route<EdgeId> {
+    fn first_candidate_edge(&self) -> EdgeId {
+        self.candidates.line_lrp1.edge
+    }
+
+    fn last_candidate_edge(&self) -> EdgeId {
+        self.candidates.line_lrp2.edge
+    }
+}
+
 /// The decoder needs to compute a shortest-path between each pair of subsequent location reference
 /// points. For each pair of location reference points suitable candidate lines must be chosen. The
 /// candidate line of the first LRPs of this pair acts as start of the shortest-path calculation.
@@ -46,7 +56,7 @@ pub fn resolve_routes<G: DirectedGraph>(
     graph: &G,
     candidate_lines: &[CandidateLines<G::EdgeId>],
 ) -> Result<Vec<Route<G::EdgeId>>, DecodeError> {
-    let mut routes = Vec::with_capacity(candidate_lines.len() - 1);
+    let mut routes: Vec<Route<_>> = Vec::with_capacity(candidate_lines.len() - 1);
 
     // TODO: check for single route
 
@@ -61,6 +71,14 @@ pub fn resolve_routes<G: DirectedGraph>(
         let lowest_frc = Frc::from_value(lowest_frc_value).unwrap_or(Frc::Frc7);
 
         if let Some(route) = resolve_candidate_pairs_path(config, graph, pairs, lowest_frc) {
+            // TODO: if the previous route ends on a line that is not the start of this new route
+            // the previous route needs to be re-computed
+            if let Some(last_edge) = routes.last().map(|r| r.last_candidate_edge())
+                && last_edge != route.first_candidate_edge()
+            {
+                return Err(DecodeError::AlternativeRouteNotFound((*lrp1, *lrp2)));
+            }
+
             routes.push(route);
         } else {
             return Err(DecodeError::RouteNotFound((*lrp1, *lrp2)));
