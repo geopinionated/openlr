@@ -466,7 +466,7 @@ fn find_candidate_lines_003() {
                 (EdgeId(6770340), None),
                 (EdgeId(109783), Some(Length::from_meters(191.0)))
             ],
-            vec![(EdgeId(7531947), None),]
+            vec![(EdgeId(7531947), None)]
         ]
     );
 }
