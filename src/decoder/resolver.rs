@@ -6,15 +6,14 @@ use tracing::debug;
 
 use crate::{
     CandidateLine, CandidateLinePair, CandidateLines, DecodeError, DecoderConfig, DirectedGraph,
-    Frc, Length, Point, RatingScore, ShortestPath, ShortestPathConfig, shortest_path,
+    Frc, Length, RatingScore, ShortestPathConfig, shortest_path,
 };
 
 /// Shortest path from the LRP to the next one.
-#[derive(Debug, Default, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Route<EdgeId> {
-    pub lrp: Point,
-    pub length: Length,
     pub edges: Vec<EdgeId>,
+    pub candidates: CandidateLinePair<EdgeId>,
 }
 
 /// The decoder needs to compute a shortest-path between each pair of subsequent location reference
@@ -61,12 +60,8 @@ pub fn resolve_routes<G: DirectedGraph>(
         let lowest_frc_value = lrp1.lfrcnp().value() + Frc::variance(&lrp1.lfrcnp());
         let lowest_frc = Frc::from_value(lowest_frc_value).unwrap_or(Frc::Frc7);
 
-        if let Some(path) = resolve_candidate_pairs_path(config, graph, &pairs, lowest_frc) {
-            routes.push(Route {
-                lrp: *lrp1,
-                length: path.length,
-                edges: path.edges,
-            });
+        if let Some(route) = resolve_candidate_pairs_path(config, graph, pairs, lowest_frc) {
+            routes.push(route);
         } else {
             return Err(DecodeError::RouteNotFound((*lrp1, *lrp2)));
         }
@@ -75,20 +70,33 @@ pub fn resolve_routes<G: DirectedGraph>(
     Ok(routes)
 }
 
-fn resolve_candidate_pairs_path<G: DirectedGraph>(
+fn resolve_candidate_pairs_path<G, I>(
     config: &DecoderConfig,
     graph: &G,
-    pairs: &[CandidateLinePair<G::EdgeId>],
+    pairs: I,
     lowest_frc: Frc,
-) -> Option<ShortestPath<G::EdgeId>> {
-    debug!("Resolving pairs {pairs:?} with lowest {lowest_frc:?}");
+) -> Option<Route<G::EdgeId>>
+where
+    G: DirectedGraph,
+    I: IntoIterator<Item = CandidateLinePair<G::EdgeId>>,
+{
+    debug!("Resolving candidate pairs with lowest {lowest_frc:?}");
 
-    for CandidateLinePair {
-        line_lrp1,
-        line_lrp2,
-    } in pairs
-    {
-        // TODO: handle start line = end line
+    for candidates in pairs {
+        let CandidateLinePair {
+            line_lrp1,
+            line_lrp2,
+        } = candidates;
+
+        if line_lrp1.edge == line_lrp2.edge {
+            let edges = if line_lrp2.lrp.is_last() {
+                vec![line_lrp1.edge]
+            } else {
+                vec![]
+            };
+
+            return Some(Route { edges, candidates });
+        }
 
         let origin = graph.get_edge_start_vertex(line_lrp1.edge)?;
         let destination = if line_lrp2.lrp.is_last() {
@@ -99,7 +107,7 @@ fn resolve_candidate_pairs_path<G: DirectedGraph>(
 
         let path_config = ShortestPathConfig {
             lowest_frc,
-            max_length: max_route_length(config, graph, line_lrp1, line_lrp2),
+            max_length: max_route_length(config, graph, &line_lrp1, &line_lrp2),
         };
 
         if let Some(path) = shortest_path(&path_config, graph, origin, destination) {
@@ -107,7 +115,10 @@ fn resolve_candidate_pairs_path<G: DirectedGraph>(
             let min_length = line_lrp1.lrp.dnp() - config.next_point_variance;
 
             if path.length >= min_length {
-                return Some(path);
+                return Some(Route {
+                    edges: path.edges,
+                    candidates,
+                });
             }
         }
     }
@@ -209,7 +220,7 @@ mod tests {
     use test_log::test;
 
     use super::*;
-    use crate::CandidateLine;
+    use crate::{CandidateLine, Point};
 
     #[test]
     fn resolve_top_k_candidate_pairs_001() {
