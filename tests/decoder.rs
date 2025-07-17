@@ -61,7 +61,7 @@ fn find_candidate_nodes_001() {
         },
     ];
 
-    let nodes: Vec<_> = find_candidate_nodes(&config, graph, points.iter())
+    let nodes: Vec<_> = find_candidate_nodes(&config, graph, &points)
         .flat_map(|candidate| candidate.nodes)
         .map(|node| (node.vertex, (node.distance_to_lrp.meters() * 100.0).round()))
         .collect();
@@ -87,7 +87,7 @@ fn find_candidate_nodes_002() {
         path: None,
     }];
 
-    let nodes: Vec<_> = find_candidate_nodes(&config, graph, points.iter())
+    let nodes: Vec<_> = find_candidate_nodes(&config, graph, &points)
         .flat_map(|candidate| candidate.nodes)
         .map(|node| (node.vertex, node.distance_to_lrp.meters().round()))
         .collect();
@@ -127,7 +127,7 @@ fn find_candidate_nodes_003() {
         }),
     };
 
-    let nodes: Vec<_> = find_candidate_nodes(&config, graph, [lrp].iter()).collect();
+    let nodes: Vec<_> = find_candidate_nodes(&config, graph, &[lrp]).collect();
     assert_eq!(nodes, [CandidateNodes { lrp, nodes: vec![] }]);
 }
 
@@ -247,7 +247,7 @@ fn find_candidate_lines_001() {
         },
     ];
 
-    let lines: Vec<_> = find_candidate_lines(&config, graph, points.into_iter())
+    let lines: Vec<_> = find_candidate_lines(&config, graph, points)
         .unwrap()
         .into_iter()
         .map(|candidate| {
@@ -331,7 +331,7 @@ fn find_candidate_lines_002() {
         },
     ];
 
-    let lines = find_candidate_lines(&config, graph, points.into_iter()).unwrap();
+    let lines = find_candidate_lines(&config, graph, points).unwrap();
 
     let lines: Vec<_> = lines
         .into_iter()
@@ -439,7 +439,7 @@ fn find_candidate_lines_003() {
         },
     ];
 
-    let lines = find_candidate_lines(&config, graph, points.into_iter()).unwrap();
+    let lines = find_candidate_lines(&config, graph, points).unwrap();
 
     let lines: Vec<_> = lines
         .into_iter()
