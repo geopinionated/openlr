@@ -1,4 +1,5 @@
 use std::fmt;
+use std::iter::Sum;
 use std::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
 
 use approx::abs_diff_eq;
@@ -339,6 +340,12 @@ impl SubAssign for Length {
     }
 }
 
+impl Sum for Length {
+    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+        iter.fold(Self::ZERO, |a, b| a + b)
+    }
+}
+
 /// The bearing describes the angle between the true North and the road.
 /// The physical data format defines the bearing field as an integer value between 0
 /// and 360 whereby “0” is included and “360” is excluded from that range.
@@ -470,7 +477,7 @@ impl Point {
 /// bounding to the nodes in a network. The logical format defines two offsets,
 /// one at the start of the location and one at the end of the location.
 /// Both offsets operate along the lines of the location and are measured in meters.
-// The offset values are optional and a missing offset value means an offset of 0 meters.
+/// The offset values are optional and a missing offset value means an offset of 0 meters.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Offset(f64);
 
@@ -511,6 +518,16 @@ impl Offsets {
             pos: offset,
             neg: Offset::default(),
         }
+    }
+
+    pub fn distance_from_start(&self, length: Length) -> Length {
+        let length = (self.pos.range() * length.meters()).round();
+        Length::from_meters(length)
+    }
+
+    pub fn distance_to_end(&self, length: Length) -> Length {
+        let length = (self.neg.range() * length.meters()).round();
+        Length::from_meters(length)
     }
 }
 

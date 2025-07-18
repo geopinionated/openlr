@@ -2,8 +2,8 @@ mod graph;
 
 use openlr::{
     Bearing, CandidateLine, CandidateLinePair, CandidateLines, CandidateNode, CandidateNodes,
-    Coordinate, DecoderConfig, Fow, Frc, Length, LineAttributes, PathAttributes, Point,
-    RatingScore, Route, decode_base64_openlr, find_candidate_lines, find_candidate_nodes,
+    Coordinate, DecoderConfig, Fow, Frc, Length, LineAttributes, Offsets, PathAttributes, Point,
+    RatingScore, Route, Routes, decode_base64_openlr, find_candidate_lines, find_candidate_nodes,
     resolve_routes,
 };
 use test_log::test;
@@ -547,13 +547,14 @@ fn resolve_routes_001() {
 
     assert_eq!(
         routes,
-        [Route {
+        Routes::from(vec![Route {
             edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
+            length: Length::from_meters(379.0),
             candidates: CandidateLinePair {
                 line_lrp1: line1_first_lrp,
                 line_lrp2: line_last_lrp
             }
-        }]
+        }])
     );
 }
 
@@ -628,13 +629,14 @@ fn resolve_routes_002() {
 
     assert_eq!(
         routes,
-        [Route {
+        Routes::from(vec![Route {
             edges: vec![EdgeId(8717174)],
+            length: Length::from_meters(136.0),
             candidates: CandidateLinePair {
                 line_lrp1: line_first_lrp,
                 line_lrp2: line1_last_lrp
             }
-        }]
+        }])
     );
 }
 
@@ -729,9 +731,10 @@ fn resolve_routes_003() {
 
     assert_eq!(
         routes,
-        [
+        Routes::from(vec![
             Route {
                 edges: vec![], // first and second LRPs are on the same line
+                length: Length::ZERO,
                 candidates: CandidateLinePair {
                     line_lrp1: line_first_lrp,
                     line_lrp2: line_second_lrp
@@ -739,12 +742,13 @@ fn resolve_routes_003() {
             },
             Route {
                 edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
+                length: Length::from_meters(379.0),
                 candidates: CandidateLinePair {
                     line_lrp1: line_second_lrp,
                     line_lrp2: line_last_lrp
                 }
             }
-        ]
+        ])
     );
 }
 
@@ -853,9 +857,10 @@ fn resolve_routes_004() {
 
     assert_eq!(
         routes,
-        [
+        Routes::from(vec![
             Route {
                 edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
+                length: Length::from_meters(379.0),
                 candidates: CandidateLinePair {
                     line_lrp1: line1_first_lrp,
                     line_lrp2: line1_second_lrp
@@ -863,11 +868,488 @@ fn resolve_routes_004() {
             },
             Route {
                 edges: vec![EdgeId(6770340), EdgeId(7531947)],
+                length: Length::from_meters(53.0),
                 candidates: CandidateLinePair {
                     line_lrp1: line1_second_lrp,
                     line_lrp2: line_last_lrp
                 }
             },
-        ]
+        ])
     );
+}
+
+#[test]
+fn calculate_offsets_001() {
+    let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+    let first_lrp = Point {
+        coordinate: Coordinate {
+            lon: 13.46112,
+            lat: 52.51711,
+        },
+        line: LineAttributes {
+            frc: Frc::Frc6,
+            fow: Fow::SingleCarriageway,
+            bearing: Bearing::from_degrees(107),
+        },
+        path: Some(PathAttributes {
+            lfrcnp: Frc::Frc6,
+            dnp: Length::from_meters(381.0),
+        }),
+    };
+
+    let last_lrp = Point {
+        coordinate: Coordinate {
+            lon: 13.46284,
+            lat: 52.51500,
+        },
+        line: LineAttributes {
+            frc: Frc::Frc6,
+            fow: Fow::SingleCarriageway,
+            bearing: Bearing::from_degrees(17),
+        },
+        path: None,
+    };
+
+    let line_first_lrp = CandidateLine {
+        lrp: first_lrp,
+        edge: EdgeId(8717174),
+        rating: RatingScore::from(926.3),
+        distance_to_projection: None,
+    };
+
+    let line_last_lrp = CandidateLine {
+        lrp: last_lrp,
+        edge: EdgeId(109783),
+        rating: RatingScore::from(924.9),
+        distance_to_projection: None,
+    };
+
+    let routes = Routes::from(vec![Route {
+        edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
+        length: Length::from_meters(379.0),
+        candidates: CandidateLinePair {
+            line_lrp1: line_first_lrp,
+            line_lrp2: line_last_lrp,
+        },
+    }]);
+
+    let (offset_start, offset_end) = routes.calculate_offsets(graph, Offsets::default()).unwrap();
+
+    assert_eq!(offset_start, Length::ZERO);
+    assert_eq!(offset_end, Length::ZERO);
+}
+
+#[test]
+fn calculate_offsets_002() {
+    let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+    let first_lrp = Point {
+        coordinate: Coordinate {
+            lon: 13.46112,
+            lat: 52.51711,
+        },
+        line: LineAttributes {
+            frc: Frc::Frc6,
+            fow: Fow::SingleCarriageway,
+            bearing: Bearing::from_degrees(107),
+        },
+        path: Some(PathAttributes {
+            lfrcnp: Frc::Frc6,
+            dnp: Length::from_meters(381.0),
+        }),
+    };
+
+    let last_lrp = Point {
+        coordinate: Coordinate {
+            lon: 13.46284,
+            lat: 52.51500,
+        },
+        line: LineAttributes {
+            frc: Frc::Frc6,
+            fow: Fow::SingleCarriageway,
+            bearing: Bearing::from_degrees(17),
+        },
+        path: None,
+    };
+
+    let line_first_lrp = CandidateLine {
+        lrp: first_lrp,
+        edge: EdgeId(8717174),
+        rating: RatingScore::from(926.3),
+        distance_to_projection: Some(Length::from_meters(10.0)),
+    };
+
+    let line_last_lrp = CandidateLine {
+        lrp: last_lrp,
+        edge: EdgeId(109783),
+        rating: RatingScore::from(924.9),
+        distance_to_projection: Some(Length::from_meters(92.0)),
+    };
+
+    let routes: Routes<_> = vec![Route {
+        edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
+        length: Length::from_meters(379.0),
+        candidates: CandidateLinePair {
+            line_lrp1: line_first_lrp,
+            line_lrp2: line_last_lrp,
+        },
+    }]
+    .into();
+
+    let (offset_start, offset_end) = routes.calculate_offsets(graph, Offsets::default()).unwrap();
+
+    assert_eq!(offset_start, Length::from_meters(10.0));
+    assert_eq!(offset_end, Length::from_meters(100.0));
+}
+
+#[test]
+fn calculate_offsets_003() {
+    let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+    let first_lrp = Point {
+        coordinate: Coordinate {
+            lon: 13.4615506,
+            lat: 52.5170544,
+        },
+        line: LineAttributes {
+            frc: Frc::Frc6,
+            fow: Fow::SingleCarriageway,
+            bearing: Bearing::from_degrees(107),
+        },
+        path: Some(PathAttributes {
+            lfrcnp: Frc::Frc6,
+            dnp: Length::from_meters(70.0),
+        }),
+    };
+
+    let last_lrp = Point {
+        coordinate: Coordinate {
+            lon: 13.4625506,
+            lat: 52.5168944,
+        },
+        line: LineAttributes {
+            frc: Frc::Frc6,
+            fow: Fow::SingleCarriageway,
+            bearing: Bearing::from_degrees(287),
+        },
+        path: None,
+    };
+
+    let line_first_lrp = CandidateLine {
+        lrp: first_lrp,
+        edge: EdgeId(8717174),
+        rating: RatingScore::from(1128.7),
+        distance_to_projection: Some(Length::from_meters(20.0)),
+    };
+
+    let line_last_lrp = CandidateLine {
+        lrp: last_lrp,
+        edge: EdgeId(8717174),
+        rating: RatingScore::from(1122.7),
+        distance_to_projection: Some(Length::from_meters(36.0)),
+    };
+
+    let routes: Routes<_> = vec![Route {
+        edges: vec![EdgeId(8717174)],
+        length: Length::from_meters(136.0),
+        candidates: CandidateLinePair {
+            line_lrp1: line_first_lrp,
+            line_lrp2: line_last_lrp,
+        },
+    }]
+    .into();
+
+    let (offset_start, offset_end) = routes.calculate_offsets(graph, Offsets::default()).unwrap();
+
+    assert_eq!(offset_start, Length::from_meters(20.0));
+    assert_eq!(offset_end, Length::from_meters(100.0));
+}
+
+#[test]
+fn calculate_offsets_004() {
+    let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+    let first_lrp = Point {
+        coordinate: Coordinate {
+            lon: 13.4615506,
+            lat: 52.5170544,
+        },
+        line: LineAttributes {
+            frc: Frc::Frc6,
+            fow: Fow::SingleCarriageway,
+            bearing: Bearing::from_degrees(107),
+        },
+        path: Some(PathAttributes {
+            lfrcnp: Frc::Frc6,
+            dnp: Length::from_meters(70.0),
+        }),
+    };
+
+    let second_lrp = Point {
+        coordinate: Coordinate {
+            lon: 13.4625506,
+            lat: 52.5168944,
+        },
+        line: LineAttributes {
+            frc: Frc::Frc6,
+            fow: Fow::SingleCarriageway,
+            bearing: Bearing::from_degrees(107),
+        },
+        path: Some(PathAttributes {
+            lfrcnp: Frc::Frc6,
+            dnp: Length::from_meters(280.0),
+        }),
+    };
+
+    let last_lrp = Point {
+        coordinate: Coordinate {
+            lon: 13.46284,
+            lat: 52.51500,
+        },
+        line: LineAttributes {
+            frc: Frc::Frc6,
+            fow: Fow::SingleCarriageway,
+            bearing: Bearing::from_degrees(17),
+        },
+        path: None,
+    };
+
+    let line_first_lrp = CandidateLine {
+        lrp: first_lrp,
+        edge: EdgeId(8717174),
+        rating: RatingScore::from(1128.7),
+        distance_to_projection: Some(Length::from_meters(20.0)),
+    };
+
+    let line_second_lrp = CandidateLine {
+        lrp: second_lrp,
+        edge: EdgeId(8717174),
+        rating: RatingScore::from(1122.7),
+        distance_to_projection: Some(Length::from_meters(36.0)),
+    };
+
+    let line_last_lrp = CandidateLine {
+        lrp: last_lrp,
+        edge: EdgeId(109783),
+        rating: RatingScore::from(924.9),
+        distance_to_projection: None,
+    };
+
+    let routes: Routes<_> = vec![
+        Route {
+            edges: vec![], // first and second LRPs are on the same line
+            length: Length::ZERO,
+            candidates: CandidateLinePair {
+                line_lrp1: line_first_lrp,
+                line_lrp2: line_second_lrp,
+            },
+        },
+        Route {
+            edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
+            length: Length::from_meters(379.0),
+            candidates: CandidateLinePair {
+                line_lrp1: line_second_lrp,
+                line_lrp2: line_last_lrp,
+            },
+        },
+    ]
+    .into();
+
+    let (offset_start, offset_end) = routes.calculate_offsets(graph, Offsets::default()).unwrap();
+
+    assert_eq!(offset_start, Length::from_meters(20.0));
+    assert_eq!(offset_end, Length::ZERO);
+}
+
+#[test]
+fn calculate_offsets_005() {
+    let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+    let first_lrp = Point {
+        coordinate: Coordinate {
+            lon: 13.46112,
+            lat: 52.51711,
+        },
+        line: LineAttributes {
+            frc: Frc::Frc6,
+            fow: Fow::SingleCarriageway,
+            bearing: Bearing::from_degrees(107),
+        },
+        path: Some(PathAttributes {
+            lfrcnp: Frc::Frc6,
+            dnp: Length::from_meters(381.0),
+        }),
+    };
+
+    let second_lrp = Point {
+        coordinate: Coordinate {
+            lon: 13.46284,
+            lat: 52.51500,
+        },
+        line: LineAttributes {
+            frc: Frc::Frc6,
+            fow: Fow::SingleCarriageway,
+            bearing: Bearing::from_degrees(197),
+        },
+        path: Some(PathAttributes {
+            lfrcnp: Frc::Frc6,
+            dnp: Length::from_meters(45.0),
+        }),
+    };
+
+    let last_lrp = Point {
+        coordinate: Coordinate {
+            lon: 13.4632200,
+            lat: 52.5147507,
+        },
+        line: LineAttributes {
+            frc: Frc::Frc2,
+            fow: Fow::SingleCarriageway,
+            bearing: Bearing::from_degrees(280),
+        },
+        path: None,
+    };
+
+    let line_first_lrp = CandidateLine {
+        lrp: first_lrp,
+        edge: EdgeId(8717174),
+        rating: RatingScore::from(1194.8),
+        distance_to_projection: None,
+    };
+
+    let line_second_lrp = CandidateLine {
+        lrp: second_lrp,
+        edge: EdgeId(6770340),
+        rating: RatingScore::from(1193.5),
+        distance_to_projection: None,
+    };
+
+    let line_last_lrp = CandidateLine {
+        lrp: last_lrp,
+        edge: EdgeId(7531947),
+        rating: RatingScore::from(1176.0),
+        distance_to_projection: None,
+    };
+
+    let routes: Routes<_> = vec![
+        Route {
+            edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
+            length: Length::from_meters(379.0),
+            candidates: CandidateLinePair {
+                line_lrp1: line_first_lrp,
+                line_lrp2: line_second_lrp,
+            },
+        },
+        Route {
+            edges: vec![EdgeId(6770340), EdgeId(7531947)],
+            length: Length::from_meters(53.0),
+            candidates: CandidateLinePair {
+                line_lrp1: line_second_lrp,
+                line_lrp2: line_last_lrp,
+            },
+        },
+    ]
+    .into();
+
+    let (offset_start, offset_end) = routes.calculate_offsets(graph, Offsets::default()).unwrap();
+
+    assert_eq!(offset_start, Length::ZERO);
+    assert_eq!(offset_end, Length::ZERO);
+}
+
+#[test]
+fn calculate_offsets_006() {
+    let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+    let first_lrp = Point {
+        coordinate: Coordinate {
+            lon: 13.46112,
+            lat: 52.51711,
+        },
+        line: LineAttributes {
+            frc: Frc::Frc6,
+            fow: Fow::SingleCarriageway,
+            bearing: Bearing::from_degrees(107),
+        },
+        path: Some(PathAttributes {
+            lfrcnp: Frc::Frc6,
+            dnp: Length::from_meters(381.0),
+        }),
+    };
+
+    let second_lrp = Point {
+        coordinate: Coordinate {
+            lon: 13.46284,
+            lat: 52.51500,
+        },
+        line: LineAttributes {
+            frc: Frc::Frc6,
+            fow: Fow::SingleCarriageway,
+            bearing: Bearing::from_degrees(197),
+        },
+        path: Some(PathAttributes {
+            lfrcnp: Frc::Frc6,
+            dnp: Length::from_meters(45.0),
+        }),
+    };
+
+    let last_lrp = Point {
+        coordinate: Coordinate {
+            lon: 13.4632200,
+            lat: 52.5147507,
+        },
+        line: LineAttributes {
+            frc: Frc::Frc2,
+            fow: Fow::SingleCarriageway,
+            bearing: Bearing::from_degrees(280),
+        },
+        path: None,
+    };
+
+    let line_first_lrp = CandidateLine {
+        lrp: first_lrp,
+        edge: EdgeId(8717174),
+        rating: RatingScore::from(1194.8),
+        distance_to_projection: Some(Length::from_meters(10.0)),
+    };
+
+    let line_second_lrp = CandidateLine {
+        lrp: second_lrp,
+        edge: EdgeId(6770340),
+        rating: RatingScore::from(1193.5),
+        distance_to_projection: Some(Length::from_meters(5.0)),
+    };
+
+    let line_last_lrp = CandidateLine {
+        lrp: last_lrp,
+        edge: EdgeId(7531947),
+        rating: RatingScore::from(1176.0),
+        distance_to_projection: Some(Length::from_meters(27.0)),
+    };
+
+    let routes: Routes<_> = vec![
+        Route {
+            edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
+            length: Length::from_meters(379.0),
+            candidates: CandidateLinePair {
+                line_lrp1: line_first_lrp,
+                line_lrp2: line_second_lrp,
+            },
+        },
+        Route {
+            edges: vec![EdgeId(6770340), EdgeId(7531947)],
+            length: Length::from_meters(53.0),
+            candidates: CandidateLinePair {
+                line_lrp1: line_second_lrp,
+                line_lrp2: line_last_lrp,
+            },
+        },
+    ]
+    .into();
+
+    let (offset_start, offset_end) = routes.calculate_offsets(graph, Offsets::default()).unwrap();
+
+    assert_eq!(offset_start, Length::from_meters(10.0));
+    assert_eq!(offset_end, Length::from_meters(10.0));
 }
