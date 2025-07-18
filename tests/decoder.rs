@@ -2,9 +2,9 @@ mod graph;
 
 use openlr::{
     Bearing, CandidateLine, CandidateLinePair, CandidateLines, CandidateNode, CandidateNodes,
-    Coordinate, DecoderConfig, Fow, Frc, Length, LineAttributes, Offsets, PathAttributes, Point,
-    RatingScore, Route, Routes, decode_base64_openlr, find_candidate_lines, find_candidate_nodes,
-    resolve_routes,
+    Coordinate, DecoderConfig, Fow, Frc, Length, LineAttributes, LineLocation, Location, Offsets,
+    PathAttributes, Point, RatingScore, Route, Routes, decode_base64_openlr, find_candidate_lines,
+    find_candidate_nodes, resolve_routes,
 };
 use test_log::test;
 
@@ -14,12 +14,43 @@ use crate::graph::{EdgeId, NETWORK_GRAPH, NetworkGraph, VertexId};
 fn decode_line_location_reference_001() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
+    let config = DecoderConfig::default();
+    let location = decode_base64_openlr(&config, graph, "CwmShiVYczPJBgCs/y0zAQ==").unwrap();
+
+    assert_eq!(
+        location,
+        Location::Line(LineLocation {
+            edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
+            pos_offset: Length::ZERO,
+            neg_offset: Length::ZERO
+        })
+    );
+}
+
+#[test]
+fn decode_line_location_reference_002() {
+    let graph: &NetworkGraph = &NETWORK_GRAPH;
+
     let config = DecoderConfig {
         max_node_distance: Length::from_meters(10.0),
         ..Default::default()
     };
 
-    let _ = decode_base64_openlr(&config, graph, "CwmShiVYczPJBgCs/y0zAQ==");
+    let location = decode_base64_openlr(&config, graph, "CwmTaSVYpTPZCP4a/5UjYQUH").unwrap();
+
+    assert_eq!(
+        location,
+        Location::Line(LineLocation {
+            edges: vec![
+                EdgeId(1653344),
+                EdgeId(4997411),
+                EdgeId(5359424),
+                EdgeId(5359425)
+            ],
+            pos_offset: Length::from_meters(11.0),
+            neg_offset: Length::from_meters(14.0)
+        })
+    );
 }
 
 #[test]
@@ -1352,4 +1383,139 @@ fn calculate_offsets_006() {
 
     assert_eq!(offset_start, Length::from_meters(10.0));
     assert_eq!(offset_end, Length::from_meters(10.0));
+}
+
+#[test]
+fn trim_routes_into_line_location_001() {
+    let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+    let first_lrp = Point {
+        coordinate: Coordinate {
+            lon: 13.46112,
+            lat: 52.51711,
+        },
+        line: LineAttributes {
+            frc: Frc::Frc6,
+            fow: Fow::SingleCarriageway,
+            bearing: Bearing::from_degrees(107),
+        },
+        path: Some(PathAttributes {
+            lfrcnp: Frc::Frc6,
+            dnp: Length::from_meters(381.0),
+        }),
+    };
+
+    let last_lrp = Point {
+        coordinate: Coordinate {
+            lon: 13.46284,
+            lat: 52.51500,
+        },
+        line: LineAttributes {
+            frc: Frc::Frc6,
+            fow: Fow::SingleCarriageway,
+            bearing: Bearing::from_degrees(17),
+        },
+        path: None,
+    };
+
+    let line_first_lrp = CandidateLine {
+        lrp: first_lrp,
+        edge: EdgeId(8717174),
+        rating: RatingScore::from(926.3),
+        distance_to_projection: None,
+    };
+
+    let line_last_lrp = CandidateLine {
+        lrp: last_lrp,
+        edge: EdgeId(109783),
+        rating: RatingScore::from(924.9),
+        distance_to_projection: None,
+    };
+
+    let routes = [Route {
+        edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
+        length: Length::from_meters(379.0), // 136m + 51m + 192m
+        candidates: CandidateLinePair {
+            line_lrp1: line_first_lrp,
+            line_lrp2: line_last_lrp,
+        },
+    }];
+
+    let prune_routes = |pos, neg| {
+        Routes::from(routes.to_vec())
+            .into_line_location(graph, pos, neg)
+            .unwrap()
+    };
+
+    assert_eq!(
+        prune_routes(Length::ZERO, Length::ZERO),
+        LineLocation {
+            edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
+            pos_offset: Length::ZERO,
+            neg_offset: Length::ZERO
+        }
+    );
+
+    assert_eq!(
+        prune_routes(Length::from_meters(10.0), Length::ZERO),
+        LineLocation {
+            edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
+            pos_offset: Length::from_meters(10.0),
+            neg_offset: Length::ZERO
+        }
+    );
+
+    assert_eq!(
+        prune_routes(Length::from_meters(136.0), Length::ZERO),
+        LineLocation {
+            edges: vec![EdgeId(8717175), EdgeId(109783)],
+            pos_offset: Length::ZERO,
+            neg_offset: Length::ZERO
+        }
+    );
+
+    assert_eq!(
+        prune_routes(Length::from_meters(137.0), Length::ZERO),
+        LineLocation {
+            edges: vec![EdgeId(8717175), EdgeId(109783)],
+            pos_offset: Length::from_meters(1.0),
+            neg_offset: Length::ZERO
+        }
+    );
+
+    assert_eq!(
+        prune_routes(Length::ZERO, Length::from_meters(10.0)),
+        LineLocation {
+            edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
+            pos_offset: Length::ZERO,
+            neg_offset: Length::from_meters(10.0)
+        }
+    );
+
+    assert_eq!(
+        prune_routes(Length::ZERO, Length::from_meters(192.0)),
+        LineLocation {
+            edges: vec![EdgeId(8717174), EdgeId(8717175)],
+            pos_offset: Length::ZERO,
+            neg_offset: Length::ZERO
+        }
+    );
+
+    assert_eq!(
+        prune_routes(Length::from_meters(10.0), Length::from_meters(192.0)),
+        LineLocation {
+            edges: vec![EdgeId(8717174), EdgeId(8717175)],
+            pos_offset: Length::from_meters(10.0),
+            neg_offset: Length::ZERO
+        }
+    );
+
+    assert_eq!(
+        prune_routes(Length::from_meters(150.0), Length::from_meters(200.0)),
+        LineLocation {
+            edges: vec![EdgeId(8717175)],
+            pos_offset: Length::from_meters(14.0),
+            neg_offset: Length::from_meters(8.0)
+        }
+    );
 }

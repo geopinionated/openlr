@@ -22,8 +22,8 @@ pub use error::{DecodeError, DeserializeError, SerializeError};
 pub use graph::DirectedGraph;
 pub use model::{
     Bearing, Circle, ClosedLine, Coordinate, Fow, Frc, Grid, GridSize, Length, Line,
-    LineAttributes, Location, LocationReference, LocationType, Offset, Offsets, Orientation,
-    PathAttributes, Poi, Point, PointAlongLine, Polygon, Rating, RatingScore, Rectangle,
-    SideOfRoad,
+    LineAttributes, LineLocation, Location, LocationReference, LocationType, Offset, Offsets,
+    Orientation, PathAttributes, Poi, Point, PointAlongLine, Polygon, Rating, RatingScore,
+    Rectangle, SideOfRoad,
 };
 pub use routing::{ShortestPath, ShortestPathConfig, shortest_path};

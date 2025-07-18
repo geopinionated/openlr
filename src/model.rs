@@ -305,6 +305,10 @@ impl Length {
         self.0.0
     }
 
+    pub fn is_zero(&self) -> bool {
+        *self == Self::ZERO
+    }
+
     pub fn round(self) -> Self {
         Self(self.0.round().into())
     }
@@ -343,6 +347,20 @@ impl SubAssign for Length {
 impl Sum for Length {
     fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
         iter.fold(Self::ZERO, |a, b| a + b)
+    }
+}
+
+impl Mul<f64> for Length {
+    type Output = Self;
+    fn mul(self, rhs: f64) -> Self::Output {
+        Self(self.0 * rhs)
+    }
+}
+
+impl Mul<Length> for f64 {
+    type Output = Length;
+    fn mul(self, rhs: Length) -> Self::Output {
+        Length(OrderedFloat(self) * rhs.0)
     }
 }
 
@@ -713,13 +731,20 @@ impl LocationReference {
 /// Defines a location (in a map) which can be encoded using the OpenLR encoder
 /// and is also the result of the decoding process.
 #[derive(Debug, Clone, PartialEq)]
-pub enum Location {
-    Line(LineLocation),
+pub enum Location<EdgeId> {
+    Line(LineLocation<EdgeId>),
 }
 
 /// Location (in a map) that represents a Line Location Reference.
 #[derive(Debug, Clone, PartialEq)]
-pub struct LineLocation;
+pub struct LineLocation<EdgeId> {
+    /// Complete list of edges that form the line.
+    pub edges: Vec<EdgeId>,
+    /// Distance from the start of the first edge to the beginning of the location.
+    pub pos_offset: Length,
+    /// Distance from the end of the last edge to the end of the location.
+    pub neg_offset: Length,
+}
 
 #[cfg(test)]
 mod tests {

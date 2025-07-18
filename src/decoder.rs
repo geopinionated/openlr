@@ -68,7 +68,7 @@ pub fn decode_base64_openlr<G: DirectedGraph>(
     config: &DecoderConfig,
     graph: &G,
     data: impl AsRef<[u8]>,
-) -> Result<Location, DecodeError> {
+) -> Result<Location<G::EdgeId>, DecodeError> {
     let data = BASE64_STANDARD
         .decode(data)
         .map_err(DeserializeError::from)?;
@@ -80,7 +80,7 @@ pub fn decode_binary_openlr<G: DirectedGraph>(
     config: &DecoderConfig,
     graph: &G,
     data: &[u8],
-) -> Result<Location, DecodeError> {
+) -> Result<Location<G::EdgeId>, DecodeError> {
     // Step – 1 Decode physical data and check its validity
     let location = deserialize_binary_openlr(data)?;
 
