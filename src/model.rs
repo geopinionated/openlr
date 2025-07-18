@@ -1,9 +1,85 @@
+use std::fmt;
+use std::iter::Sum;
+use std::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
+
 use approx::abs_diff_eq;
+use ordered_float::OrderedFloat;
+use strum::IntoEnumIterator;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, strum::EnumIter)]
+#[repr(u8)]
+pub enum Rating {
+    Excellent = 0,
+    Good = 1,
+    Average = 2,
+    Poor = 3,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct RatingScore(OrderedFloat<f64>);
+
+impl fmt::Debug for RatingScore {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:.1}", self.0)
+    }
+}
+
+impl From<f64> for RatingScore {
+    fn from(value: f64) -> Self {
+        Self(OrderedFloat(value))
+    }
+}
+
+impl From<RatingScore> for f64 {
+    fn from(score: RatingScore) -> Self {
+        score.0.into()
+    }
+}
+
+impl From<Length> for RatingScore {
+    fn from(length: Length) -> Self {
+        Self(length.meters().into())
+    }
+}
+
+impl Add for RatingScore {
+    type Output = Self;
+    fn add(self, other: Self) -> Self {
+        Self(self.0 + other.0)
+    }
+}
+
+impl Mul<f64> for RatingScore {
+    type Output = Self;
+    fn mul(self, rhs: f64) -> Self::Output {
+        Self(self.0 * rhs)
+    }
+}
+
+impl Mul<RatingScore> for f64 {
+    type Output = RatingScore;
+    fn mul(self, rhs: RatingScore) -> Self::Output {
+        RatingScore(OrderedFloat(self) * rhs.0)
+    }
+}
+
+impl Mul<RatingScore> for RatingScore {
+    type Output = Self;
+    fn mul(self, rhs: Self) -> Self::Output {
+        Self(self.0 * rhs.0)
+    }
+}
+
+impl MulAssign<f64> for RatingScore {
+    fn mul_assign(&mut self, rhs: f64) {
+        self.0 = self.0 * rhs;
+    }
+}
 
 /// Functional Road Class.
 /// The functional road class (FRC) of a line is a road classification
 /// based on the importance of the road represented by the line.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, strum::EnumIter)]
 #[repr(u8)]
 pub enum Frc {
     /// Main road, highest importance
@@ -30,9 +106,59 @@ impl Default for Frc {
     }
 }
 
+impl Frc {
+    /// Gets the value of this Functional Road Class, the lower the value the higher
+    /// the importance of the class.
+    pub const fn value(&self) -> i8 {
+        self.into_byte() as i8
+    }
+
+    pub fn from_value(value: i8) -> Option<Self> {
+        Self::try_from_byte(value.try_into().ok()?).ok()
+    }
+
+    /// Variance is an estimate of how a FRC can differ from another FRC of different class.
+    /// The higher the variance the more the two classes can differ and still be considered
+    /// equal during the decoding process.
+    pub const fn variance(&self) -> i8 {
+        match self {
+            Self::Frc0 | Self::Frc1 | Self::Frc2 | Self::Frc3 => 2,
+            Self::Frc4 | Self::Frc5 | Self::Frc6 | Self::Frc7 => 3,
+        }
+    }
+
+    pub const fn is_within_variance(&self, other: &Self) -> bool {
+        self.value() <= other.value() + other.variance()
+    }
+
+    pub fn rating(&self, other: &Self) -> Rating {
+        let delta = (self.value() - other.value()).abs();
+
+        let rating_interval = |rating| match rating {
+            Rating::Excellent => 0,
+            Rating::Good => 1,
+            Rating::Average => 2,
+            Rating::Poor => 3,
+        };
+
+        Rating::iter()
+            .find(|&rating| delta <= rating_interval(rating))
+            .unwrap_or(Rating::Poor)
+    }
+
+    pub fn rating_score(rating: Rating) -> RatingScore {
+        match rating {
+            Rating::Excellent => RatingScore::from(100.0),
+            Rating::Good => RatingScore::from(75.0),
+            Rating::Average => RatingScore::from(50.0),
+            Rating::Poor => RatingScore::from(0.0),
+        }
+    }
+}
+
 /// Form of Way.
 /// The form of way (FOW) describes the physical road type of a line.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, strum::EnumIter)]
 #[repr(u8)]
 pub enum Fow {
     /// The physical road type is unknown.
@@ -64,6 +190,53 @@ pub enum Fow {
 impl Default for Fow {
     fn default() -> Self {
         Self::Other
+    }
+}
+
+impl Fow {
+    pub const fn value(&self) -> i8 {
+        self.into_byte() as i8
+    }
+
+    pub fn from_value(value: i8) -> Option<Self> {
+        Self::try_from_byte(value.try_into().ok()?).ok()
+    }
+
+    pub const fn rating(&self, other: &Self) -> Rating {
+        use Fow::*;
+        match (self, other) {
+            (Undefined, _) | (_, Undefined) => Rating::Average,
+            (Motorway, Motorway) => Rating::Excellent,
+            (Motorway, MultipleCarriageway) => Rating::Good,
+            (Motorway, _) => Rating::Poor,
+            (MultipleCarriageway, MultipleCarriageway) => Rating::Excellent,
+            (MultipleCarriageway, Motorway) => Rating::Good,
+            (MultipleCarriageway, _) => Rating::Poor,
+            (SingleCarriageway, SingleCarriageway) => Rating::Excellent,
+            (SingleCarriageway, MultipleCarriageway) => Rating::Good,
+            (SingleCarriageway, Roundabout | TrafficSquare) => Rating::Average,
+            (SingleCarriageway, _) => Rating::Poor,
+            (Roundabout, Roundabout) => Rating::Excellent,
+            (Roundabout, MultipleCarriageway | SingleCarriageway | TrafficSquare) => {
+                Rating::Average
+            }
+            (Roundabout, _) => Rating::Poor,
+            (TrafficSquare, TrafficSquare) => Rating::Excellent,
+            (TrafficSquare, SingleCarriageway | Roundabout) => Rating::Average,
+            (TrafficSquare, _) => Rating::Poor,
+            (SlipRoad, SlipRoad) => Rating::Excellent,
+            (SlipRoad, _) => Rating::Poor,
+            (Other, Other) => Rating::Excellent,
+            (Other, _) => Rating::Poor,
+        }
+    }
+
+    pub fn rating_score(rating: Rating) -> RatingScore {
+        match rating {
+            Rating::Excellent => RatingScore::from(100.0),
+            Rating::Good | Rating::Average => RatingScore::from(50.0),
+            Rating::Poor => RatingScore::from(25.0),
+        }
     }
 }
 
@@ -111,16 +284,83 @@ impl Default for Orientation {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
-pub struct Length(u32);
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
+pub struct Length(OrderedFloat<f64>);
+
+impl fmt::Display for Length {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:.1}m", self.meters())
+    }
+}
 
 impl Length {
-    pub const fn from_meters(meters: u32) -> Self {
-        Self(meters)
+    pub const ZERO: Self = Self(OrderedFloat(0.0));
+    pub const MAX: Self = Self(OrderedFloat(f64::MAX));
+
+    pub const fn from_meters(meters: f64) -> Self {
+        Self(OrderedFloat(meters))
     }
 
-    pub const fn meters(&self) -> u32 {
-        self.0
+    pub const fn meters(&self) -> f64 {
+        self.0.0
+    }
+
+    pub fn is_zero(&self) -> bool {
+        *self == Self::ZERO
+    }
+
+    pub fn round(self) -> Self {
+        Self(self.0.round().into())
+    }
+
+    pub fn reverse(self) -> Self {
+        Self(self.0 * -1.0)
+    }
+}
+
+impl Add for Length {
+    type Output = Self;
+    fn add(self, other: Self) -> Self {
+        Self(self.0 + other.0)
+    }
+}
+
+impl AddAssign for Length {
+    fn add_assign(&mut self, rhs: Self) {
+        self.0 += rhs.0;
+    }
+}
+
+impl Sub for Length {
+    type Output = Self;
+    fn sub(self, other: Self) -> Self {
+        Self(self.0 - other.0)
+    }
+}
+
+impl SubAssign for Length {
+    fn sub_assign(&mut self, rhs: Self) {
+        self.0 -= rhs.0;
+    }
+}
+
+impl Sum for Length {
+    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+        iter.fold(Self::ZERO, |a, b| a + b)
+    }
+}
+
+impl Mul<f64> for Length {
+    type Output = Self;
+    fn mul(self, rhs: f64) -> Self::Output {
+        Self(self.0 * rhs)
+    }
+}
+
+impl Mul<Length> for f64 {
+    type Output = Length;
+    fn mul(self, rhs: Length) -> Self::Output {
+        Length(OrderedFloat(self) * rhs.0)
     }
 }
 
@@ -131,6 +371,8 @@ impl Length {
 pub struct Bearing(u16);
 
 impl Bearing {
+    pub const NORTH: Self = Self(0);
+
     pub const fn from_degrees(degrees: u16) -> Self {
         Self(degrees)
     }
@@ -138,15 +380,55 @@ impl Bearing {
     pub const fn degrees(&self) -> u16 {
         self.0
     }
+
+    pub const fn difference(&self, other: &Self) -> Self {
+        let delta = (self.0 as i32 - other.0 as i32).unsigned_abs() as u16;
+        let degrees = if delta > 180 { 360 - delta } else { delta };
+        Self::from_degrees(degrees)
+    }
+
+    pub fn rating(&self, other: &Self) -> Rating {
+        let difference = self.difference(other);
+
+        let rating_interval = |rating| match rating {
+            Rating::Excellent => 6,
+            Rating::Good => 12,
+            Rating::Average => 18,
+            Rating::Poor => 24,
+        };
+
+        Rating::iter()
+            .find(|&rating| difference.degrees() <= rating_interval(rating))
+            .unwrap_or(Rating::Poor)
+    }
+
+    pub fn rating_score(rating: Rating) -> RatingScore {
+        match rating {
+            Rating::Excellent => RatingScore::from(100.0),
+            Rating::Good => RatingScore::from(50.0),
+            Rating::Average => RatingScore::from(25.0),
+            Rating::Poor => RatingScore::from(0.0),
+        }
+    }
 }
 
 /// Coordinate pair stands for a pair of WGS84 longitude (lon) and latitude (lat) values.
 /// This coordinate pair specifies a geometric point in a digital map.
 /// The lon and lat values are stored in decamicrodegree resolution (five decimals).
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Clone, Copy, Default)]
 pub struct Coordinate {
     pub lon: f64,
     pub lat: f64,
+}
+
+impl fmt::Debug for Coordinate {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "Coordinate {{ lon: {:.5}, lat: {:.5} }}",
+            self.lon, self.lat
+        )
+    }
 }
 
 impl Coordinate {
@@ -166,7 +448,7 @@ impl PartialEq for Coordinate {
 pub struct LineAttributes {
     pub frc: Frc,
     pub fow: Fow,
-    pub bear: Bearing,
+    pub bearing: Bearing,
 }
 
 /// The path attributes are part of a location reference point (except for the last
@@ -191,11 +473,29 @@ pub struct Point {
     pub path: Option<PathAttributes>,
 }
 
+impl Point {
+    /// Returns true only if this point is the last point of a Reference Location,
+    /// and therefore it doesn't have Path attributes.
+    pub const fn is_last(&self) -> bool {
+        self.path.is_none()
+    }
+
+    /// Gets the lowest FRC to the next point.
+    pub fn lfrcnp(&self) -> Frc {
+        self.path.map(|path| path.lfrcnp).unwrap_or(Frc::Frc7)
+    }
+
+    /// Gets the distance to the next point.
+    pub fn dnp(&self) -> Length {
+        self.path.map(|path| path.dnp).unwrap_or(Length::ZERO)
+    }
+}
+
 /// Offsets are used to locate the start and end of a location more precisely than
 /// bounding to the nodes in a network. The logical format defines two offsets,
 /// one at the start of the location and one at the end of the location.
 /// Both offsets operate along the lines of the location and are measured in meters.
-// The offset values are optional and a missing offset value means an offset of 0 meters.
+/// The offset values are optional and a missing offset value means an offset of 0 meters.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Offset(f64);
 
@@ -236,6 +536,16 @@ impl Offsets {
             pos: offset,
             neg: Offset::default(),
         }
+    }
+
+    pub fn distance_from_start(&self, length: Length) -> Length {
+        let length = (self.pos.range() * length.meters()).round();
+        Length::from_meters(length)
+    }
+
+    pub fn distance_to_end(&self, length: Length) -> Length {
+        let length = (self.neg.range() * length.meters()).round();
+        Length::from_meters(length)
     }
 }
 
@@ -414,6 +724,39 @@ impl LocationReference {
             Self::Grid(_) => LocationType::Grid,
             Self::Polygon(_) => LocationType::Polygon,
             Self::ClosedLine(_) => LocationType::ClosedLine,
+        }
+    }
+}
+
+/// Defines a location (in a map) which can be encoded using the OpenLR encoder
+/// and is also the result of the decoding process.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Location<EdgeId> {
+    Line(LineLocation<EdgeId>),
+}
+
+/// Location (in a map) that represents a Line Location Reference.
+#[derive(Debug, Clone, PartialEq)]
+pub struct LineLocation<EdgeId> {
+    /// Complete list of edges that form the line.
+    pub edges: Vec<EdgeId>,
+    /// Distance from the start of the first edge to the beginning of the location.
+    pub pos_offset: Length,
+    /// Distance from the end of the last edge to the end of the location.
+    pub neg_offset: Length,
+}
+
+#[cfg(test)]
+mod tests {
+    use strum::IntoEnumIterator;
+    use test_log::test;
+
+    use super::*;
+
+    #[test]
+    fn fow_rating() {
+        for (fow1, fow2) in Fow::iter().zip(Fow::iter()) {
+            assert_eq!(fow1.rating(&fow2), fow2.rating(&fow1));
         }
     }
 }
