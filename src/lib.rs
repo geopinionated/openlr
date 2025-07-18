@@ -15,13 +15,15 @@ pub use decoder::candidates::{
     CandidateLine, CandidateLinePair, CandidateLines, CandidateNode, CandidateNodes,
     find_candidate_lines, find_candidate_nodes,
 };
-pub use decoder::resolver::{Route, resolve_routes};
+pub use decoder::line::decode_line;
+pub use decoder::resolver::{Route, Routes, resolve_routes};
 pub use decoder::{DecoderConfig, decode_base64_openlr, decode_binary_openlr};
 pub use error::{DecodeError, DeserializeError, SerializeError};
 pub use graph::DirectedGraph;
 pub use model::{
     Bearing, Circle, ClosedLine, Coordinate, Fow, Frc, Grid, GridSize, Length, Line,
-    LineAttributes, Location, LocationReference, LocationType, Offset, Orientation, PathAttributes,
-    Poi, Point, PointAlongLine, Polygon, Rating, RatingScore, Rectangle, SideOfRoad,
+    LineAttributes, Location, LocationReference, LocationType, Offset, Offsets, Orientation,
+    PathAttributes, Poi, Point, PointAlongLine, Polygon, Rating, RatingScore, Rectangle,
+    SideOfRoad,
 };
 pub use routing::{ShortestPath, ShortestPathConfig, shortest_path};

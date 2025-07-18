@@ -10,18 +10,17 @@
 //! 7. Concatenate shortest-path(s) to form the location and trim path according to the offsets.
 
 pub mod candidates;
+pub mod line;
 pub mod resolver;
 
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
-use candidates::find_candidate_nodes;
-use tracing::info;
 
 use crate::error::DecodeError;
-use crate::model::{LineLocation, RatingScore};
+use crate::model::RatingScore;
 use crate::{
-    Bearing, DeserializeError, DirectedGraph, Length, Line, Location, LocationReference,
-    deserialize_binary_openlr, find_candidate_lines, resolve_routes,
+    Bearing, DeserializeError, DirectedGraph, Length, Location, LocationReference, decode_line,
+    deserialize_binary_openlr,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -91,28 +90,4 @@ pub fn decode_binary_openlr<G: DirectedGraph>(
             location.location_type(),
         )),
     }
-}
-
-fn decode_line<G: DirectedGraph>(
-    config: &DecoderConfig,
-    graph: &G,
-    line: Line,
-) -> Result<LineLocation, DecodeError> {
-    info!("Decoding {line:?} with {config:?}");
-
-    // Step – 2 For each location reference point find candidate nodes
-    let nodes = find_candidate_nodes(config, graph, &line.points);
-
-    // Step – 3 For each location reference point find candidate lines
-    // Step – 4 Rate candidate lines for each location reference point
-    let lines = find_candidate_lines(config, graph, nodes)?;
-
-    // Step – 5 Determine shortest-path(s) between all subsequent location reference points
-    // Step – 6 Check validity of the calculated shortest-path(s)
-    let routes = resolve_routes(config, graph, &lines)?;
-
-    // Step – 7 Concatenate shortest-path(s) to form the location
-    // and trim path according to the offsets
-
-    todo!()
 }
