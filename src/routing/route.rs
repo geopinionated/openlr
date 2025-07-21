@@ -2,7 +2,7 @@ use std::fmt::Debug;
 use std::ops::Deref;
 
 use crate::{
-    CandidateLine, CandidateLinePair, DecodeError, DirectedGraph, Length, LineLocation, Offsets,
+    CandidateLine, CandidateLinePair, DirectedGraph, Length, LineLocation, Offsets, RoutingError,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -31,10 +31,6 @@ impl<EdgeId> Deref for Routes<EdgeId> {
 impl<EdgeId: Debug + Copy + PartialEq> Routes<EdgeId> {
     pub fn edges(&self) -> impl DoubleEndedIterator<Item = EdgeId> {
         self.0.iter().flat_map(|r| &r.edges).copied()
-    }
-
-    pub fn path_length(&self) -> Length {
-        self.iter().map(|r| r.length).sum()
     }
 
     pub fn to_path(&self) -> Vec<EdgeId> {
@@ -79,60 +75,6 @@ impl<EdgeId: Debug + Copy + PartialEq> Routes<EdgeId> {
 
         Some((pos_offset, neg_offset))
     }
-
-    /// Concatenates all the routes into a single Line location trimed by the given offsets.
-    pub fn into_line_location<G>(
-        self,
-        graph: &G,
-        mut pos_offset: Length,
-        mut neg_offset: Length,
-    ) -> Result<LineLocation<G::EdgeId>, DecodeError>
-    where
-        G: DirectedGraph<EdgeId = EdgeId>,
-    {
-        if pos_offset + neg_offset > self.path_length() {
-            return Err(DecodeError::InvalidOffsets((pos_offset, neg_offset)));
-        }
-
-        /// Returns the cut index and the total cut length.
-        fn get_cut_index<G: DirectedGraph>(
-            graph: &G,
-            edges: impl IntoIterator<Item = G::EdgeId>,
-            offset: Length,
-        ) -> Option<(usize, Length)> {
-            edges
-                .into_iter()
-                .enumerate()
-                .scan(Length::ZERO, |length, (i, edge)| {
-                    let current_length = *length;
-                    if current_length <= offset {
-                        *length += graph.get_edge_length(edge).unwrap_or(Length::ZERO);
-                        Some((i, current_length))
-                    } else {
-                        None
-                    }
-                })
-                .last()
-        }
-
-        let edges_count = self.edges().count();
-
-        let start_cut = get_cut_index(graph, self.edges(), pos_offset);
-        let (start, cut_length) = start_cut.unwrap_or((0, Length::ZERO));
-        pos_offset -= cut_length;
-
-        let end_cut = get_cut_index(graph, self.edges().rev(), neg_offset);
-        let (end, cut_length) = end_cut
-            .map(|(i, length)| (edges_count - i, length))
-            .unwrap_or((edges_count, Length::ZERO));
-        neg_offset -= cut_length;
-
-        Ok(LineLocation {
-            edges: self.edges().skip(start).take(end - start).collect(),
-            pos_offset,
-            neg_offset,
-        })
-    }
 }
 
 impl<EdgeId: Copy> Route<EdgeId> {
@@ -175,4 +117,61 @@ impl<EdgeId: Copy> Route<EdgeId> {
     pub const fn last_candidate_edge(&self) -> EdgeId {
         self.last_candidate().edge
     }
+}
+
+/// Construct a Line location from the path trimed by the given offsets.
+pub fn trim_path_into_line_location<G: DirectedGraph>(
+    graph: &G,
+    mut edges: Vec<G::EdgeId>,
+    mut pos_offset: Length,
+    mut neg_offset: Length,
+) -> Result<LineLocation<G::EdgeId>, RoutingError> {
+    let path_length = edges.iter().filter_map(|&e| graph.get_edge_length(e)).sum();
+
+    if pos_offset + neg_offset > path_length {
+        return Err(RoutingError::InvalidOffsets((pos_offset, neg_offset)));
+    }
+
+    let start_cut = get_cut_index(graph, edges.iter().copied(), pos_offset);
+    let (start, cut_length) = start_cut.unwrap_or((0, Length::ZERO));
+    pos_offset -= cut_length;
+
+    let end_cut = get_cut_index(graph, edges.iter().rev().copied(), neg_offset);
+    let end_cut = end_cut.map(|(i, length)| (edges.len() - i, length));
+    let (end, cut_length) = end_cut.unwrap_or((edges.len(), Length::ZERO));
+    neg_offset -= cut_length;
+
+    if end < edges.len() {
+        edges.drain(end..);
+    }
+    if start < edges.len() {
+        edges.drain(..start);
+    }
+
+    Ok(LineLocation {
+        edges,
+        pos_offset,
+        neg_offset,
+    })
+}
+
+/// Returns the cut index and the total cut length.
+fn get_cut_index<G, I>(graph: &G, edges: I, offset: Length) -> Option<(usize, Length)>
+where
+    G: DirectedGraph,
+    I: IntoIterator<Item = G::EdgeId>,
+{
+    edges
+        .into_iter()
+        .enumerate()
+        .scan(Length::ZERO, |length, (i, edge)| {
+            let current_length = *length;
+            if current_length <= offset {
+                *length += graph.get_edge_length(edge).unwrap_or(Length::ZERO);
+                Some((i, current_length))
+            } else {
+                None
+            }
+        })
+        .last()
 }

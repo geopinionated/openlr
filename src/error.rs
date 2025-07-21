@@ -65,6 +65,12 @@ pub enum EncoderError {
 }
 
 #[derive(Error, Debug, PartialEq, Clone, Copy)]
+pub enum RoutingError {
+    #[error("Invalid offsets {0:?}")]
+    InvalidOffsets((Length, Length)),
+}
+
+#[derive(Error, Debug, PartialEq, Clone, Copy)]
 pub enum InvalidLocationError {
     #[error("Location is empty")]
     Empty,
@@ -72,6 +78,24 @@ pub enum InvalidLocationError {
     NotConnected,
     #[error("Location offsets are not valid {0:?}")]
     InvalidOffsets((Length, Length)),
+}
+
+impl From<RoutingError> for DecodeError {
+    fn from(error: RoutingError) -> Self {
+        match error {
+            RoutingError::InvalidOffsets(offsets) => Self::InvalidOffsets(offsets),
+        }
+    }
+}
+
+impl From<RoutingError> for EncoderError {
+    fn from(error: RoutingError) -> Self {
+        match error {
+            RoutingError::InvalidOffsets(offsets) => {
+                InvalidLocationError::InvalidOffsets(offsets).into()
+            }
+        }
+    }
 }
 
 impl From<InvalidLocationError> for EncoderError {

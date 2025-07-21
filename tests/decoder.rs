@@ -4,7 +4,7 @@ use openlr::{
     Bearing, CandidateLine, CandidateLinePair, CandidateLines, CandidateNode, CandidateNodes,
     Coordinate, DecoderConfig, Fow, Frc, Length, LineAttributes, LineLocation, Location, Offsets,
     PathAttributes, Point, RatingScore, Route, Routes, decode_base64_openlr, find_candidate_lines,
-    find_candidate_nodes, resolve_routes,
+    find_candidate_nodes, resolve_routes, trim_path_into_line_location,
 };
 use test_log::test;
 
@@ -1442,9 +1442,8 @@ fn trim_routes_into_line_location_001() {
     }];
 
     let prune_routes = |pos, neg| {
-        Routes::from(routes.to_vec())
-            .into_line_location(graph, pos, neg)
-            .unwrap()
+        let path = Routes::from(routes.to_vec()).to_path();
+        trim_path_into_line_location(graph, path, pos, neg).unwrap()
     };
 
     assert_eq!(

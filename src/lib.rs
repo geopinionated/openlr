@@ -19,10 +19,10 @@ pub use decoder::candidates::{
 pub use decoder::line::decode_line;
 pub use decoder::resolver::resolve_routes;
 pub use decoder::{DecoderConfig, decode_base64_openlr, decode_binary_openlr};
-pub use encoder::line::encode_line;
+pub use encoder::line::{encode_line, trim_into_valid_line_location};
 pub use encoder::{EncoderConfig, encode_base64_openlr, encode_binary_openlr};
 pub use error::{
-    DecodeError, DeserializeError, EncoderError, InvalidLocationError, SerializeError,
+    DecodeError, DeserializeError, EncoderError, InvalidLocationError, RoutingError, SerializeError,
 };
 pub use graph::{DirectedGraph, is_path_connected};
 pub use model::{
@@ -31,4 +31,6 @@ pub use model::{
     Orientation, PathAttributes, Poi, Point, PointAlongLine, Polygon, Rating, RatingScore,
     Rectangle, SideOfRoad,
 };
-pub use routing::{Route, Routes, ShortestPath, ShortestPathConfig, shortest_path};
+pub use routing::{
+    Route, Routes, ShortestPath, ShortestPathConfig, shortest_path, trim_path_into_line_location,
+};
