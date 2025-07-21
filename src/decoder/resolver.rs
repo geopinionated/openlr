@@ -7,7 +7,8 @@ use tracing::debug;
 
 use crate::{
     CandidateLine, CandidateLinePair, CandidateLines, DecodeError, DecoderConfig, DirectedGraph,
-    Frc, Length, LineLocation, Offsets, RatingScore, ShortestPathConfig, shortest_path,
+    Frc, Length, LineLocation, Offsets, RatingScore, ShortestPathConfig, is_path_connected,
+    shortest_path,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -29,6 +30,14 @@ impl<EdgeId> Deref for Routes<EdgeId> {
 impl<EdgeId: Debug + Copy + PartialEq> Routes<EdgeId> {
     pub fn edges(&self) -> impl DoubleEndedIterator<Item = EdgeId> {
         self.0.iter().flat_map(|r| &r.edges).copied()
+    }
+
+    fn path_length(&self) -> Length {
+        self.iter().map(|r| r.length).sum()
+    }
+
+    fn to_path(&self) -> Vec<EdgeId> {
+        self.edges().collect()
     }
 
     /// Gets the positive and negative offsets calculated from the projections of the LRPs
@@ -80,10 +89,7 @@ impl<EdgeId: Debug + Copy + PartialEq> Routes<EdgeId> {
     where
         G: DirectedGraph<EdgeId = EdgeId>,
     {
-        let path_length: Length = self.iter().map(|r| r.length).sum();
-        let edges_count = self.edges().count();
-
-        if pos_offset + neg_offset > path_length {
+        if pos_offset + neg_offset > self.path_length() {
             return Err(DecodeError::InvalidOffsets((pos_offset, neg_offset)));
         }
 
@@ -108,6 +114,8 @@ impl<EdgeId: Debug + Copy + PartialEq> Routes<EdgeId> {
                 .last()
         }
 
+        let edges_count = self.edges().count();
+
         let start_cut = get_cut_index(graph, self.edges(), pos_offset);
         let (start, cut_length) = start_cut.unwrap_or((0, Length::ZERO));
         pos_offset -= cut_length;
@@ -123,24 +131,6 @@ impl<EdgeId: Debug + Copy + PartialEq> Routes<EdgeId> {
             pos_offset,
             neg_offset,
         })
-    }
-
-    fn is_connected<G>(&self, graph: &G) -> bool
-    where
-        G: DirectedGraph<EdgeId = EdgeId>,
-    {
-        let edges: Vec<_> = self.edges().collect();
-
-        for window in edges.windows(2) {
-            let [e1, e2] = [window[0], window[1]];
-            match graph.get_edge_end_vertex(e1) {
-                Some(v) if !graph.vertex_exiting_edges(v).any(|(e, _)| e == e2) => return false,
-                None => return false,
-                Some(_) => (),
-            };
-        }
-
-        true
     }
 }
 
@@ -227,7 +217,7 @@ pub fn resolve_routes<G: DirectedGraph>(
     debug!("Resolving routes for {} candidates", candidate_lines.len());
 
     if let Some(routes) = resolve_single_line_routes(graph, candidate_lines) {
-        debug_assert!(routes.is_connected(graph));
+        debug_assert!(is_path_connected(graph, &routes.to_path()));
         return Ok(routes);
     }
 
@@ -259,7 +249,7 @@ pub fn resolve_routes<G: DirectedGraph>(
     }
 
     let routes = Routes(routes);
-    debug_assert!(routes.is_connected(graph));
+    debug_assert!(is_path_connected(graph, &routes.to_path()));
     Ok(routes)
 }
 

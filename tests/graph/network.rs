@@ -285,6 +285,10 @@ impl DirectedGraph for NetworkGraph {
 
         Some(Bearing::from_degrees(degrees))
     }
+
+    fn is_turn_restricted(&self, _start: Self::EdgeId, _end: Self::EdgeId) -> bool {
+        false
+    }
 }
 
 impl NetworkGraph {

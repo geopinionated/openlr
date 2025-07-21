@@ -58,6 +58,28 @@ pub enum DecodeError {
     InvalidOffsets((Length, Length)),
 }
 
+#[derive(Error, Debug, PartialEq, Clone, Copy)]
+pub enum EncoderError {
+    #[error("Cannot encode invalid location: {0:?}")]
+    InvalidLocation(InvalidLocationError),
+}
+
+#[derive(Error, Debug, PartialEq, Clone, Copy)]
+pub enum InvalidLocationError {
+    #[error("Location is empty")]
+    Empty,
+    #[error("Location is not connected")]
+    NotConnected,
+    #[error("Location offsets are not valid {0:?}")]
+    InvalidOffsets((Length, Length)),
+}
+
+impl From<InvalidLocationError> for EncoderError {
+    fn from(error: InvalidLocationError) -> Self {
+        Self::InvalidLocation(error)
+    }
+}
+
 impl From<DeserializeError> for DecodeError {
     fn from(error: DeserializeError) -> Self {
         Self::InvalidData(error)
