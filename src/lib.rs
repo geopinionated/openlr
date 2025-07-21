@@ -17,7 +17,7 @@ pub use decoder::candidates::{
     find_candidate_lines, find_candidate_nodes,
 };
 pub use decoder::line::decode_line;
-pub use decoder::resolver::{Route, Routes, resolve_routes};
+pub use decoder::resolver::resolve_routes;
 pub use decoder::{DecoderConfig, decode_base64_openlr, decode_binary_openlr};
 pub use encoder::line::encode_line;
 pub use encoder::{EncoderConfig, encode_base64_openlr, encode_binary_openlr};
@@ -31,4 +31,4 @@ pub use model::{
     Orientation, PathAttributes, Poi, Point, PointAlongLine, Polygon, Rating, RatingScore,
     Rectangle, SideOfRoad,
 };
-pub use routing::{ShortestPath, ShortestPathConfig, shortest_path};
+pub use routing::{Route, Routes, ShortestPath, ShortestPathConfig, shortest_path};
