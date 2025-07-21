@@ -2,7 +2,7 @@ use std::io::ErrorKind;
 
 use thiserror::Error;
 
-use crate::{LocationType, Point};
+use crate::{Length, LocationType, Point};
 
 #[derive(Error, Debug, PartialEq, Clone, Copy)]
 pub enum DeserializeError {
@@ -54,6 +54,8 @@ pub enum DecodeError {
     RouteNotFound((Point, Point)),
     #[error("Cannot connect route to shortest path {0:?}")]
     AlternativeRouteNotFound((Point, Point)),
+    #[error("Invalid offsets {0:?}")]
+    InvalidOffsets((Length, Length)),
 }
 
 impl From<DeserializeError> for DecodeError {

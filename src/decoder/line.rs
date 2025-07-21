@@ -10,7 +10,7 @@ pub fn decode_line<G: DirectedGraph>(
     config: &DecoderConfig,
     graph: &G,
     line: Line,
-) -> Result<LineLocation, DecodeError> {
+) -> Result<LineLocation<G::EdgeId>, DecodeError> {
     info!("Decoding {line:?} with {config:?}");
 
     // Step – 2 For each location reference point find candidate nodes
@@ -27,9 +27,9 @@ pub fn decode_line<G: DirectedGraph>(
     let routes = resolve_routes(config, graph, &lines)?;
     debug_assert_eq!(routes.len(), line.points.len() - 1);
 
-    // Step – 7 Concatenate shortest-path(s) to form the location
-    // and trim path according to the offsets
+    // Step – 7 Concatenate and trim path according to the offsets
     let offsets = routes.calculate_offsets(graph, line.offsets);
+    let (pos_offset, neg_offset) = offsets.unwrap_or_default();
 
-    todo!()
+    routes.into_line_location(graph, pos_offset, neg_offset)
 }
