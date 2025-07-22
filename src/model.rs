@@ -728,24 +728,6 @@ impl LocationReference {
     }
 }
 
-/// Defines a location (in a map) which can be encoded using the OpenLR encoder
-/// and is also the result of the decoding process.
-#[derive(Debug, Clone, PartialEq)]
-pub enum Location<EdgeId> {
-    Line(LineLocation<EdgeId>),
-}
-
-/// Location (in a map) that represents a Line Location Reference.
-#[derive(Debug, Clone, PartialEq)]
-pub struct LineLocation<EdgeId> {
-    /// Complete list of edges that form the line.
-    pub edges: Vec<EdgeId>,
-    /// Distance from the start of the first edge to the beginning of the location.
-    pub pos_offset: Length,
-    /// Distance from the end of the last edge to the end of the location.
-    pub neg_offset: Length,
-}
-
 #[cfg(test)]
 mod tests {
     use strum::IntoEnumIterator;

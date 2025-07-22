@@ -26,22 +26,10 @@ pub mod line;
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 
-use crate::{DirectedGraph, EncoderError, Length, Location, encode_line};
+use crate::{DirectedGraph, EncoderError, Location, encode_line};
 
-#[derive(Debug, Clone, Copy)]
-pub struct EncoderConfig {
-    /// Maximum distance between two consecutive LRPs.
-    pub max_lrp_distance: Length,
-}
-
-impl Default for EncoderConfig {
-    fn default() -> Self {
-        Self {
-            // binary format version 3 doesn't allow LRPs distances over 15000m
-            max_lrp_distance: Length::from_meters(15000.0),
-        }
-    }
-}
+#[derive(Default, Debug, Clone, Copy)]
+pub struct EncoderConfig;
 
 /// Encodes an OpenLR Location Reference into Base64.
 pub fn encode_base64_openlr<G: DirectedGraph>(

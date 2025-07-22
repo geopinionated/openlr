@@ -1,0 +1,145 @@
+use crate::{DirectedGraph, Length, LocationError, is_path_connected};
+
+/// Defines a location (in a map) that can be encoded using the OpenLR encoder
+/// and is also the result of the decoding process.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Location<EdgeId> {
+    Line(LineLocation<EdgeId>),
+}
+
+/// Location (in a map) that represents a Line Location Reference.
+#[derive(Debug, Clone, PartialEq)]
+pub struct LineLocation<EdgeId> {
+    /// Complete list of edges that form the line.
+    pub path: Vec<EdgeId>,
+    /// Distance from the start of the first edge to the beginning of the location.
+    pub pos_offset: Length,
+    /// Distance from the end of the last edge to the end of the location.
+    pub neg_offset: Length,
+}
+
+impl<EdgeId: Copy> LineLocation<EdgeId> {
+    pub fn path_length<G>(&self, graph: &G) -> Length
+    where
+        G: DirectedGraph<EdgeId = EdgeId>,
+    {
+        self.path
+            .iter()
+            .filter_map(|&e| graph.get_edge_length(e))
+            .sum()
+    }
+
+    /// Construct a Line location from the path trimed by the given offsets.
+    pub fn trim<G>(self, graph: &G) -> Result<LineLocation<G::EdgeId>, LocationError>
+    where
+        G: DirectedGraph<EdgeId = EdgeId>,
+    {
+        debug_assert_eq!(ensure_line_is_valid(graph, &self), Ok(()));
+        let path_length = self.path_length(graph);
+
+        let Self {
+            mut path,
+            mut pos_offset,
+            mut neg_offset,
+        } = self;
+
+        if pos_offset + neg_offset > path_length {
+            return Err(LocationError::InvalidOffsets((pos_offset, neg_offset)));
+        }
+
+        let start_cut = get_path_cut_index(graph, path.iter().copied(), pos_offset);
+        let (start, cut_length) = start_cut.unwrap_or((0, Length::ZERO));
+        pos_offset -= cut_length;
+
+        let end_cut = get_path_cut_index(graph, path.iter().rev().copied(), neg_offset);
+        let end_cut = end_cut.map(|(i, length)| (path.len() - i, length));
+        let (end, cut_length) = end_cut.unwrap_or((path.len(), Length::ZERO));
+        neg_offset -= cut_length;
+
+        if end < path.len() {
+            path.drain(end..);
+        }
+        if start < path.len() {
+            path.drain(..start);
+        }
+
+        Ok(LineLocation {
+            path,
+            pos_offset,
+            neg_offset,
+        })
+    }
+}
+
+/// Returns an error is the Line location is not valid.
+///
+/// A line location is valid if the following constraints are fulfilled:
+/// - The location is a connected path.
+/// - The location is traversable from its start to its end.
+///
+/// The offsets must fulfill the following constraints:
+/// - The sum of the positive and negative offset cannot be greater than the total length of the
+///   location lines.
+/// - Positive offset value shall be less than the length of the first line:
+///     - Otherwise the first line can be removed from the list of location lines and the offset
+///       value must be reduced in the same way.
+///     - This procedure shall be repeated until this constraint is fulfilled.
+/// - Negative offset value shall be less than the length of the last line:
+///     - Otherwise the last line can be removed from the list of location lines and the offset
+///       value must be reduced in the same way.
+///     - This procedure shall be repeated until this constraint is fulfilled.
+///
+/// If it is intended to use the binary physical format this step should additionally calculate the
+/// maximum (minimum) latitude values along the location and adjust the maximum distance between two
+/// LR-points in Rule – 1, if necessary. The value defined in Rule – 1 is not applicable for
+/// locations above the latitude value 65.70° (or below the latitude value -65.70°).
+///
+/// If the location is not valid the encoder should fail.
+pub fn ensure_line_is_valid<G: DirectedGraph>(
+    graph: &G,
+    line: &LineLocation<G::EdgeId>,
+) -> Result<(), LocationError> {
+    // binary format version 3 doesn't allow LRPs distances over 15000m
+    const MAX_LRP_DISTANCE: Length = Length::from_meters(15000.0);
+
+    let LineLocation {
+        ref path,
+        pos_offset,
+        neg_offset,
+    } = *line;
+
+    if path.is_empty() {
+        return Err(LocationError::Empty);
+    } else if !is_path_connected(graph, path) {
+        return Err(LocationError::NotConnected);
+    }
+
+    if pos_offset > MAX_LRP_DISTANCE || neg_offset > MAX_LRP_DISTANCE {
+        return Err(LocationError::InvalidOffsets((pos_offset, neg_offset)));
+    } else if pos_offset + neg_offset > line.path_length(graph) {
+        return Err(LocationError::InvalidOffsets((pos_offset, neg_offset)));
+    }
+
+    Ok(())
+}
+
+/// Returns the cut index and the total cut length.
+fn get_path_cut_index<G, I>(graph: &G, edges: I, offset: Length) -> Option<(usize, Length)>
+where
+    G: DirectedGraph,
+    I: IntoIterator<Item = G::EdgeId>,
+{
+    edges
+        .into_iter()
+        .enumerate()
+        .scan(Length::ZERO, |length, (i, edge)| {
+            let current_length = *length;
+            if current_length <= offset {
+                *length += graph.get_edge_length(edge).unwrap_or(Length::ZERO);
+                Some((i, current_length))
+            } else {
+                None
+            }
+        })
+        .last()
+}

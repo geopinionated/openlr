@@ -4,7 +4,7 @@ use openlr::{
     Bearing, CandidateLine, CandidateLinePair, CandidateLines, CandidateNode, CandidateNodes,
     Coordinate, DecoderConfig, Fow, Frc, Length, LineAttributes, LineLocation, Location, Offsets,
     PathAttributes, Point, RatingScore, Route, Routes, decode_base64_openlr, find_candidate_lines,
-    find_candidate_nodes, resolve_routes, trim_path_into_line_location,
+    find_candidate_nodes, resolve_routes,
 };
 use test_log::test;
 
@@ -20,7 +20,7 @@ fn decode_line_location_reference_001() {
     assert_eq!(
         location,
         Location::Line(LineLocation {
-            edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
+            path: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
             pos_offset: Length::ZERO,
             neg_offset: Length::ZERO
         })
@@ -41,7 +41,7 @@ fn decode_line_location_reference_002() {
     assert_eq!(
         location,
         Location::Line(LineLocation {
-            edges: vec![
+            path: vec![
                 EdgeId(1653344),
                 EdgeId(4997411),
                 EdgeId(5359424),
@@ -1441,15 +1441,20 @@ fn trim_routes_into_line_location_001() {
         },
     }];
 
-    let prune_routes = |pos, neg| {
-        let path = Routes::from(routes.to_vec()).to_path();
-        trim_path_into_line_location(graph, path, pos, neg).unwrap()
+    let prune_routes = |pos_offset, neg_offset| {
+        LineLocation {
+            path: Routes::from(routes.to_vec()).to_path(),
+            pos_offset,
+            neg_offset,
+        }
+        .trim(graph)
+        .unwrap()
     };
 
     assert_eq!(
         prune_routes(Length::ZERO, Length::ZERO),
         LineLocation {
-            edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
+            path: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
             pos_offset: Length::ZERO,
             neg_offset: Length::ZERO
         }
@@ -1458,7 +1463,7 @@ fn trim_routes_into_line_location_001() {
     assert_eq!(
         prune_routes(Length::from_meters(10.0), Length::ZERO),
         LineLocation {
-            edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
+            path: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
             pos_offset: Length::from_meters(10.0),
             neg_offset: Length::ZERO
         }
@@ -1467,7 +1472,7 @@ fn trim_routes_into_line_location_001() {
     assert_eq!(
         prune_routes(Length::from_meters(136.0), Length::ZERO),
         LineLocation {
-            edges: vec![EdgeId(8717175), EdgeId(109783)],
+            path: vec![EdgeId(8717175), EdgeId(109783)],
             pos_offset: Length::ZERO,
             neg_offset: Length::ZERO
         }
@@ -1476,7 +1481,7 @@ fn trim_routes_into_line_location_001() {
     assert_eq!(
         prune_routes(Length::from_meters(137.0), Length::ZERO),
         LineLocation {
-            edges: vec![EdgeId(8717175), EdgeId(109783)],
+            path: vec![EdgeId(8717175), EdgeId(109783)],
             pos_offset: Length::from_meters(1.0),
             neg_offset: Length::ZERO
         }
@@ -1485,7 +1490,7 @@ fn trim_routes_into_line_location_001() {
     assert_eq!(
         prune_routes(Length::ZERO, Length::from_meters(10.0)),
         LineLocation {
-            edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
+            path: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
             pos_offset: Length::ZERO,
             neg_offset: Length::from_meters(10.0)
         }
@@ -1494,7 +1499,7 @@ fn trim_routes_into_line_location_001() {
     assert_eq!(
         prune_routes(Length::ZERO, Length::from_meters(192.0)),
         LineLocation {
-            edges: vec![EdgeId(8717174), EdgeId(8717175)],
+            path: vec![EdgeId(8717174), EdgeId(8717175)],
             pos_offset: Length::ZERO,
             neg_offset: Length::ZERO
         }
@@ -1503,7 +1508,7 @@ fn trim_routes_into_line_location_001() {
     assert_eq!(
         prune_routes(Length::from_meters(10.0), Length::from_meters(192.0)),
         LineLocation {
-            edges: vec![EdgeId(8717174), EdgeId(8717175)],
+            path: vec![EdgeId(8717174), EdgeId(8717175)],
             pos_offset: Length::from_meters(10.0),
             neg_offset: Length::ZERO
         }
@@ -1512,7 +1517,7 @@ fn trim_routes_into_line_location_001() {
     assert_eq!(
         prune_routes(Length::from_meters(150.0), Length::from_meters(200.0)),
         LineLocation {
-            edges: vec![EdgeId(8717175)],
+            path: vec![EdgeId(8717175)],
             pos_offset: Length::from_meters(14.0),
             neg_offset: Length::from_meters(8.0)
         }

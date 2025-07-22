@@ -54,52 +54,34 @@ pub enum DecodeError {
     RouteNotFound((Point, Point)),
     #[error("Cannot connect route to shortest path {0:?}")]
     AlternativeRouteNotFound((Point, Point)),
-    #[error("Invalid offsets {0:?}")]
-    InvalidOffsets((Length, Length)),
+    #[error("Cannot decode invalid location {0:?}")]
+    InvalidLocation(LocationError),
 }
 
 #[derive(Error, Debug, PartialEq, Clone, Copy)]
 pub enum EncoderError {
     #[error("Cannot encode invalid location: {0:?}")]
-    InvalidLocation(InvalidLocationError),
+    InvalidLocation(LocationError),
 }
 
 #[derive(Error, Debug, PartialEq, Clone, Copy)]
-pub enum RoutingError {
+pub enum LocationError {
     #[error("Invalid offsets {0:?}")]
     InvalidOffsets((Length, Length)),
-}
-
-#[derive(Error, Debug, PartialEq, Clone, Copy)]
-pub enum InvalidLocationError {
     #[error("Location is empty")]
     Empty,
     #[error("Location is not connected")]
     NotConnected,
-    #[error("Location offsets are not valid {0:?}")]
-    InvalidOffsets((Length, Length)),
 }
 
-impl From<RoutingError> for DecodeError {
-    fn from(error: RoutingError) -> Self {
-        match error {
-            RoutingError::InvalidOffsets(offsets) => Self::InvalidOffsets(offsets),
-        }
+impl From<LocationError> for DecodeError {
+    fn from(error: LocationError) -> Self {
+        Self::InvalidLocation(error)
     }
 }
 
-impl From<RoutingError> for EncoderError {
-    fn from(error: RoutingError) -> Self {
-        match error {
-            RoutingError::InvalidOffsets(offsets) => {
-                InvalidLocationError::InvalidOffsets(offsets).into()
-            }
-        }
-    }
-}
-
-impl From<InvalidLocationError> for EncoderError {
-    fn from(error: InvalidLocationError) -> Self {
+impl From<LocationError> for EncoderError {
+    fn from(error: LocationError) -> Self {
         Self::InvalidLocation(error)
     }
 }
