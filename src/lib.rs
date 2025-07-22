@@ -30,4 +30,4 @@ pub use model::{
     LineAttributes, LocationReference, LocationType, Offset, Offsets, Orientation, PathAttributes,
     Poi, Point, PointAlongLine, Polygon, Rating, RatingScore, Rectangle, SideOfRoad,
 };
-pub use routing::{Route, Routes, ShortestPath, ShortestPathConfig, shortest_path};
+pub use routing::{Path, Route, Routes, ShortestPathConfig, shortest_path};

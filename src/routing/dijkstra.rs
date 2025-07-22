@@ -4,7 +4,7 @@ use std::fmt::Debug;
 
 use tracing::debug;
 
-use crate::{DirectedGraph, Frc, Length};
+use crate::{DirectedGraph, Frc, Length, Path};
 
 #[derive(Debug, Clone, Copy)]
 pub struct ShortestPathConfig {
@@ -19,12 +19,6 @@ impl Default for ShortestPathConfig {
             max_length: Length::MAX,
         }
     }
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct ShortestPath<EdgeId> {
-    pub length: Length,
-    pub edges: Vec<EdgeId>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -58,7 +52,7 @@ pub fn shortest_path<G: DirectedGraph>(
     graph: &G,
     origin: G::VertexId,
     destination: G::VertexId,
-) -> Option<ShortestPath<G::EdgeId>> {
+) -> Option<Path<G::EdgeId>> {
     debug!("Computing shortest path {origin:?} -> {destination:?} with {config:?}");
 
     // (current) shortest distance from origin to this vertex
@@ -84,7 +78,7 @@ pub fn shortest_path<G: DirectedGraph>(
             }
             edges.reverse();
 
-            return Some(ShortestPath {
+            return Some(Path {
                 length: element.distance,
                 edges,
             });

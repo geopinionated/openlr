@@ -3,10 +3,15 @@ use std::ops::Deref;
 
 use crate::{CandidateLine, CandidateLinePair, DirectedGraph, Length, Offsets};
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Path<EdgeId> {
+    pub length: Length,
+    pub edges: Vec<EdgeId>,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Route<EdgeId> {
-    pub edges: Vec<EdgeId>,
-    pub length: Length,
+    pub path: Path<EdgeId>,
     pub candidates: CandidateLinePair<EdgeId>,
 }
 
@@ -28,7 +33,7 @@ impl<EdgeId> Deref for Routes<EdgeId> {
 
 impl<EdgeId: Debug + Copy + PartialEq> Routes<EdgeId> {
     pub fn edges(&self) -> impl DoubleEndedIterator<Item = EdgeId> {
-        self.0.iter().flat_map(|r| &r.edges).copied()
+        self.0.iter().flat_map(|r| &r.path.edges).copied()
     }
 
     pub fn to_path(&self) -> Vec<EdgeId> {
@@ -47,8 +52,8 @@ impl<EdgeId: Debug + Copy + PartialEq> Routes<EdgeId> {
         let distance_from_start = first_route.distance_from_start();
         let distance_to_end = last_route.distance_to_end(graph);
 
-        let mut head_length = first_route.length - distance_from_start;
-        let mut tail_length = last_route.length - distance_to_end;
+        let mut head_length = first_route.path.length - distance_from_start;
+        let mut tail_length = last_route.path.length - distance_to_end;
 
         if self.len() == 1 {
             // cut other opposite if start and end are in the same and only route

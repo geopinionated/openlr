@@ -1,6 +1,6 @@
 mod graph;
 
-use openlr::{Length, ShortestPath, ShortestPathConfig, shortest_path};
+use openlr::{Length, Path, ShortestPathConfig, shortest_path};
 
 use crate::graph::{EdgeId, NETWORK_GRAPH, NetworkGraph, VertexId};
 
@@ -16,7 +16,7 @@ fn routing_shortest_path_001() {
             VertexId(68),
         )
         .unwrap(),
-        ShortestPath {
+        Path {
             length: Length::ZERO,
             edges: vec![],
         }
@@ -35,7 +35,7 @@ fn routing_shortest_path_002() {
             VertexId(2)
         )
         .unwrap(),
-        ShortestPath {
+        Path {
             length: Length::from_meters(217.0),
             edges: vec![EdgeId(16218)],
         }
@@ -69,7 +69,7 @@ fn routing_shortest_path_004() {
             VertexId(20)
         )
         .unwrap(),
-        ShortestPath {
+        Path {
             length: Length::from_meters(379.0),
             edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
         }
@@ -88,7 +88,7 @@ fn routing_shortest_path_005() {
             VertexId(37)
         )
         .unwrap(),
-        ShortestPath {
+        Path {
             length: Length::from_meters(753.0),
             edges: vec![
                 EdgeId(16218),
@@ -131,7 +131,7 @@ fn routing_shortest_path_007() {
             VertexId(34)
         )
         .unwrap(),
-        ShortestPath {
+        Path {
             length: Length::from_meters(16.0),
             edges: vec![EdgeId(-4232179)],
         }
@@ -150,7 +150,7 @@ fn routing_shortest_path_008() {
             VertexId(57)
         )
         .unwrap(),
-        ShortestPath {
+        Path {
             length: Length::from_meters(1462.0),
             edges: vec![
                 EdgeId(16218),

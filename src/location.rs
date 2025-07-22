@@ -114,9 +114,10 @@ pub fn ensure_line_is_valid<G: DirectedGraph>(
         return Err(LocationError::NotConnected);
     }
 
-    if pos_offset > MAX_LRP_DISTANCE || neg_offset > MAX_LRP_DISTANCE {
-        return Err(LocationError::InvalidOffsets((pos_offset, neg_offset)));
-    } else if pos_offset + neg_offset > line.path_length(graph) {
+    if pos_offset > MAX_LRP_DISTANCE
+        || neg_offset > MAX_LRP_DISTANCE
+        || pos_offset + neg_offset > line.path_length(graph)
+    {
         return Err(LocationError::InvalidOffsets((pos_offset, neg_offset)));
     }
 

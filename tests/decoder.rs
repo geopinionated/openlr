@@ -3,8 +3,8 @@ mod graph;
 use openlr::{
     Bearing, CandidateLine, CandidateLinePair, CandidateLines, CandidateNode, CandidateNodes,
     Coordinate, DecoderConfig, Fow, Frc, Length, LineAttributes, LineLocation, Location, Offsets,
-    PathAttributes, Point, RatingScore, Route, Routes, decode_base64_openlr, find_candidate_lines,
-    find_candidate_nodes, resolve_routes,
+    Path, PathAttributes, Point, RatingScore, Route, Routes, decode_base64_openlr,
+    find_candidate_lines, find_candidate_nodes, resolve_routes,
 };
 use test_log::test;
 
@@ -579,8 +579,10 @@ fn resolve_routes_001() {
     assert_eq!(
         routes,
         Routes::from(vec![Route {
-            edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
-            length: Length::from_meters(379.0),
+            path: Path {
+                edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
+                length: Length::from_meters(379.0),
+            },
             candidates: CandidateLinePair {
                 line_lrp1: line1_first_lrp,
                 line_lrp2: line_last_lrp
@@ -661,8 +663,10 @@ fn resolve_routes_002() {
     assert_eq!(
         routes,
         Routes::from(vec![Route {
-            edges: vec![EdgeId(8717174)],
-            length: Length::from_meters(136.0),
+            path: Path {
+                edges: vec![EdgeId(8717174)],
+                length: Length::from_meters(136.0),
+            },
             candidates: CandidateLinePair {
                 line_lrp1: line_first_lrp,
                 line_lrp2: line1_last_lrp
@@ -764,16 +768,20 @@ fn resolve_routes_003() {
         routes,
         Routes::from(vec![
             Route {
-                edges: vec![], // first and second LRPs are on the same line
-                length: Length::ZERO,
+                path: Path {
+                    edges: vec![], // first and second LRPs are on the same line
+                    length: Length::ZERO,
+                },
                 candidates: CandidateLinePair {
                     line_lrp1: line_first_lrp,
                     line_lrp2: line_second_lrp
                 }
             },
             Route {
-                edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
-                length: Length::from_meters(379.0),
+                path: Path {
+                    edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
+                    length: Length::from_meters(379.0),
+                },
                 candidates: CandidateLinePair {
                     line_lrp1: line_second_lrp,
                     line_lrp2: line_last_lrp
@@ -890,16 +898,20 @@ fn resolve_routes_004() {
         routes,
         Routes::from(vec![
             Route {
-                edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
-                length: Length::from_meters(379.0),
+                path: Path {
+                    edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
+                    length: Length::from_meters(379.0),
+                },
                 candidates: CandidateLinePair {
                     line_lrp1: line1_first_lrp,
                     line_lrp2: line1_second_lrp
                 }
             },
             Route {
-                edges: vec![EdgeId(6770340), EdgeId(7531947)],
-                length: Length::from_meters(53.0),
+                path: Path {
+                    edges: vec![EdgeId(6770340), EdgeId(7531947)],
+                    length: Length::from_meters(53.0),
+                },
                 candidates: CandidateLinePair {
                     line_lrp1: line1_second_lrp,
                     line_lrp2: line_last_lrp
@@ -957,8 +969,10 @@ fn calculate_offsets_001() {
     };
 
     let routes = Routes::from(vec![Route {
-        edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
-        length: Length::from_meters(379.0),
+        path: Path {
+            edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
+            length: Length::from_meters(379.0),
+        },
         candidates: CandidateLinePair {
             line_lrp1: line_first_lrp,
             line_lrp2: line_last_lrp,
@@ -1019,8 +1033,10 @@ fn calculate_offsets_002() {
     };
 
     let routes: Routes<_> = vec![Route {
-        edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
-        length: Length::from_meters(379.0),
+        path: Path {
+            edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
+            length: Length::from_meters(379.0),
+        },
         candidates: CandidateLinePair {
             line_lrp1: line_first_lrp,
             line_lrp2: line_last_lrp,
@@ -1082,8 +1098,10 @@ fn calculate_offsets_003() {
     };
 
     let routes: Routes<_> = vec![Route {
-        edges: vec![EdgeId(8717174)],
-        length: Length::from_meters(136.0),
+        path: Path {
+            edges: vec![EdgeId(8717174)],
+            length: Length::from_meters(136.0),
+        },
         candidates: CandidateLinePair {
             line_lrp1: line_first_lrp,
             line_lrp2: line_last_lrp,
@@ -1169,16 +1187,20 @@ fn calculate_offsets_004() {
 
     let routes: Routes<_> = vec![
         Route {
-            edges: vec![], // first and second LRPs are on the same line
-            length: Length::ZERO,
+            path: Path {
+                edges: vec![], // first and second LRPs are on the same line
+                length: Length::ZERO,
+            },
             candidates: CandidateLinePair {
                 line_lrp1: line_first_lrp,
                 line_lrp2: line_second_lrp,
             },
         },
         Route {
-            edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
-            length: Length::from_meters(379.0),
+            path: Path {
+                edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
+                length: Length::from_meters(379.0),
+            },
             candidates: CandidateLinePair {
                 line_lrp1: line_second_lrp,
                 line_lrp2: line_last_lrp,
@@ -1265,16 +1287,20 @@ fn calculate_offsets_005() {
 
     let routes: Routes<_> = vec![
         Route {
-            edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
-            length: Length::from_meters(379.0),
+            path: Path {
+                edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
+                length: Length::from_meters(379.0),
+            },
             candidates: CandidateLinePair {
                 line_lrp1: line_first_lrp,
                 line_lrp2: line_second_lrp,
             },
         },
         Route {
-            edges: vec![EdgeId(6770340), EdgeId(7531947)],
-            length: Length::from_meters(53.0),
+            path: Path {
+                edges: vec![EdgeId(6770340), EdgeId(7531947)],
+                length: Length::from_meters(53.0),
+            },
             candidates: CandidateLinePair {
                 line_lrp1: line_second_lrp,
                 line_lrp2: line_last_lrp,
@@ -1361,16 +1387,20 @@ fn calculate_offsets_006() {
 
     let routes: Routes<_> = vec![
         Route {
-            edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
-            length: Length::from_meters(379.0),
+            path: Path {
+                edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
+                length: Length::from_meters(379.0),
+            },
             candidates: CandidateLinePair {
                 line_lrp1: line_first_lrp,
                 line_lrp2: line_second_lrp,
             },
         },
         Route {
-            edges: vec![EdgeId(6770340), EdgeId(7531947)],
-            length: Length::from_meters(53.0),
+            path: Path {
+                edges: vec![EdgeId(6770340), EdgeId(7531947)],
+                length: Length::from_meters(53.0),
+            },
             candidates: CandidateLinePair {
                 line_lrp1: line_second_lrp,
                 line_lrp2: line_last_lrp,
@@ -1433,8 +1463,10 @@ fn trim_routes_into_line_location_001() {
     };
 
     let routes = [Route {
-        edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
-        length: Length::from_meters(379.0), // 136m + 51m + 192m
+        path: Path {
+            edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
+            length: Length::from_meters(379.0), // 136m + 51m + 192m
+        },
         candidates: CandidateLinePair {
             line_lrp1: line_first_lrp,
             line_lrp2: line_last_lrp,
