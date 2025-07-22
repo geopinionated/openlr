@@ -34,7 +34,10 @@ impl<EdgeId: Copy> LineLocation<EdgeId> {
     where
         G: DirectedGraph<EdgeId = EdgeId>,
     {
-        debug_assert_eq!(ensure_line_is_valid(graph, &self), Ok(()));
+        debug_assert_eq!(
+            ensure_line_is_valid(graph, &self, Length::MAX_BINARY_LRP_DISTANCE),
+            Ok(())
+        );
         let path_length = self.path_length(graph);
 
         let Self {
@@ -98,10 +101,8 @@ impl<EdgeId: Copy> LineLocation<EdgeId> {
 pub fn ensure_line_is_valid<G: DirectedGraph>(
     graph: &G,
     line: &LineLocation<G::EdgeId>,
+    max_lrp_distance: Length,
 ) -> Result<(), LocationError> {
-    // binary format version 3 doesn't allow LRPs distances over 15000m
-    const MAX_LRP_DISTANCE: Length = Length::from_meters(15000.0);
-
     let LineLocation {
         ref path,
         pos_offset,
@@ -114,8 +115,8 @@ pub fn ensure_line_is_valid<G: DirectedGraph>(
         return Err(LocationError::NotConnected);
     }
 
-    if pos_offset > MAX_LRP_DISTANCE
-        || neg_offset > MAX_LRP_DISTANCE
+    if pos_offset > max_lrp_distance
+        || neg_offset > max_lrp_distance
         || pos_offset + neg_offset > line.path_length(graph)
     {
         return Err(LocationError::InvalidOffsets((pos_offset, neg_offset)));

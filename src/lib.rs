@@ -20,6 +20,10 @@ pub use decoder::candidates::{
 pub use decoder::line::decode_line;
 pub use decoder::resolver::resolve_routes;
 pub use decoder::{DecoderConfig, decode_base64_openlr, decode_binary_openlr};
+pub use encoder::expansion::{
+    ExpandedPath, edge_backward_expansion, edge_forward_expansion, is_node_valid,
+    is_opposite_direction, select_edge_expansion_candidate,
+};
 pub use encoder::line::encode_line;
 pub use encoder::{EncoderConfig, encode_base64_openlr, encode_binary_openlr};
 pub use error::{DecodeError, DeserializeError, EncoderError, LocationError, SerializeError};

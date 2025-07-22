@@ -370,6 +370,19 @@ impl NetworkGraph {
 }
 
 #[test]
+fn network_graph_vertex_degree() {
+    let graph = &NETWORK_GRAPH;
+
+    assert_eq!(graph.vertex_degree(VertexId(1)), 1);
+    assert_eq!(graph.vertex_degree(VertexId(2)), 4);
+    assert_eq!(graph.vertex_degree(VertexId(58)), 6);
+    assert_eq!(graph.vertex_degree(VertexId(105)), 2);
+    assert_eq!(graph.vertex_degree(VertexId(68)), 8);
+    assert_eq!(graph.vertex_degree(VertexId(134)), 4);
+    assert_eq!(graph.vertex_degree(VertexId(77)), 3);
+}
+
+#[test]
 fn network_graph_edge_bearing_between() {
     let graph = &NETWORK_GRAPH;
 

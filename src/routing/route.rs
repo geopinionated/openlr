@@ -3,10 +3,19 @@ use std::ops::Deref;
 
 use crate::{CandidateLine, CandidateLinePair, DirectedGraph, Length, Offsets};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Path<EdgeId> {
     pub length: Length,
     pub edges: Vec<EdgeId>,
+}
+
+impl<EdgeId> Default for Path<EdgeId> {
+    fn default() -> Self {
+        Self {
+            length: Length::ZERO,
+            edges: vec![],
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

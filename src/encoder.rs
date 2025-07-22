@@ -21,15 +21,26 @@
 //!    of the corresponding path.
 //! 10. Create physical representation of the location reference.
 
+pub mod expansion;
 pub mod line;
 
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 
-use crate::{DirectedGraph, EncoderError, Location, encode_line};
+use crate::{DirectedGraph, EncoderError, Length, Location, encode_line};
 
-#[derive(Default, Debug, Clone, Copy)]
-pub struct EncoderConfig;
+#[derive(Debug, Clone, Copy)]
+pub struct EncoderConfig {
+    pub max_lrp_distance: Length,
+}
+
+impl Default for EncoderConfig {
+    fn default() -> Self {
+        Self {
+            max_lrp_distance: Length::MAX_BINARY_LRP_DISTANCE,
+        }
+    }
+}
 
 /// Encodes an OpenLR Location Reference into Base64.
 pub fn encode_base64_openlr<G: DirectedGraph>(

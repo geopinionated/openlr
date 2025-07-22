@@ -297,6 +297,9 @@ impl Length {
     pub const ZERO: Self = Self(OrderedFloat(0.0));
     pub const MAX: Self = Self(OrderedFloat(f64::MAX));
 
+    /// Binary format version 3 doesn't allow LRPs distances over 15000m.
+    pub const MAX_BINARY_LRP_DISTANCE: Self = Self(OrderedFloat(15000.0));
+
     pub const fn from_meters(meters: f64) -> Self {
         Self(OrderedFloat(meters))
     }
