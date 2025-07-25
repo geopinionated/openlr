@@ -62,6 +62,8 @@ pub enum DecodeError {
 pub enum EncoderError {
     #[error("Cannot encode invalid location: {0:?}")]
     InvalidLocation(LocationError),
+    #[error("Cannot compute intermediate at location index {0}")]
+    IntermediateError(usize),
 }
 
 #[derive(Error, Debug, PartialEq, Clone, Copy)]

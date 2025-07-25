@@ -23,6 +23,7 @@
 
 pub mod expansion;
 pub mod line;
+pub mod shortest_path;
 
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;

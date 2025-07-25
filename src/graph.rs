@@ -10,7 +10,7 @@ pub trait DirectedGraph {
     /// Uniquely identify a vertex that belongs to the graph.
     type VertexId: Debug + Copy + Ord + Hash;
     /// Uniquely identify a directed edge that belongs to the graph.
-    type EdgeId: Debug + Copy + PartialEq;
+    type EdgeId: Debug + Copy + Ord + Hash;
 
     /// Gets the start vertex of the directed edge.
     /// Returns None if the edge doesn't belong to the graph.

@@ -11,7 +11,7 @@ use crate::graph::{EdgeId, NETWORK_GRAPH, NetworkGraph, VertexId};
 
 #[ignore]
 #[test]
-fn encode_line_location_reference_001() {
+fn encoder_encode_line_location_reference_001() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     let config = EncoderConfig::default();
@@ -28,7 +28,7 @@ fn encode_line_location_reference_001() {
 
 #[ignore]
 #[test]
-fn encode_line_location_reference_002() {
+fn encoder_encode_line_location_reference_002() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     let config = EncoderConfig::default();
@@ -49,7 +49,7 @@ fn encode_line_location_reference_002() {
 }
 
 #[test]
-fn is_opposite_direction_001() {
+fn encoder_is_opposite_direction_001() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     assert!(!is_opposite_direction(graph, EdgeId(16218), EdgeId(16218)));
@@ -75,7 +75,7 @@ fn is_opposite_direction_001() {
 }
 
 #[test]
-fn is_valid_node_001() {
+fn encoder_is_valid_node_001() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     // 1 ---> 2
@@ -114,7 +114,7 @@ fn is_valid_node_001() {
 }
 
 #[test]
-fn select_edge_expansion_candidate_001() {
+fn encoder_select_edge_expansion_candidate_001() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     assert_eq!(
@@ -153,7 +153,7 @@ fn select_edge_expansion_candidate_001() {
 }
 
 #[test]
-fn edge_expansion_001() {
+fn encoder_edge_expansion_001() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     let config = EncoderConfig::default();
@@ -178,7 +178,7 @@ fn edge_expansion_001() {
 }
 
 #[test]
-fn edge_expansion_002() {
+fn encoder_edge_expansion_002() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     let config = EncoderConfig::default();
@@ -206,7 +206,7 @@ fn edge_expansion_002() {
 }
 
 #[test]
-fn edge_expansion_003() {
+fn encoder_edge_expansion_003() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     let config = EncoderConfig::default();
@@ -234,7 +234,7 @@ fn edge_expansion_003() {
 }
 
 #[test]
-fn edge_expansion_004() {
+fn encoder_edge_expansion_004() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     let config = EncoderConfig::default();
@@ -256,7 +256,7 @@ fn edge_expansion_004() {
 }
 
 #[test]
-fn edge_expansion_005() {
+fn encoder_edge_expansion_005() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     let config = EncoderConfig::default();

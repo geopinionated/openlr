@@ -11,7 +11,7 @@ use test_log::test;
 use crate::graph::{EdgeId, NETWORK_GRAPH, NetworkGraph, VertexId};
 
 #[test]
-fn decode_line_location_reference_001() {
+fn decoder_decode_line_location_reference_001() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     let config = DecoderConfig::default();
@@ -28,7 +28,7 @@ fn decode_line_location_reference_001() {
 }
 
 #[test]
-fn decode_line_location_reference_002() {
+fn decoder_decode_line_location_reference_002() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     let config = DecoderConfig {
@@ -54,7 +54,7 @@ fn decode_line_location_reference_002() {
 }
 
 #[test]
-fn find_candidate_nodes_001() {
+fn decoder_find_candidate_nodes_001() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     let config = DecoderConfig {
@@ -101,7 +101,7 @@ fn find_candidate_nodes_001() {
 }
 
 #[test]
-fn find_candidate_nodes_002() {
+fn decoder_find_candidate_nodes_002() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     let config = DecoderConfig {
@@ -134,7 +134,7 @@ fn find_candidate_nodes_002() {
 }
 
 #[test]
-fn find_candidate_nodes_003() {
+fn decoder_find_candidate_nodes_003() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     let config = DecoderConfig {
@@ -163,7 +163,7 @@ fn find_candidate_nodes_003() {
 }
 
 #[test]
-fn find_candidate_nodes_004() {
+fn decoder_find_candidate_nodes_004() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     let config = DecoderConfig {
@@ -226,7 +226,7 @@ fn find_candidate_nodes_004() {
 }
 
 #[test]
-fn find_candidate_lines_001() {
+fn decoder_find_candidate_lines_001() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     let config = DecoderConfig {
@@ -306,7 +306,7 @@ fn find_candidate_lines_001() {
 }
 
 #[test]
-fn find_candidate_lines_002() {
+fn decoder_find_candidate_lines_002() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     let config = DecoderConfig {
@@ -391,7 +391,7 @@ fn find_candidate_lines_002() {
 }
 
 #[test]
-fn find_candidate_lines_003() {
+fn decoder_find_candidate_lines_003() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     let config = DecoderConfig {
@@ -503,7 +503,7 @@ fn find_candidate_lines_003() {
 }
 
 #[test]
-fn resolve_routes_001() {
+fn decoder_resolve_routes_001() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     let config = DecoderConfig {
@@ -592,7 +592,7 @@ fn resolve_routes_001() {
 }
 
 #[test]
-fn resolve_routes_002() {
+fn decoder_resolve_routes_002() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     let config = DecoderConfig::default();
@@ -676,7 +676,7 @@ fn resolve_routes_002() {
 }
 
 #[test]
-fn resolve_routes_003() {
+fn decoder_resolve_routes_003() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     let config = DecoderConfig::default();
@@ -792,7 +792,7 @@ fn resolve_routes_003() {
 }
 
 #[test]
-fn resolve_routes_004() {
+fn decoder_resolve_routes_004() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     let config = DecoderConfig::default();
@@ -922,7 +922,7 @@ fn resolve_routes_004() {
 }
 
 #[test]
-fn calculate_offsets_001() {
+fn decoder_calculate_offsets_001() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     let first_lrp = Point {
@@ -986,7 +986,7 @@ fn calculate_offsets_001() {
 }
 
 #[test]
-fn calculate_offsets_002() {
+fn decoder_calculate_offsets_002() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     let first_lrp = Point {
@@ -1051,7 +1051,7 @@ fn calculate_offsets_002() {
 }
 
 #[test]
-fn calculate_offsets_003() {
+fn decoder_calculate_offsets_003() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     let first_lrp = Point {
@@ -1116,7 +1116,7 @@ fn calculate_offsets_003() {
 }
 
 #[test]
-fn calculate_offsets_004() {
+fn decoder_calculate_offsets_004() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     let first_lrp = Point {
@@ -1216,7 +1216,7 @@ fn calculate_offsets_004() {
 }
 
 #[test]
-fn calculate_offsets_005() {
+fn decoder_calculate_offsets_005() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     let first_lrp = Point {
@@ -1316,7 +1316,7 @@ fn calculate_offsets_005() {
 }
 
 #[test]
-fn calculate_offsets_006() {
+fn decoder_calculate_offsets_006() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     let first_lrp = Point {
@@ -1416,7 +1416,7 @@ fn calculate_offsets_006() {
 }
 
 #[test]
-fn trim_routes_into_line_location_001() {
+fn decoder_trim_routes_into_line_location_001() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     let first_lrp = Point {

@@ -1,7 +1,7 @@
 use crate::{DirectedGraph, EncoderConfig, Length, LineLocation, Path};
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ExpandedPath<EdgeId> {
+pub struct ExpansionPaths<EdgeId> {
     /// The path that represents the beginning of the expansion.
     pub start: Path<EdgeId>,
     /// The path that represents the end of the expansion.
@@ -27,10 +27,10 @@ pub fn line_location_expansion<G: DirectedGraph>(
     config: &EncoderConfig,
     graph: &G,
     line: &LineLocation<G::EdgeId>,
-) -> ExpandedPath<G::EdgeId> {
+) -> ExpansionPaths<G::EdgeId> {
     let start = edge_backward_expansion(config, graph, line);
     let end = edge_forward_expansion(config, graph, line);
-    ExpandedPath { start, end }
+    ExpansionPaths { start, end }
 }
 
 /// Returns the expansion path in forward direction (from the line end).
