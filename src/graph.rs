@@ -12,6 +12,10 @@ pub trait DirectedGraph {
     /// Uniquely identify a directed edge that belongs to the graph.
     type EdgeId: Debug + Copy + Ord + Hash;
 
+    /// Gets the vertex coordinate.
+    /// Returns None if the vertex doesn't belong to the graph.
+    fn get_vertex_coordinate(&self, vertex: Self::VertexId) -> Option<Coordinate>;
+
     /// Gets the start vertex of the directed edge.
     /// Returns None if the edge doesn't belong to the graph.
     fn get_edge_start_vertex(&self, edge: Self::EdgeId) -> Option<Self::VertexId>;

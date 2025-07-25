@@ -8,6 +8,18 @@ pub struct ExpansionPaths<EdgeId> {
     pub end: Path<EdgeId>,
 }
 
+impl<EdgeId: Copy> ExpansionPaths<EdgeId> {
+    pub fn expand_line_path(&self, line: &LineLocation<EdgeId>) -> Vec<EdgeId> {
+        self.start
+            .edges
+            .iter()
+            .chain(line.path.iter())
+            .chain(self.end.edges.iter())
+            .copied()
+            .collect()
+    }
+}
+
 /// Returns the expanded paths (forward and backward) that can be appended/prepended to the give
 /// line respectively so that the start and the end of the location are in valid nodes.
 ///

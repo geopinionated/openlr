@@ -101,6 +101,13 @@ impl DirectedGraph for NetworkGraph {
     type EdgeId = EdgeId;
     type VertexId = VertexId;
 
+    fn get_vertex_coordinate(&self, vertex: Self::VertexId) -> Option<Coordinate> {
+        self.vertex_exiting_edges(vertex).next().and_then(|(e, _)| {
+            debug_assert_eq!(self.get_edge_start_vertex(e), Some(vertex));
+            self.get_edge_coordinates(e).next()
+        })
+    }
+
     fn get_edge_start_vertex(&self, edge: Self::EdgeId) -> Option<Self::VertexId> {
         self.edge_properties
             .get(&edge.undirected())
@@ -367,6 +374,51 @@ impl NetworkGraph {
             edge_properties,
         }
     }
+}
+
+#[test]
+fn network_graph_vertex_coordinate() {
+    let graph = &NETWORK_GRAPH;
+
+    assert_eq!(
+        graph.get_vertex_coordinate(VertexId(1)).unwrap(),
+        Coordinate {
+            lon: 13.454214,
+            lat: 52.5157088
+        }
+    );
+
+    assert_eq!(
+        graph.get_vertex_coordinate(VertexId(2)).unwrap(),
+        Coordinate {
+            lon: 13.457386,
+            lat: 52.5153814
+        }
+    );
+
+    assert_eq!(
+        graph.get_vertex_coordinate(VertexId(58)).unwrap(),
+        Coordinate {
+            lon: 13.4572516,
+            lat: 52.5149212
+        }
+    );
+
+    assert_eq!(
+        graph.get_vertex_coordinate(VertexId(105)).unwrap(),
+        Coordinate {
+            lon: 13.4551048,
+            lat: 52.5152531
+        }
+    );
+
+    assert_eq!(
+        graph.get_vertex_coordinate(VertexId(134)).unwrap(),
+        Coordinate {
+            lon: 13.4587361,
+            lat: 52.516543
+        }
+    );
 }
 
 #[test]
