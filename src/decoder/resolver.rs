@@ -6,8 +6,7 @@ use tracing::debug;
 
 use crate::{
     CandidateLine, CandidateLinePair, CandidateLines, DecodeError, DecoderConfig, DirectedGraph,
-    Frc, Length, Path, RatingScore, Route, Routes, ShortestPathConfig, is_path_connected,
-    shortest_path,
+    Frc, Length, Path, RatingScore, Route, Routes, is_path_connected, shortest_path,
 };
 
 /// The decoder needs to compute a shortest-path between each pair of subsequent location reference
@@ -161,13 +160,10 @@ where
             graph.get_edge_start_vertex(line_lrp2.edge)?
         };
 
-        let path_config = ShortestPathConfig {
-            lowest_frc,
-            max_length: max_route_length(config, graph, &line_lrp1, &line_lrp2),
-        };
+        let max_length = max_route_length(config, graph, &line_lrp1, &line_lrp2);
 
-        if let Some(path) = shortest_path(&path_config, graph, origin, destination) {
-            debug_assert!(path.length <= path_config.max_length);
+        if let Some(path) = shortest_path(graph, origin, destination, lowest_frc, max_length) {
+            debug_assert!(path.length <= max_length);
             let min_length = line_lrp1.lrp.dnp() - config.next_point_variance;
 
             if path.length >= min_length {

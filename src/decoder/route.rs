@@ -1,22 +1,7 @@
 use std::fmt::Debug;
 use std::ops::Deref;
 
-use crate::{CandidateLine, CandidateLinePair, DirectedGraph, Length, Offsets};
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct Path<EdgeId> {
-    pub length: Length,
-    pub edges: Vec<EdgeId>,
-}
-
-impl<EdgeId> Default for Path<EdgeId> {
-    fn default() -> Self {
-        Self {
-            length: Length::ZERO,
-            edges: vec![],
-        }
-    }
-}
+use crate::{CandidateLine, CandidateLinePair, DirectedGraph, Length, Offsets, Path};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Route<EdgeId> {

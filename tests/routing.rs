@@ -1,6 +1,6 @@
 mod graph;
 
-use openlr::{Length, Path, ShortestPathConfig, shortest_path};
+use openlr::{Frc, Length, Path, shortest_path};
 
 use crate::graph::{EdgeId, NETWORK_GRAPH, NetworkGraph, VertexId};
 
@@ -9,13 +9,7 @@ fn routing_shortest_path_001() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     assert_eq!(
-        shortest_path(
-            &ShortestPathConfig::default(),
-            graph,
-            VertexId(68),
-            VertexId(68),
-        )
-        .unwrap(),
+        shortest_path(graph, VertexId(68), VertexId(68), Frc::Frc7, Length::MAX).unwrap(),
         Path {
             length: Length::ZERO,
             edges: vec![],
@@ -28,13 +22,7 @@ fn routing_shortest_path_002() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     assert_eq!(
-        shortest_path(
-            &ShortestPathConfig::default(),
-            graph,
-            VertexId(1),
-            VertexId(2)
-        )
-        .unwrap(),
+        shortest_path(graph, VertexId(1), VertexId(2), Frc::Frc7, Length::MAX).unwrap(),
         Path {
             length: Length::from_meters(217.0),
             edges: vec![EdgeId(16218)],
@@ -47,12 +35,7 @@ fn routing_shortest_path_003() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     assert_eq!(
-        shortest_path(
-            &ShortestPathConfig::default(),
-            graph,
-            VertexId(2),
-            VertexId(1)
-        ),
+        shortest_path(graph, VertexId(2), VertexId(1), Frc::Frc7, Length::MAX),
         None
     );
 }
@@ -62,13 +45,7 @@ fn routing_shortest_path_004() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     assert_eq!(
-        shortest_path(
-            &ShortestPathConfig::default(),
-            graph,
-            VertexId(68),
-            VertexId(20)
-        )
-        .unwrap(),
+        shortest_path(graph, VertexId(68), VertexId(20), Frc::Frc7, Length::MAX).unwrap(),
         Path {
             length: Length::from_meters(379.0),
             edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
@@ -81,13 +58,7 @@ fn routing_shortest_path_005() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     assert_eq!(
-        shortest_path(
-            &ShortestPathConfig::default(),
-            graph,
-            VertexId(1),
-            VertexId(37)
-        )
-        .unwrap(),
+        shortest_path(graph, VertexId(1), VertexId(37), Frc::Frc7, Length::MAX).unwrap(),
         Path {
             length: Length::from_meters(753.0),
             edges: vec![
@@ -107,13 +78,11 @@ fn routing_shortest_path_006() {
 
     assert_eq!(
         shortest_path(
-            &ShortestPathConfig {
-                max_length: Length::from_meters(752.0),
-                ..Default::default()
-            },
             graph,
             VertexId(1),
-            VertexId(37)
+            VertexId(37),
+            Frc::Frc7,
+            Length::from_meters(752.0)
         ),
         None
     );
@@ -124,13 +93,7 @@ fn routing_shortest_path_007() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     assert_eq!(
-        shortest_path(
-            &ShortestPathConfig::default(),
-            graph,
-            VertexId(36),
-            VertexId(34)
-        )
-        .unwrap(),
+        shortest_path(graph, VertexId(36), VertexId(34), Frc::Frc7, Length::MAX).unwrap(),
         Path {
             length: Length::from_meters(16.0),
             edges: vec![EdgeId(-4232179)],
@@ -143,13 +106,7 @@ fn routing_shortest_path_008() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     assert_eq!(
-        shortest_path(
-            &ShortestPathConfig::default(),
-            graph,
-            VertexId(1),
-            VertexId(57)
-        )
-        .unwrap(),
+        shortest_path(graph, VertexId(1), VertexId(57), Frc::Frc7, Length::MAX).unwrap(),
         Path {
             length: Length::from_meters(1462.0),
             edges: vec![
