@@ -23,6 +23,7 @@
 
 pub mod expansion;
 pub mod line;
+pub mod resolver;
 pub mod shortest_path;
 
 use base64::Engine;
@@ -32,13 +33,18 @@ use crate::{DirectedGraph, EncoderError, Length, Location, encode_line};
 
 #[derive(Debug, Clone, Copy)]
 pub struct EncoderConfig {
+    /// The maximum distance allowed between consecutive LRPs.
     pub max_lrp_distance: Length,
+    /// The length of the segment used to compute the lines bearing (distance from the start of
+    /// the segment to its end).
+    pub bearing_distance: Length,
 }
 
 impl Default for EncoderConfig {
     fn default() -> Self {
         Self {
             max_lrp_distance: Length::MAX_BINARY_LRP_DISTANCE,
+            bearing_distance: Length::from_meters(20.0),
         }
     }
 }

@@ -3,17 +3,16 @@ use std::collections::{BinaryHeap, HashMap};
 use std::fmt::Debug;
 use std::hash::Hash;
 
-use tracing::debug;
+use tracing::{debug, warn};
 
-use crate::{DirectedGraph, EncoderError, Length, LocationError, Path, is_node_valid};
+use crate::{DirectedGraph, EncoderError, Length, LocationError, is_node_valid};
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum ShortestRoute<EdgeId> {
-    /// Route of the location that doesn't diverge from the shortest path, and therefore
-    /// has no intermediate edges.
-    Route(Path<EdgeId>),
+pub enum ShortestRoute {
+    /// The whole location is the shortest path, and therefore it has no intermediate edges.
+    Location,
     /// Route of the location converges to the shortest path up to the intermediate edge.
-    Intermediate(IntermediateRoute<EdgeId>),
+    Intermediate(IntermediateLocation),
     /// Route not found.
     NotFound,
 }
@@ -21,18 +20,11 @@ pub enum ShortestRoute<EdgeId> {
 /// Lines which can be used as intermediates which are good lines to split the location into
 /// several shortest-paths.
 #[derive(Debug, Clone, PartialEq)]
-pub struct IntermediateRoute<EdgeId> {
-    /// Edges of the location that form a shortest path.
-    pub edges: Vec<EdgeId>,
-    /// The edge that represents the first intermediate, where the location can be split at its
-    /// start to add a new LRP (since there is a deviation from the location path to the actual
-    /// shortest path).
-    pub intermediate: EdgeId,
-    /// Index of the intermediate edge in the location edges list.
-    pub intermediate_index: usize,
-    /// The edge of the 2nd intermediate, Some when there is more than one deviation from the
-    /// shortest path, otherwise None.
-    pub intermediate_2: Option<EdgeId>,
+pub struct IntermediateLocation {
+    /// Index of the intermediate edge in the location edges list, where the location can be split
+    /// at its start to add a new LRP (since there is a deviation from the location path to the
+    /// actual shortest path).
+    pub location_index: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -64,10 +56,31 @@ impl<EdgeId: Ord> PartialOrd for HeapElement<EdgeId> {
 
 /// Returns the shortest route that follow the given location up until the location path diverges
 /// from the shortest path, in which case the path route is split at an intermediate edge.
+///
+/// The encoder calculates a shortest-path between the current start line and the end line of the
+/// location. This step will be executed until coverage of the location has been found.
+///
+/// If no intermediate location reference point was detected so far, the current start line is
+/// identical to the start line of the location. If an intermediate location reference point was
+/// detected in a previous step, then the line corresponding to the intermediate location reference
+/// point acts as current start line. The start line is always part of the location.
+///
+/// The shortest path algorithm should take the whole network or a well-defined subset of the
+/// network into account in order to calculate a shortest path between the current start and end.
+/// Additionally it should fulfill the following constraints:
+/// - All lengths of the lines should be measured in meters and should also be converted to
+///   integer values, so that float values need to be rounded correctly.
+/// - The search is node based and starts at the start node of the first line and ends at the end
+///   node of the last line.
+/// - The algorithm shall return an ordered list of lines representing the calculated shortest-path.
+///
+/// If no shortest-path can be calculated the encoding should fail. But this should never happen as
+/// the location consists of concatenated lines.
 pub fn shortest_path_location<G: DirectedGraph>(
     graph: &G,
     location: &[G::EdgeId],
-) -> Result<ShortestRoute<G::EdgeId>, EncoderError> {
+    max_lrp_distance: Length,
+) -> Result<ShortestRoute, EncoderError> {
     debug!("Computing shortest path following {location:?}");
 
     let (origin, destination) = match location.first().zip(location.last()) {
@@ -78,11 +91,8 @@ pub fn shortest_path_location<G: DirectedGraph>(
     if origin == destination && location.len() > 1 {
         // origin and destination are equals but there is a path in between
         // skip the origin and proceed with the next line in the location
-        return Ok(ShortestRoute::Intermediate(IntermediateRoute {
-            edges: vec![origin],
-            intermediate: location[1],
-            intermediate_index: 1,
-            intermediate_2: None,
+        return Ok(ShortestRoute::Intermediate(IntermediateLocation {
+            location_index: 1,
         }));
     }
 
@@ -95,11 +105,8 @@ pub fn shortest_path_location<G: DirectedGraph>(
 
     if let Some(0) = origin_loop_index {
         // origin loops onto itself
-        return Ok(ShortestRoute::Intermediate(IntermediateRoute {
-            edges: vec![origin],
-            intermediate: location[1],
-            intermediate_index: 1,
-            intermediate_2: None,
+        return Ok(ShortestRoute::Intermediate(IntermediateLocation {
+            location_index: 1,
         }));
     }
 
@@ -112,7 +119,7 @@ pub fn shortest_path_location<G: DirectedGraph>(
 
     let mut shortest_distances = HashMap::from([(origin, origin_length)]);
     let mut previous_map: HashMap<G::EdgeId, G::EdgeId> = HashMap::new();
-    let mut intermediator = Intermediator::new(graph, location)?;
+    let mut intermediator = Intermediator::new(graph, location, max_lrp_distance)?;
 
     let mut frontier = BinaryHeap::from([HeapElement {
         distance: origin_length,
@@ -121,7 +128,7 @@ pub fn shortest_path_location<G: DirectedGraph>(
 
     while let Some(element) = frontier.pop() {
         if location.contains(&element.edge) {
-            // check if location the location needs to be split at an intermediate edge
+            // Step – 5 Determine the position of a new intermediate location reference point
             if let Some(route) = intermediator.get_intermediate_route(element, &previous_map)? {
                 return Ok(ShortestRoute::Intermediate(route));
             }
@@ -130,31 +137,21 @@ pub fn shortest_path_location<G: DirectedGraph>(
         if element.edge == destination {
             if let Some(loop_index) = destination_loop_index {
                 // route found until the destination loop starts
-                let last_edge = *previous_map.get(&destination).unwrap_or(&origin);
-
-                return Ok(ShortestRoute::Intermediate(IntermediateRoute {
-                    edges: unpack_path(&previous_map, last_edge),
-                    intermediate: destination,
-                    intermediate_index: loop_index,
-                    intermediate_2: None,
+                return Ok(ShortestRoute::Intermediate(IntermediateLocation {
+                    location_index: loop_index,
                 }));
             }
 
-            return Ok(ShortestRoute::Route(Path {
-                length: element.distance,
-                edges: unpack_path(&previous_map, destination),
-            }));
+            debug_assert_eq!(location, unpack_path(&previous_map, destination));
+            return Ok(ShortestRoute::Location);
         }
 
         if let Some(loop_index) = origin_loop_index
             && intermediator.last_edge_index == loop_index
         {
             // the loop starting at origin has been completely followed
-            return Ok(ShortestRoute::Intermediate(IntermediateRoute {
-                edges: unpack_path(&previous_map, element.edge),
-                intermediate: origin,
-                intermediate_index: loop_index + 1,
-                intermediate_2: None,
+            return Ok(ShortestRoute::Intermediate(IntermediateLocation {
+                location_index: loop_index + 1,
             }));
         }
 
@@ -201,29 +198,45 @@ pub fn shortest_path_location<G: DirectedGraph>(
 struct Intermediator<'a, G: DirectedGraph> {
     graph: &'a G,
     location: &'a [G::EdgeId],
+    max_lrp_distance: Length,
     last_edge: G::EdgeId,
     last_edge_index: usize,
 }
 
 impl<'a, G: DirectedGraph> Intermediator<'a, G> {
-    fn new(graph: &'a G, location: &'a [G::EdgeId]) -> Result<Self, EncoderError> {
+    fn new(
+        graph: &'a G,
+        location: &'a [G::EdgeId],
+        max_lrp_distance: Length,
+    ) -> Result<Self, EncoderError> {
         let last_edge = location.first().copied().ok_or(LocationError::Empty)?;
+        let last_edge_index = 0;
 
         Ok(Self {
             graph,
             location,
+            max_lrp_distance,
             last_edge,
-            last_edge_index: 0,
+            last_edge_index,
         })
     }
 
     /// Checks if the route should be split because it diverges from the shortest path.
     /// If it does, returns the intermediate route (up to the diversion), otherwise returns None.
+    ///
+    /// If the location (between current start and end) is not fully part of the shortest-path or
+    /// the order of the lines is mixed up then a proper intermediate location reference point
+    /// needs to be determined. This intermediate must fulfill the following constraints:
+    /// - The shortest-path between the current start and the line indicated by the intermediate
+    ///   location reference point must cover the corresponding part of the location completely.
+    /// - The start node of the line indicated by the intermediate location reference point shall
+    ///   be positioned on a valid node (if no valid node can be determined, an invalid node may be
+    ///   chosen).
     fn get_intermediate_route(
         &mut self,
         element: HeapElement<G::EdgeId>,
         previous_map: &HashMap<G::EdgeId, G::EdgeId>,
-    ) -> Result<Option<IntermediateRoute<G::EdgeId>>, EncoderError> {
+    ) -> Result<Option<IntermediateLocation>, EncoderError> {
         if element.edge == self.location[0] {
             // first line is always found because all paths start from the origin
             return Ok(None);
@@ -232,7 +245,14 @@ impl<'a, G: DirectedGraph> Intermediator<'a, G> {
         if let Some(next_edge) = self.get_location_successor(previous_map, &element) {
             self.last_edge = next_edge;
             self.last_edge_index += 1;
-            return Ok(None);
+
+            if element.distance > self.max_lrp_distance {
+                return Ok(Some(IntermediateLocation {
+                    location_index: self.last_edge_index,
+                }));
+            } else {
+                return Ok(None);
+            }
         }
 
         // The location deviates from the shortest path that would allow to reach this element.
@@ -243,32 +263,25 @@ impl<'a, G: DirectedGraph> Intermediator<'a, G> {
 
         // check if the deviation starts at the last element found so far or earlier in the path
         if common_edge == self.last_edge {
-            let intermediate_index = self.last_edge_index + 1;
-            let edges = unpack_path(previous_map, self.last_edge);
+            let location_index = self.last_edge_index + 1;
 
             let intermediate = *self
                 .location
-                .get(intermediate_index)
+                .get(location_index)
                 .ok_or(EncoderError::IntermediateError(self.last_edge_index))?;
 
-            let previous_intermediate = *previous_map
+            let previous_edge = *previous_map
                 .get(&intermediate)
                 .ok_or(EncoderError::IntermediateError(self.last_edge_index))?;
 
-            let intermediate_2 = if previous_intermediate != self.last_edge {
+            if previous_edge != self.last_edge {
                 // the shortest path to the intermediate (next location edge) does not include
                 // the last (location) edge, therefore there is an additional (2nd) deviation
-                self.rfind_valid_intermediate(previous_map)
-            } else {
-                None
-            };
+                let intermediate = self.rfind_valid_intermediate(previous_map);
+                warn!("Multiple deviations from shortest path at: {intermediate:?}");
+            }
 
-            let route = IntermediateRoute {
-                edges,
-                intermediate,
-                intermediate_index,
-                intermediate_2,
-            };
+            let route = IntermediateLocation { location_index };
 
             Ok(Some(route))
         } else {
@@ -276,22 +289,13 @@ impl<'a, G: DirectedGraph> Intermediator<'a, G> {
                 .rfind_valid_intermediate(previous_map)
                 .ok_or(EncoderError::IntermediateError(self.last_edge_index))?;
 
-            let intermediate_index = self
+            let location_index = self
                 .location
                 .iter()
                 .position(|&e| e == intermediate)
                 .ok_or(EncoderError::IntermediateError(self.last_edge_index))?;
 
-            let previous_intermediate = *previous_map
-                .get(&intermediate)
-                .ok_or(EncoderError::IntermediateError(self.last_edge_index))?;
-
-            let route = IntermediateRoute {
-                edges: unpack_path(previous_map, previous_intermediate),
-                intermediate,
-                intermediate_index,
-                intermediate_2: None,
-            };
+            let route = IntermediateLocation { location_index };
 
             Ok(Some(route))
         }

@@ -27,7 +27,8 @@ pub use encoder::expansion::{
     is_opposite_direction, select_edge_expansion_candidate,
 };
 pub use encoder::line::encode_line;
-pub use encoder::shortest_path::{IntermediateRoute, ShortestRoute, shortest_path_location};
+pub use encoder::resolver::{LocRefPoint, resolve_lrps};
+pub use encoder::shortest_path::{IntermediateLocation, ShortestRoute, shortest_path_location};
 pub use encoder::{EncoderConfig, encode_base64_openlr, encode_binary_openlr};
 pub use error::{DecodeError, DeserializeError, EncoderError, LocationError, SerializeError};
 pub use graph::DirectedGraph;

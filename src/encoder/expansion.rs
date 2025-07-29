@@ -8,6 +8,15 @@ pub struct ExpansionPaths<EdgeId> {
     pub end: Path<EdgeId>,
 }
 
+impl<EdgeId> Default for ExpansionPaths<EdgeId> {
+    fn default() -> Self {
+        Self {
+            start: Path::default(),
+            end: Path::default(),
+        }
+    }
+}
+
 impl<EdgeId: Copy> ExpansionPaths<EdgeId> {
     pub fn expand_line_path(&self, line: &LineLocation<EdgeId>) -> Vec<EdgeId> {
         self.start

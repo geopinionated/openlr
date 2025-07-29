@@ -64,6 +64,10 @@ pub enum EncoderError {
     InvalidLocation(LocationError),
     #[error("Cannot compute intermediate at location index {0}")]
     IntermediateError(usize),
+    #[error("Cannot find route between LRPs")]
+    RouteNotFound,
+    #[error("Cannot construct LRP for location")]
+    LrpConstructionFailed,
 }
 
 #[derive(Error, Debug, PartialEq, Clone, Copy)]

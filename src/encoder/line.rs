@@ -1,10 +1,8 @@
 use tracing::info;
 
 use crate::encoder::expansion::line_location_expansion;
-use crate::{
-    DirectedGraph, EncoderConfig, EncoderError, ExpansionPaths, LineLocation, LocationError, Path,
-    ShortestRoute, ensure_line_is_valid, shortest_path_location,
-};
+use crate::encoder::resolver::resolve_lrps;
+use crate::{DirectedGraph, EncoderConfig, EncoderError, LineLocation, ensure_line_is_valid};
 
 pub fn encode_line<G: DirectedGraph>(
     config: &EncoderConfig,
@@ -22,60 +20,8 @@ pub fn encode_line<G: DirectedGraph>(
     // Step – 2 Adjust start and end node of the location to represent valid map nodes
     let expansion = line_location_expansion(config, graph, &line);
 
+    // Step – 3,4,5,6 Split location into intermediate LRPs until full coverage.
+    let lrps = resolve_lrps(config, graph, &line, &expansion)?;
+
     todo!()
-}
-
-#[derive(Debug)]
-pub struct LocRefPoint<EdgeId> {
-    /// The line this LRP refers to.
-    pub edge: EdgeId,
-    /// The shortest path to the next LRP.
-    pub path: Vec<EdgeId>,
-}
-
-impl<EdgeId: Copy> LocRefPoint<EdgeId> {
-    fn new(location: Vec<EdgeId>) -> Self {
-        let edge = location[0];
-
-        Self {
-            edge,
-            path: location,
-        }
-    }
-}
-
-pub fn resolve_lrps<G: DirectedGraph>(
-    config: &EncoderConfig,
-    graph: &G,
-    line: &LineLocation<G::EdgeId>,
-    expansion: &ExpansionPaths<G::EdgeId>,
-) -> Result<Vec<LocRefPoint<G::EdgeId>>, EncoderError> {
-    let mut location: Vec<G::EdgeId> = expansion.expand_line_path(line);
-
-    if location.is_empty() {
-        return Err(LocationError::Empty.into());
-    }
-
-    let mut lrps = vec![];
-
-    // find shortest-path(s) until the whole location is covered by a
-    // concatenation of these shortest-path(s)
-    while !location.is_empty() {
-        match shortest_path_location(graph, &location)? {
-            ShortestRoute::Route(_) => {
-                //
-                todo!()
-            }
-            ShortestRoute::Intermediate(_) => {
-                //
-                todo!()
-            }
-            ShortestRoute::NotFound => {
-                //
-                todo!()
-            }
-        }
-    }
-
-    Ok(lrps)
 }

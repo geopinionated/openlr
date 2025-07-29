@@ -1,7 +1,7 @@
 mod graph;
 
 use openlr::{
-    Frc, IntermediateRoute, Length, Path, ShortestRoute, shortest_path, shortest_path_location,
+    Frc, IntermediateLocation, Length, Path, ShortestRoute, shortest_path, shortest_path_location,
 };
 use test_log::test;
 
@@ -134,20 +134,32 @@ fn decoder_routing_shortest_path_008() {
 }
 
 #[test]
+fn decoder_routing_shortest_path_009() {
+    let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+    assert_eq!(
+        shortest_path(graph, VertexId(42), VertexId(68), Frc::Frc7, Length::MAX).unwrap(),
+        Path {
+            length: Length::from_meters(489.0),
+            edges: vec![
+                EdgeId(1653344),
+                EdgeId(4997411),
+                EdgeId(5359424),
+                EdgeId(5359425),
+            ],
+        }
+    );
+}
+
+#[test]
 fn encoder_routing_shortest_path_location_001() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     let location = [EdgeId(-9044470), EdgeId(-9044471)];
 
-    let route = shortest_path_location(graph, &location).unwrap();
+    let route = shortest_path_location(graph, &location, Length::MAX).unwrap();
 
-    assert_eq!(
-        route,
-        ShortestRoute::Route(Path {
-            length: Length::from_meters(31.0),
-            edges: location.to_vec()
-        })
-    );
+    assert_eq!(route, ShortestRoute::Location);
 }
 
 #[test]
@@ -156,15 +168,9 @@ fn encoder_routing_shortest_path_location_002() {
 
     let location = [EdgeId(-9044470), EdgeId(-9044471), EdgeId(-9044472)];
 
-    let route = shortest_path_location(graph, &location).unwrap();
+    let route = shortest_path_location(graph, &location, Length::MAX).unwrap();
 
-    assert_eq!(
-        route,
-        ShortestRoute::Route(Path {
-            length: Length::from_meters(45.0),
-            edges: location.to_vec()
-        })
-    );
+    assert_eq!(route, ShortestRoute::Location);
 }
 
 #[test]
@@ -173,15 +179,9 @@ fn encoder_routing_shortest_path_location_003() {
 
     let location = [EdgeId(-9044472), EdgeId(4993083)];
 
-    let route = shortest_path_location(graph, &location).unwrap();
+    let route = shortest_path_location(graph, &location, Length::MAX).unwrap();
 
-    assert_eq!(
-        route,
-        ShortestRoute::Route(Path {
-            length: Length::from_meters(219.0),
-            edges: location.to_vec()
-        })
-    );
+    assert_eq!(route, ShortestRoute::Location);
 }
 
 #[test]
@@ -196,16 +196,11 @@ fn encoder_routing_shortest_path_location_004() {
         EdgeId(7516885),
     ];
 
-    let route = shortest_path_location(graph, &location).unwrap();
+    let route = shortest_path_location(graph, &location, Length::MAX).unwrap();
 
     assert_eq!(
         route,
-        ShortestRoute::Intermediate(IntermediateRoute {
-            edges: vec![EdgeId(-7292030)],
-            intermediate: EdgeId(-7292029),
-            intermediate_index: 1,
-            intermediate_2: None,
-        })
+        ShortestRoute::Intermediate(IntermediateLocation { location_index: 1 })
     );
 }
 
@@ -222,16 +217,11 @@ fn encoder_routing_shortest_path_location_005() {
         EdgeId(7516885),
     ];
 
-    let route = shortest_path_location(graph, &location).unwrap();
+    let route = shortest_path_location(graph, &location, Length::MAX).unwrap();
 
     assert_eq!(
         route,
-        ShortestRoute::Intermediate(IntermediateRoute {
-            edges: vec![EdgeId(-4925290), EdgeId(-7292030)],
-            intermediate: EdgeId(-7292029),
-            intermediate_index: 2,
-            intermediate_2: None,
-        })
+        ShortestRoute::Intermediate(IntermediateLocation { location_index: 2 })
     );
 }
 
@@ -241,16 +231,11 @@ fn encoder_routing_shortest_path_location_006() {
 
     let location = [EdgeId(-7519159), EdgeId(5104156), EdgeId(-7519157)];
 
-    let route = shortest_path_location(graph, &location).unwrap();
+    let route = shortest_path_location(graph, &location, Length::MAX).unwrap();
 
     assert_eq!(
         route,
-        ShortestRoute::Intermediate(IntermediateRoute {
-            edges: vec![EdgeId(-7519159)],
-            intermediate: EdgeId(5104156),
-            intermediate_index: 1,
-            intermediate_2: None,
-        })
+        ShortestRoute::Intermediate(IntermediateLocation { location_index: 1 })
     );
 }
 
@@ -270,16 +255,11 @@ fn encoder_routing_shortest_path_location_007() {
         EdgeId(7430361),
     ];
 
-    let route = shortest_path_location(graph, &location).unwrap();
+    let route = shortest_path_location(graph, &location, Length::MAX).unwrap();
 
     assert_eq!(
         route,
-        ShortestRoute::Intermediate(IntermediateRoute {
-            edges: vec![EdgeId(7531947), EdgeId(86727)],
-            intermediate: EdgeId(4921654),
-            intermediate_index: 2,
-            intermediate_2: None,
-        })
+        ShortestRoute::Intermediate(IntermediateLocation { location_index: 2 })
     );
 }
 
@@ -295,16 +275,11 @@ fn encoder_routing_shortest_path_location_008() {
         EdgeId(7516884),
     ];
 
-    let route = shortest_path_location(graph, &location).unwrap();
+    let route = shortest_path_location(graph, &location, Length::MAX).unwrap();
 
     assert_eq!(
         route,
-        ShortestRoute::Intermediate(IntermediateRoute {
-            edges: vec![EdgeId(7516884)],
-            intermediate: EdgeId(-7292029),
-            intermediate_index: 1,
-            intermediate_2: None,
-        })
+        ShortestRoute::Intermediate(IntermediateLocation { location_index: 1 })
     );
 }
 
@@ -318,45 +293,16 @@ fn encoder_routing_shortest_path_location_009() {
         EdgeId(7516885),
     ];
 
-    let route = shortest_path_location(graph, &location).unwrap();
+    let route = shortest_path_location(graph, &location, Length::MAX).unwrap();
 
     assert_eq!(
         route,
-        ShortestRoute::Intermediate(IntermediateRoute {
-            edges: vec![EdgeId(7516884)],
-            intermediate: EdgeId(7516884),
-            intermediate_index: 1,
-            intermediate_2: None,
-        })
+        ShortestRoute::Intermediate(IntermediateLocation { location_index: 1 })
     );
 }
 
 #[test]
 fn encoder_routing_shortest_path_location_010() {
-    let graph: &NetworkGraph = &NETWORK_GRAPH;
-
-    let location = [
-        EdgeId(7516884),
-        EdgeId(-7292029), // getting here requires uturn into same (undirected) previous edge
-        EdgeId(7516886),
-        EdgeId(7516883),
-    ];
-
-    let route = shortest_path_location(graph, &location).unwrap();
-
-    assert_eq!(
-        route,
-        ShortestRoute::Intermediate(IntermediateRoute {
-            edges: vec![EdgeId(7516884)],
-            intermediate: EdgeId(-7292029),
-            intermediate_index: 1,
-            intermediate_2: Some(EdgeId(7516884)),
-        })
-    );
-}
-
-#[test]
-fn encoder_routing_shortest_path_location_011() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     let location = [
@@ -368,26 +314,16 @@ fn encoder_routing_shortest_path_location_011() {
         EdgeId(7292030),
     ];
 
-    let route = shortest_path_location(graph, &location).unwrap();
+    let route = shortest_path_location(graph, &location, Length::MAX).unwrap();
 
     assert_eq!(
         route,
-        ShortestRoute::Intermediate(IntermediateRoute {
-            edges: vec![
-                EdgeId(-7516884),
-                EdgeId(-7292029),
-                EdgeId(7516886),
-                EdgeId(7516883)
-            ],
-            intermediate: EdgeId(-7516884),
-            intermediate_index: 4,
-            intermediate_2: None,
-        })
+        ShortestRoute::Intermediate(IntermediateLocation { location_index: 4 })
     );
 }
 
 #[test]
-fn encoder_routing_shortest_path_location_012() {
+fn encoder_routing_shortest_path_location_011() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     let location = [
@@ -399,21 +335,16 @@ fn encoder_routing_shortest_path_location_012() {
         EdgeId(-7516884),
     ];
 
-    let route = shortest_path_location(graph, &location).unwrap();
+    let route = shortest_path_location(graph, &location, Length::MAX).unwrap();
 
     assert_eq!(
         route,
-        ShortestRoute::Intermediate(IntermediateRoute {
-            edges: vec![EdgeId(-7516885)],
-            intermediate: EdgeId(-7516884),
-            intermediate_index: 1,
-            intermediate_2: None,
-        })
+        ShortestRoute::Intermediate(IntermediateLocation { location_index: 1 })
     );
 }
 
 #[test]
-fn encoder_routing_shortest_path_location_013() {
+fn encoder_routing_shortest_path_location_012() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     let location = [
@@ -439,23 +370,79 @@ fn encoder_routing_shortest_path_location_013() {
         EdgeId(-869554),
     ];
 
-    let route = shortest_path_location(graph, &location).unwrap();
+    let route = shortest_path_location(graph, &location, Length::MAX).unwrap();
 
     assert_eq!(
         route,
-        ShortestRoute::Intermediate(IntermediateRoute {
-            edges: vec![
-                EdgeId(961825),
-                EdgeId(7531950),
-                EdgeId(-6770340),
-                EdgeId(7531949),
-                EdgeId(7430352),
-                EdgeId(7430353),
-                EdgeId(-4232179)
-            ],
-            intermediate: EdgeId(961825),
-            intermediate_index: 7,
-            intermediate_2: None,
-        })
+        ShortestRoute::Intermediate(IntermediateLocation { location_index: 7 })
     );
+}
+
+#[test]
+fn encoder_routing_shortest_path_location_013() {
+    let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+    let location = [EdgeId(-9044470), EdgeId(-9044471), EdgeId(-9044472)];
+
+    let route = shortest_path_location(graph, &location, Length::from_meters(19.0)).unwrap();
+
+    assert_eq!(
+        route,
+        ShortestRoute::Intermediate(IntermediateLocation { location_index: 1 })
+    );
+}
+
+#[test]
+fn encoder_routing_shortest_path_location_014() {
+    let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+    let location = [EdgeId(-9044470), EdgeId(-9044471), EdgeId(-9044472)];
+
+    let route = shortest_path_location(graph, &location, Length::from_meters(30.0)).unwrap();
+
+    assert_eq!(
+        route,
+        ShortestRoute::Intermediate(IntermediateLocation { location_index: 1 })
+    );
+}
+
+#[test]
+fn encoder_routing_shortest_path_location_015() {
+    let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+    let location = [EdgeId(-9044470), EdgeId(-9044471), EdgeId(-9044472)];
+
+    let route = shortest_path_location(graph, &location, Length::from_meters(31.0)).unwrap();
+
+    assert_eq!(
+        route,
+        ShortestRoute::Intermediate(IntermediateLocation { location_index: 2 })
+    );
+}
+
+#[test]
+fn encoder_routing_shortest_path_location_016() {
+    let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+    let location = [EdgeId(8717174), EdgeId(8717175), EdgeId(109783)];
+
+    let route = shortest_path_location(graph, &location, Length::MAX).unwrap();
+
+    assert_eq!(route, ShortestRoute::Location);
+}
+
+#[test]
+fn encoder_routing_shortest_path_location_017() {
+    let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+    let location = [
+        EdgeId(1653344),
+        EdgeId(4997411),
+        EdgeId(5359424),
+        EdgeId(5359425),
+    ];
+
+    let route = shortest_path_location(graph, &location, Length::MAX).unwrap();
+
+    assert_eq!(route, ShortestRoute::Location);
 }

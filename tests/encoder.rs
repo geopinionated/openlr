@@ -1,8 +1,9 @@
 mod graph;
 
 use openlr::{
-    DirectedGraph, EncoderConfig, Length, LineLocation, Location, Path, edge_backward_expansion,
-    edge_forward_expansion, encode_base64_openlr, is_node_valid, is_opposite_direction,
+    Bearing, Coordinate, DirectedGraph, EncoderConfig, ExpansionPaths, Length, LineLocation,
+    LocRefPoint, Location, Path, edge_backward_expansion, edge_forward_expansion,
+    encode_base64_openlr, is_node_valid, is_opposite_direction, resolve_lrps,
     select_edge_expansion_candidate,
 };
 use test_log::test;
@@ -274,5 +275,419 @@ fn encoder_edge_expansion_005() {
             length: Length::from_meters(31.0)
         },
         "Start VertexId(140) is not a valid node"
+    );
+}
+
+#[test]
+fn encoder_resolve_lrps_001() {
+    let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+    let config = EncoderConfig::default();
+    let expansion = ExpansionPaths::default();
+
+    let line = LineLocation {
+        path: vec![EdgeId(9044472)],
+        pos_offset: Length::ZERO,
+        neg_offset: Length::ZERO,
+    };
+
+    let lrps = resolve_lrps(&config, graph, &line, &expansion).unwrap();
+
+    assert_eq!(
+        lrps,
+        [
+            LocRefPoint {
+                path: vec![EdgeId(9044472)],
+                coordinate: Coordinate {
+                    lon: 13.459407,
+                    lat: 52.5143601
+                },
+                is_last: false,
+                bearing: Bearing::from_degrees(303),
+            },
+            LocRefPoint {
+                path: vec![],
+                coordinate: Coordinate {
+                    lon: 13.4592303,
+                    lat: 52.5144292
+                },
+                is_last: true,
+                bearing: Bearing::from_degrees(123),
+            },
+        ]
+    );
+}
+
+#[test]
+fn encoder_resolve_lrps_002() {
+    let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+    let config = EncoderConfig::default();
+    let expansion = ExpansionPaths::default();
+
+    let line = LineLocation {
+        path: vec![EdgeId(-9044470), EdgeId(-9044471), EdgeId(-9044472)],
+        pos_offset: Length::ZERO,
+        neg_offset: Length::ZERO,
+    };
+
+    let lrps = resolve_lrps(&config, graph, &line, &expansion).unwrap();
+
+    assert_eq!(
+        lrps,
+        [
+            LocRefPoint {
+                path: vec![EdgeId(-9044470), EdgeId(-9044471), EdgeId(-9044472)],
+                coordinate: Coordinate {
+                    lon: 13.458825,
+                    lat: 52.5145838
+                },
+                is_last: false,
+                bearing: Bearing::from_degrees(122),
+            },
+            LocRefPoint {
+                path: vec![],
+                coordinate: Coordinate {
+                    lon: 13.459407,
+                    lat: 52.5143601
+                },
+                is_last: true,
+                bearing: Bearing::from_degrees(303),
+            },
+        ]
+    );
+}
+
+#[test]
+fn encoder_resolve_lrps_003() {
+    let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+    let config = EncoderConfig::default();
+    let expansion = ExpansionPaths::default();
+
+    let line = LineLocation {
+        path: vec![
+            EdgeId(-7292030),
+            EdgeId(-7292029),
+            EdgeId(7516886),
+            EdgeId(7516883),
+            EdgeId(7516885),
+        ],
+        pos_offset: Length::ZERO,
+        neg_offset: Length::ZERO,
+    };
+
+    let lrps = resolve_lrps(&config, graph, &line, &expansion).unwrap();
+
+    assert_eq!(
+        lrps,
+        [
+            LocRefPoint {
+                path: vec![EdgeId(-7292030)],
+                coordinate: Coordinate {
+                    lon: 13.4571122,
+                    lat: 52.5177995
+                },
+                is_last: false,
+                bearing: Bearing::from_degrees(20),
+            },
+            LocRefPoint {
+                path: vec![
+                    EdgeId(-7292029),
+                    EdgeId(7516886),
+                    EdgeId(7516883),
+                    EdgeId(7516885)
+                ],
+                coordinate: Coordinate {
+                    lon: 13.4576677,
+                    lat: 52.518717
+                },
+                is_last: false,
+                bearing: Bearing::from_degrees(20),
+            },
+            LocRefPoint {
+                path: vec![],
+                coordinate: Coordinate {
+                    lon: 13.4580594,
+                    lat: 52.5186534
+                },
+                is_last: true,
+                bearing: Bearing::from_degrees(286),
+            }
+        ]
+    );
+}
+
+#[test]
+fn encoder_resolve_lrps_004() {
+    let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+    let config = EncoderConfig::default();
+    let expansion = ExpansionPaths::default();
+
+    let line = LineLocation {
+        path: vec![
+            EdgeId(7516884),
+            EdgeId(7516884), // loop into first line
+            EdgeId(7516885),
+        ],
+        pos_offset: Length::ZERO,
+        neg_offset: Length::ZERO,
+    };
+
+    let lrps = resolve_lrps(&config, graph, &line, &expansion).unwrap();
+
+    assert_eq!(
+        lrps,
+        [
+            LocRefPoint {
+                path: vec![EdgeId(7516884)],
+                coordinate: Coordinate {
+                    lon: 13.4576677,
+                    lat: 52.518717
+                },
+                is_last: false,
+                bearing: Bearing::from_degrees(105),
+            },
+            LocRefPoint {
+                path: vec![EdgeId(7516884), EdgeId(7516885)],
+                coordinate: Coordinate {
+                    lon: 13.4576677,
+                    lat: 52.518717
+                },
+                is_last: false,
+                bearing: Bearing::from_degrees(105),
+            },
+            LocRefPoint {
+                path: vec![],
+                coordinate: Coordinate {
+                    lon: 13.4580594,
+                    lat: 52.5186534
+                },
+                is_last: true,
+                bearing: Bearing::from_degrees(286),
+            }
+        ]
+    );
+}
+
+#[test]
+fn encoder_resolve_lrps_005() {
+    let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+    let config = EncoderConfig::default();
+    let expansion = ExpansionPaths::default();
+
+    let line = LineLocation {
+        path: vec![
+            EdgeId(-7516884),
+            EdgeId(-7292029),
+            EdgeId(7516886),
+            EdgeId(7516883),
+            EdgeId(-7516884), // loop into origin
+            EdgeId(7292030),
+        ],
+        pos_offset: Length::ZERO,
+        neg_offset: Length::ZERO,
+    };
+
+    let lrps = resolve_lrps(&config, graph, &line, &expansion).unwrap();
+
+    assert_eq!(
+        lrps,
+        [
+            LocRefPoint {
+                path: vec![
+                    EdgeId(-7516884),
+                    EdgeId(-7292029),
+                    EdgeId(7516886),
+                    EdgeId(7516883)
+                ],
+                coordinate: Coordinate {
+                    lon: 13.4579134,
+                    lat: 52.5186781
+                },
+                is_last: false,
+                bearing: Bearing::from_degrees(285),
+            },
+            LocRefPoint {
+                path: vec![EdgeId(-7516884), EdgeId(7292030)],
+                coordinate: Coordinate {
+                    lon: 13.4579134,
+                    lat: 52.5186781
+                },
+                is_last: false,
+                bearing: Bearing::from_degrees(285),
+            },
+            LocRefPoint {
+                path: vec![],
+                coordinate: Coordinate {
+                    lon: 13.4571122,
+                    lat: 52.5177995
+                },
+                is_last: true,
+                bearing: Bearing::from_degrees(20),
+            }
+        ]
+    );
+}
+
+#[test]
+fn encoder_resolve_lrps_006() {
+    let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+    let config = EncoderConfig::default();
+    let expansion = ExpansionPaths::default();
+
+    let line = LineLocation {
+        path: vec![
+            EdgeId(-7516885),
+            EdgeId(-7516884), // loop into destination
+            EdgeId(-7292029),
+            EdgeId(7516886),
+            EdgeId(7516883),
+            EdgeId(-7516884),
+        ],
+        pos_offset: Length::ZERO,
+        neg_offset: Length::ZERO,
+    };
+
+    let lrps = resolve_lrps(&config, graph, &line, &expansion).unwrap();
+
+    assert_eq!(
+        lrps,
+        [
+            LocRefPoint {
+                path: vec![EdgeId(-7516885)],
+                coordinate: Coordinate {
+                    lon: 13.4580594,
+                    lat: 52.5186534
+                },
+                is_last: false,
+                bearing: Bearing::from_degrees(286),
+            },
+            LocRefPoint {
+                path: vec![EdgeId(-7516884)],
+                coordinate: Coordinate {
+                    lon: 13.4579134,
+                    lat: 52.5186781
+                },
+                is_last: false,
+                bearing: Bearing::from_degrees(285),
+            },
+            LocRefPoint {
+                path: vec![
+                    EdgeId(-7292029),
+                    EdgeId(7516886),
+                    EdgeId(7516883),
+                    EdgeId(-7516884)
+                ],
+                coordinate: Coordinate {
+                    lon: 13.4576677,
+                    lat: 52.518717
+                },
+                is_last: false,
+                bearing: Bearing::from_degrees(20),
+            },
+            LocRefPoint {
+                path: vec![],
+                coordinate: Coordinate {
+                    lon: 13.4576677,
+                    lat: 52.518717
+                },
+                is_last: true,
+                bearing: Bearing::from_degrees(105),
+            }
+        ]
+    );
+}
+
+#[test]
+fn encoder_resolve_lrps_007() {
+    let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+    let config = EncoderConfig::default();
+    let expansion = ExpansionPaths::default();
+
+    let line = LineLocation {
+        path: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
+        pos_offset: Length::ZERO,
+        neg_offset: Length::ZERO,
+    };
+
+    let lrps = resolve_lrps(&config, graph, &line, &expansion).unwrap();
+
+    assert_eq!(
+        lrps,
+        [
+            LocRefPoint {
+                path: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
+                coordinate: Coordinate {
+                    lon: 13.4611206,
+                    lat: 52.5170944
+                },
+                is_last: false,
+                bearing: Bearing::from_degrees(106),
+            },
+            LocRefPoint {
+                path: vec![],
+                coordinate: Coordinate {
+                    lon: 13.4628442,
+                    lat: 52.5149807
+                },
+                is_last: true,
+                bearing: Bearing::from_degrees(18),
+            }
+        ]
+    );
+}
+
+#[test]
+fn encoder_resolve_lrps_008() {
+    let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+    let config = EncoderConfig::default();
+    let expansion = ExpansionPaths::default();
+
+    let line = LineLocation {
+        path: vec![
+            EdgeId(1653344),
+            EdgeId(4997411),
+            EdgeId(5359424),
+            EdgeId(5359425),
+        ],
+        pos_offset: Length::from_meters(11.0),
+        neg_offset: Length::from_meters(14.0),
+    };
+
+    let lrps = resolve_lrps(&config, graph, &line, &expansion).unwrap();
+
+    assert_eq!(
+        lrps,
+        [
+            LocRefPoint {
+                path: vec![
+                    EdgeId(1653344),
+                    EdgeId(4997411),
+                    EdgeId(5359424),
+                    EdgeId(5359425),
+                ],
+                coordinate: Coordinate {
+                    lon: 13.4659771,
+                    lat: 52.5181688
+                },
+                is_last: false,
+                bearing: Bearing::from_degrees(287),
+            },
+            LocRefPoint {
+                path: vec![],
+                coordinate: Coordinate {
+                    lon: 13.4611206,
+                    lat: 52.5170944
+                },
+                is_last: true,
+                bearing: Bearing::from_degrees(17),
+            }
+        ]
     );
 }
