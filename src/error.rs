@@ -68,6 +68,10 @@ pub enum EncoderError {
     RouteNotFound,
     #[error("Cannot construct LRP for location")]
     LrpConstructionFailed,
+    #[error("Maximum distance between consecutive LRPs exceeded")]
+    MaxDistanceExceeded,
+    #[error("Cannot construct LRPs for location after trimming")]
+    LrpOffsetTrimmingFailed,
 }
 
 #[derive(Error, Debug, PartialEq, Clone, Copy)]

@@ -72,6 +72,24 @@ impl<EdgeId: Copy> LineLocation<EdgeId> {
             neg_offset,
         })
     }
+
+    /// Construct a new Line location by expanding self.
+    pub fn expand<I>(&self, prefix: I, postfix: I) -> LineLocation<EdgeId>
+    where
+        I: IntoIterator<Item = EdgeId>,
+    {
+        let path = prefix
+            .into_iter()
+            .chain(self.path.iter().copied())
+            .chain(postfix)
+            .collect();
+
+        Self {
+            path,
+            pos_offset: self.pos_offset,
+            neg_offset: self.neg_offset,
+        }
+    }
 }
 
 /// Returns an error is the Line location is not valid.

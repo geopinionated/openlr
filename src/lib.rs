@@ -23,11 +23,12 @@ pub use decoder::route::{Route, Routes};
 pub use decoder::shortest_path::shortest_path;
 pub use decoder::{DecoderConfig, decode_base64_openlr, decode_binary_openlr};
 pub use encoder::expansion::{
-    ExpansionPaths, edge_backward_expansion, edge_forward_expansion, is_node_valid,
-    is_opposite_direction, select_edge_expansion_candidate,
+    edge_backward_expansion, edge_forward_expansion, is_node_valid, is_opposite_direction,
+    select_edge_expansion_candidate,
 };
 pub use encoder::line::encode_line;
-pub use encoder::resolver::{LocRefPoint, resolve_lrps};
+pub use encoder::lrp::LocRefPoint;
+pub use encoder::resolver::resolve_lrps;
 pub use encoder::shortest_path::{IntermediateLocation, ShortestRoute, shortest_path_location};
 pub use encoder::{EncoderConfig, encode_base64_openlr, encode_binary_openlr};
 pub use error::{DecodeError, DeserializeError, EncoderError, LocationError, SerializeError};

@@ -23,6 +23,7 @@
 
 pub mod expansion;
 pub mod line;
+pub mod lrp;
 pub mod resolver;
 pub mod shortest_path;
 

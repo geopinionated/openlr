@@ -1,36 +1,7 @@
 use crate::{DirectedGraph, EncoderConfig, Length, LineLocation, Path};
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct ExpansionPaths<EdgeId> {
-    /// The path that represents the beginning of the expansion.
-    pub start: Path<EdgeId>,
-    /// The path that represents the end of the expansion.
-    pub end: Path<EdgeId>,
-}
-
-impl<EdgeId> Default for ExpansionPaths<EdgeId> {
-    fn default() -> Self {
-        Self {
-            start: Path::default(),
-            end: Path::default(),
-        }
-    }
-}
-
-impl<EdgeId: Copy> ExpansionPaths<EdgeId> {
-    pub fn expand_line_path(&self, line: &LineLocation<EdgeId>) -> Vec<EdgeId> {
-        self.start
-            .edges
-            .iter()
-            .chain(line.path.iter())
-            .chain(self.end.edges.iter())
-            .copied()
-            .collect()
-    }
-}
-
-/// Returns the expanded paths (forward and backward) that can be appended/prepended to the give
-/// line respectively so that the start and the end of the location are in valid nodes.
+/// Returns the line expanded by forward and backward paths so that the start and the end of the
+/// location are in valid nodes.
 ///
 /// Data format rules recommends to place location reference points on valid nodes.
 /// Valid nodes are such nodes where a shortest-path calculation needs to decide between several
@@ -48,10 +19,22 @@ pub fn line_location_expansion<G: DirectedGraph>(
     config: &EncoderConfig,
     graph: &G,
     line: &LineLocation<G::EdgeId>,
-) -> ExpansionPaths<G::EdgeId> {
-    let start = edge_backward_expansion(config, graph, line);
-    let end = edge_forward_expansion(config, graph, line);
-    ExpansionPaths { start, end }
+) -> LineLocation<G::EdgeId> {
+    let prefix = edge_backward_expansion(config, graph, line);
+    let postfix = edge_forward_expansion(config, graph, line);
+
+    let path = prefix
+        .edges
+        .into_iter()
+        .chain(line.path.iter().copied())
+        .chain(postfix.edges)
+        .collect();
+
+    LineLocation {
+        path,
+        pos_offset: line.pos_offset + prefix.length,
+        neg_offset: line.neg_offset + postfix.length,
+    }
 }
 
 /// Returns the expansion path in forward direction (from the line end).

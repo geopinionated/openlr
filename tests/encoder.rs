@@ -1,10 +1,9 @@
 mod graph;
 
 use openlr::{
-    Bearing, Coordinate, DirectedGraph, EncoderConfig, ExpansionPaths, Length, LineLocation,
-    LocRefPoint, Location, Path, edge_backward_expansion, edge_forward_expansion,
-    encode_base64_openlr, is_node_valid, is_opposite_direction, resolve_lrps,
-    select_edge_expansion_candidate,
+    Bearing, Coordinate, DirectedGraph, EncoderConfig, Length, LineLocation, LocRefPoint, Location,
+    Path, edge_backward_expansion, edge_forward_expansion, encode_base64_openlr, is_node_valid,
+    is_opposite_direction, resolve_lrps, select_edge_expansion_candidate,
 };
 use test_log::test;
 
@@ -283,7 +282,6 @@ fn encoder_resolve_lrps_001() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     let config = EncoderConfig::default();
-    let expansion = ExpansionPaths::default();
 
     let line = LineLocation {
         path: vec![EdgeId(9044472)],
@@ -291,7 +289,7 @@ fn encoder_resolve_lrps_001() {
         neg_offset: Length::ZERO,
     };
 
-    let lrps = resolve_lrps(&config, graph, &line, &expansion).unwrap();
+    let lrps = resolve_lrps(&config, graph, &line).unwrap();
 
     assert_eq!(
         lrps,
@@ -323,7 +321,6 @@ fn encoder_resolve_lrps_002() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     let config = EncoderConfig::default();
-    let expansion = ExpansionPaths::default();
 
     let line = LineLocation {
         path: vec![EdgeId(-9044470), EdgeId(-9044471), EdgeId(-9044472)],
@@ -331,7 +328,7 @@ fn encoder_resolve_lrps_002() {
         neg_offset: Length::ZERO,
     };
 
-    let lrps = resolve_lrps(&config, graph, &line, &expansion).unwrap();
+    let lrps = resolve_lrps(&config, graph, &line).unwrap();
 
     assert_eq!(
         lrps,
@@ -363,7 +360,6 @@ fn encoder_resolve_lrps_003() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     let config = EncoderConfig::default();
-    let expansion = ExpansionPaths::default();
 
     let line = LineLocation {
         path: vec![
@@ -377,7 +373,7 @@ fn encoder_resolve_lrps_003() {
         neg_offset: Length::ZERO,
     };
 
-    let lrps = resolve_lrps(&config, graph, &line, &expansion).unwrap();
+    let lrps = resolve_lrps(&config, graph, &line).unwrap();
 
     assert_eq!(
         lrps,
@@ -423,7 +419,6 @@ fn encoder_resolve_lrps_004() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     let config = EncoderConfig::default();
-    let expansion = ExpansionPaths::default();
 
     let line = LineLocation {
         path: vec![
@@ -435,7 +430,7 @@ fn encoder_resolve_lrps_004() {
         neg_offset: Length::ZERO,
     };
 
-    let lrps = resolve_lrps(&config, graph, &line, &expansion).unwrap();
+    let lrps = resolve_lrps(&config, graph, &line).unwrap();
 
     assert_eq!(
         lrps,
@@ -476,7 +471,6 @@ fn encoder_resolve_lrps_005() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     let config = EncoderConfig::default();
-    let expansion = ExpansionPaths::default();
 
     let line = LineLocation {
         path: vec![
@@ -491,7 +485,7 @@ fn encoder_resolve_lrps_005() {
         neg_offset: Length::ZERO,
     };
 
-    let lrps = resolve_lrps(&config, graph, &line, &expansion).unwrap();
+    let lrps = resolve_lrps(&config, graph, &line).unwrap();
 
     assert_eq!(
         lrps,
@@ -537,7 +531,6 @@ fn encoder_resolve_lrps_006() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     let config = EncoderConfig::default();
-    let expansion = ExpansionPaths::default();
 
     let line = LineLocation {
         path: vec![
@@ -552,7 +545,7 @@ fn encoder_resolve_lrps_006() {
         neg_offset: Length::ZERO,
     };
 
-    let lrps = resolve_lrps(&config, graph, &line, &expansion).unwrap();
+    let lrps = resolve_lrps(&config, graph, &line).unwrap();
 
     assert_eq!(
         lrps,
@@ -607,7 +600,6 @@ fn encoder_resolve_lrps_007() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     let config = EncoderConfig::default();
-    let expansion = ExpansionPaths::default();
 
     let line = LineLocation {
         path: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
@@ -615,7 +607,7 @@ fn encoder_resolve_lrps_007() {
         neg_offset: Length::ZERO,
     };
 
-    let lrps = resolve_lrps(&config, graph, &line, &expansion).unwrap();
+    let lrps = resolve_lrps(&config, graph, &line).unwrap();
 
     assert_eq!(
         lrps,
@@ -647,7 +639,6 @@ fn encoder_resolve_lrps_008() {
     let graph: &NetworkGraph = &NETWORK_GRAPH;
 
     let config = EncoderConfig::default();
-    let expansion = ExpansionPaths::default();
 
     let line = LineLocation {
         path: vec![
@@ -660,7 +651,7 @@ fn encoder_resolve_lrps_008() {
         neg_offset: Length::from_meters(14.0),
     };
 
-    let lrps = resolve_lrps(&config, graph, &line, &expansion).unwrap();
+    let lrps = resolve_lrps(&config, graph, &line).unwrap();
 
     assert_eq!(
         lrps,
