@@ -27,7 +27,7 @@ pub use encoder::expansion::{
     select_edge_expansion_candidate,
 };
 pub use encoder::line::encode_line;
-pub use encoder::lrp::LocRefPoint;
+pub use encoder::lrp::{LocRefPoint, LocRefPoints};
 pub use encoder::resolver::resolve_lrps;
 pub use encoder::shortest_path::{IntermediateLocation, ShortestRoute, shortest_path_location};
 pub use encoder::{EncoderConfig, encode_base64_openlr, encode_binary_openlr};

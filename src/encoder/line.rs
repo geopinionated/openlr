@@ -15,13 +15,16 @@ pub fn encode_line<G: DirectedGraph>(
     ensure_line_is_valid(graph, &line, config.max_lrp_distance)?;
     let line = line.trim(graph)?;
 
-    // TODO: dedup line edges?
-
     // Step – 2 Adjust start and end node of the location to represent valid map nodes
-    let expansion = line_location_expansion(config, graph, &line);
+    let line = line_location_expansion(config, graph, &line);
+    debug_assert!(!line.path.is_empty());
 
-    // Step – 3,4,5,6 Split location into intermediate LRPs until full coverage.
-    let lrps = resolve_lrps(config, graph, &line, &expansion)?;
+    // Step – 3..8 Split location into intermediate LRPs until full coverage.
+    let lrps = resolve_lrps(config, graph, &line)?;
+    debug_assert!(!lrps.is_empty());
+
+    // Step – 9 Trim LRPs if the offset values exceeds the length of the corresponding path.
+    let lrps = lrps.trim(config, graph)?;
 
     todo!()
 }

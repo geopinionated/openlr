@@ -2,7 +2,7 @@ use tracing::warn;
 
 use crate::{
     DirectedGraph, EncoderConfig, EncoderError, IntermediateLocation, LineLocation, LocRefPoint,
-    LocationError, ShortestRoute, shortest_path_location,
+    LocRefPoints, LocationError, ShortestRoute, shortest_path_location,
 };
 
 /// Resolves all the LRPs that should be necessary to encode the given line, and its expansion.
@@ -10,7 +10,7 @@ pub fn resolve_lrps<G: DirectedGraph>(
     config: &EncoderConfig,
     graph: &G,
     line: &LineLocation<G::EdgeId>,
-) -> Result<Vec<LocRefPoint<G::EdgeId>>, EncoderError> {
+) -> Result<LocRefPoints<G::EdgeId>, EncoderError> {
     let mut location: Vec<G::EdgeId> = line.path.clone();
 
     let last_edge = if let Some(&last_edge) = location.last() {
@@ -66,7 +66,11 @@ pub fn resolve_lrps<G: DirectedGraph>(
         return Err(EncoderError::MaxDistanceExceeded);
     }
 
-    Ok(lrps)
+    Ok(LocRefPoints {
+        lrps,
+        pos_offset: line.pos_offset,
+        neg_offset: line.neg_offset,
+    })
 }
 
 fn intermediate_lrps<G: DirectedGraph>(
