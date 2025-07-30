@@ -52,7 +52,7 @@ pub fn resolve_lrps<G: DirectedGraph>(
     debug_assert!(
         line.path
             .iter()
-            .zip(lrps.iter().flat_map(|lrp| &lrp.path))
+            .zip(lrps.iter().flat_map(|lrp| &lrp.edges))
             .all(|(e1, e2)| e1 == e2),
         "Resolved LRPs don't cover the exact expanded location edges"
     );
@@ -60,7 +60,7 @@ pub fn resolve_lrps<G: DirectedGraph>(
     // TODO: determine new intermediate LRPs if the maximum distance was exceeded.
     if let Some(lrp) = lrps
         .iter()
-        .find(|lrp| lrp.length(graph) > config.max_lrp_distance)
+        .find(|lrp| lrp.point.dnp() > config.max_lrp_distance)
     {
         warn!("Maximum LRP distance exceeded by {lrp:?}");
         return Err(EncoderError::MaxDistanceExceeded);

@@ -1,7 +1,10 @@
 use std::fmt::Debug;
 use std::ops::Deref;
 
-use crate::{Bearing, Coordinate, DirectedGraph, EncoderConfig, EncoderError, Length};
+use crate::{
+    DirectedGraph, EncoderConfig, EncoderError, Frc, Length, Line, LineAttributes, Offset, Offsets,
+    PathAttributes, Point,
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LocRefPoints<EdgeId> {
@@ -33,13 +36,9 @@ impl<EdgeId> From<Vec<LocRefPoint<EdgeId>>> for LocRefPoints<EdgeId> {
 pub struct LocRefPoint<EdgeId> {
     /// The (non-empty) shortest path to the next LRP.
     /// The line the LRP refers to is the first edge of the path.
-    pub path: Vec<EdgeId>,
-    /// The LRP coordinate.
-    pub coordinate: Coordinate,
-    /// True only if this is the last LRP of the location.
-    pub is_last: bool,
-    /// The bearing of the LRP line.
-    pub bearing: Bearing,
+    pub edges: Vec<EdgeId>,
+    /// The Location Reference Point.
+    pub point: Point,
 }
 
 impl<EdgeId: Copy> LocRefPoint<EdgeId> {
@@ -67,53 +66,58 @@ impl<EdgeId: Copy> LocRefPoint<EdgeId> {
         Self::new(config, graph, vec![edge], true).ok_or(EncoderError::LrpConstructionFailed)
     }
 
-    /// Returns the distance to the next LRP.
-    pub fn length<G>(&self, graph: &G) -> Length
-    where
-        G: DirectedGraph<EdgeId = EdgeId>,
-    {
-        self.path
-            .iter()
-            .filter_map(|&e| graph.get_edge_length(e))
-            .sum()
-    }
-
     fn new<G>(
         config: &EncoderConfig,
         graph: &G,
-        mut path: Vec<EdgeId>,
+        mut edges: Vec<EdgeId>,
         is_last: bool,
     ) -> Option<Self>
     where
         G: DirectedGraph<EdgeId = EdgeId>,
     {
+        let line_attributes = |edge, projection, bearing_distance| {
+            Some(LineAttributes {
+                frc: graph.get_edge_frc(edge)?,
+                fow: graph.get_edge_fow(edge)?,
+                bearing: graph.get_edge_bearing_between(edge, projection, bearing_distance)?,
+            })
+        };
+
         let lrp = if is_last {
-            let edge = path.pop()?;
+            let edge = edges.pop()?;
             let coordinate = graph.get_vertex_coordinate(graph.get_edge_end_vertex(edge)?)?;
             let projection = graph.get_edge_length(edge)?;
-
             let bearing_distance = config.bearing_distance.reverse();
-            let bearing = graph.get_edge_bearing_between(edge, projection, bearing_distance)?;
 
             Self {
-                path,
-                coordinate,
-                is_last,
-                bearing,
+                edges,
+                point: Point {
+                    coordinate,
+                    line: line_attributes(edge, projection, bearing_distance)?,
+                    path: None,
+                },
             }
         } else {
-            let edge = *path.first()?;
+            let edge = *edges.first()?;
             let coordinate = graph.get_vertex_coordinate(graph.get_edge_start_vertex(edge)?)?;
             let projection = Length::ZERO;
-
             let bearing_distance = config.bearing_distance;
-            let bearing = graph.get_edge_bearing_between(edge, projection, bearing_distance)?;
+
+            let lfrcnp = edges.iter().filter_map(|&e| graph.get_edge_frc(e)).max();
+            let dnp = edges.iter().filter_map(|&e| graph.get_edge_length(e)).sum();
+
+            let path = PathAttributes {
+                lfrcnp: lfrcnp.unwrap_or(Frc::Frc7),
+                dnp,
+            };
 
             Self {
-                path,
-                coordinate,
-                is_last,
-                bearing,
+                edges,
+                point: Point {
+                    coordinate,
+                    line: line_attributes(edge, projection, bearing_distance)?,
+                    path: Some(path),
+                },
             }
         };
 
@@ -129,17 +133,17 @@ impl<EdgeId: Copy + Debug> LocRefPoints<EdgeId> {
     {
         self.lrps.reverse();
         while let Some(lrp) = self.lrps.last()
-            && self.pos_offset >= lrp.length(graph)
+            && self.pos_offset >= lrp.point.dnp()
         {
-            self.pos_offset -= lrp.length(graph);
+            self.pos_offset -= lrp.point.dnp();
             self.lrps.pop();
         }
         self.lrps.reverse();
 
         while let Some(lrp) = self.lrps.iter().rev().nth(1)
-            && self.neg_offset >= lrp.length(graph)
+            && self.neg_offset >= lrp.point.dnp()
         {
-            self.neg_offset -= lrp.length(graph);
+            self.neg_offset -= lrp.point.dnp();
             self.lrps.pop();
         }
 
@@ -148,12 +152,31 @@ impl<EdgeId: Copy + Debug> LocRefPoints<EdgeId> {
         }
 
         let mut lrps_rev = self.lrps.iter_mut().rev();
-        if let Some(last_lrp) = lrps_rev.next().filter(|lrp| !lrp.is_last)
-            && let Some(&last_edge) = lrps_rev.next().and_then(|lrp| lrp.path.last())
+        if let Some(last_lrp) = lrps_rev.next().filter(|lrp| !lrp.point.is_last())
+            && let Some(&last_edge) = lrps_rev.next().and_then(|lrp| lrp.edges.last())
         {
             *last_lrp = LocRefPoint::from_last_node(config, graph, last_edge)?;
         }
 
         Ok(self)
+    }
+}
+
+impl<EdgeId> From<LocRefPoints<EdgeId>> for Line {
+    fn from(lrps: LocRefPoints<EdgeId>) -> Self {
+        let LocRefPoints {
+            lrps,
+            pos_offset,
+            neg_offset,
+        } = lrps;
+
+        debug_assert!(lrps.len() > 1);
+        let pos = Offset::relative(pos_offset, lrps[0].point.dnp());
+        let neg = Offset::relative(neg_offset, lrps[lrps.len() - 2].point.dnp());
+
+        Self {
+            points: lrps.into_iter().map(|lrp| lrp.point).collect(),
+            offsets: Offsets { pos, neg },
+        }
     }
 }

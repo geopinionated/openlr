@@ -24,7 +24,7 @@ pub use decoder::shortest_path::shortest_path;
 pub use decoder::{DecoderConfig, decode_base64_openlr, decode_binary_openlr};
 pub use encoder::expansion::{
     edge_backward_expansion, edge_forward_expansion, is_node_valid, is_opposite_direction,
-    select_edge_expansion_candidate,
+    line_location_expansion, select_edge_expansion_candidate,
 };
 pub use encoder::line::encode_line;
 pub use encoder::lrp::{LocRefPoint, LocRefPoints};

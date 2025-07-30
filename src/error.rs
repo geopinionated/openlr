@@ -62,6 +62,8 @@ pub enum DecodeError {
 pub enum EncoderError {
     #[error("Cannot encode invalid location: {0:?}")]
     InvalidLocation(LocationError),
+    #[error("Cannot serialize location: {0:?}")]
+    InvalidLocationReference(SerializeError),
     #[error("Cannot compute intermediate at location index {0}")]
     IntermediateError(usize),
     #[error("Cannot find route between LRPs")]
@@ -99,6 +101,12 @@ impl From<LocationError> for EncoderError {
 impl From<DeserializeError> for DecodeError {
     fn from(error: DeserializeError) -> Self {
         Self::InvalidData(error)
+    }
+}
+
+impl From<SerializeError> for EncoderError {
+    fn from(error: SerializeError) -> Self {
+        Self::InvalidLocationReference(error)
     }
 }
 

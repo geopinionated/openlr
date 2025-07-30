@@ -418,20 +418,10 @@ impl Bearing {
 /// Coordinate pair stands for a pair of WGS84 longitude (lon) and latitude (lat) values.
 /// This coordinate pair specifies a geometric point in a digital map.
 /// The lon and lat values are stored in decamicrodegree resolution (five decimals).
-#[derive(Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct Coordinate {
     pub lon: f64,
     pub lat: f64,
-}
-
-impl fmt::Debug for Coordinate {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "Coordinate {{ lon: {:.5}, lat: {:.5} }}",
-            self.lon, self.lat
-        )
-    }
 }
 
 impl Coordinate {
@@ -502,10 +492,6 @@ impl Point {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Offset(f64);
 
-impl Offset {
-    pub const EPSILON: f64 = 0.5 / (1 << 8) as f64;
-}
-
 impl PartialEq for Offset {
     fn eq(&self, other: &Self) -> bool {
         abs_diff_eq!(self.0, other.0, epsilon = Self::EPSILON)
@@ -513,8 +499,31 @@ impl PartialEq for Offset {
 }
 
 impl Offset {
+    pub const ZERO: Self = Self(0.0);
+    pub const EPSILON: f64 = 0.5 / (1 << 8) as f64;
+    pub const BUCKETS: f64 = 256.0;
+
     pub const fn from_range(range: f64) -> Self {
         Self(range)
+    }
+
+    pub const fn from_bucket(bucket_index: u8) -> Self {
+        Self::from_range((bucket_index as f64 + 0.5) / Self::BUCKETS)
+    }
+
+    /// Computes the relative offset range value between offset and the location lenght.
+    pub fn relative(offset: Length, dnp: Length) -> Self {
+        if offset.is_zero() || dnp.is_zero() {
+            return Self::ZERO;
+        }
+
+        let bucket = if offset == dnp {
+            Self::BUCKETS - 1.0
+        } else {
+            (Self::BUCKETS * offset.meters() / dnp.meters()).floor()
+        };
+
+        Self::from_bucket(bucket as u8)
     }
 
     pub const fn range(&self) -> f64 {

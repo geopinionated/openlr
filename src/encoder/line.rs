@@ -1,14 +1,15 @@
 use tracing::info;
 
-use crate::encoder::expansion::line_location_expansion;
-use crate::encoder::resolver::resolve_lrps;
-use crate::{DirectedGraph, EncoderConfig, EncoderError, LineLocation, ensure_line_is_valid};
+use crate::{
+    DirectedGraph, EncoderConfig, EncoderError, LineLocation, LocationReference,
+    ensure_line_is_valid, line_location_expansion, resolve_lrps,
+};
 
 pub fn encode_line<G: DirectedGraph>(
     config: &EncoderConfig,
     graph: &G,
     line: LineLocation<G::EdgeId>,
-) -> Result<Vec<u8>, EncoderError> {
+) -> Result<LocationReference, EncoderError> {
     info!("Encoding {line:?} with {config:?}");
 
     // Step – 1 Check validity of the location and offsets to be encoded
@@ -26,5 +27,5 @@ pub fn encode_line<G: DirectedGraph>(
     // Step – 9 Trim LRPs if the offset values exceeds the length of the corresponding path.
     let lrps = lrps.trim(config, graph)?;
 
-    todo!()
+    Ok(LocationReference::Line(lrps.into()))
 }
