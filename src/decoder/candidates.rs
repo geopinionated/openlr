@@ -1,0 +1,366 @@
+use std::cmp::Reverse;
+
+use tracing::{debug, trace};
+
+use crate::model::RatingScore;
+use crate::{Bearing, DecodeError, DecoderConfig, DirectedGraph, Fow, Frc, Length, Point};
+
+/// List of candidate nodes for a Location Reference Point.
+/// Nodes are sorted based on their distance to the point (closest to farthest).
+#[derive(Debug, Clone, PartialEq)]
+pub struct CandidateNodes<VertexId> {
+    pub lrp: Point,
+    pub nodes: Vec<CandidateNode<VertexId>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CandidateNode<VertexId> {
+    pub vertex: VertexId,
+    pub distance_to_lrp: Length,
+}
+
+/// List of candidate lines for a Location Reference Point.
+/// Lines are sorted based on their rating (descending - higher rating is better).
+#[derive(Debug, PartialEq)]
+pub struct CandidateLines<EdgeId> {
+    pub lrp: Point,
+    pub lines: Vec<CandidateLine<EdgeId>>,
+}
+
+impl<EdgeId: Copy> CandidateLines<EdgeId> {
+    pub fn best_candidate(&self) -> Option<CandidateLine<EdgeId>> {
+        self.lines.first().copied()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CandidateLine<EdgeId> {
+    pub lrp: Point,
+    pub edge: EdgeId,
+    pub rating: RatingScore,
+    /// If this line is the result of a projection of the LRP into it, this represents the distance
+    /// from the beginning of the line (start vertex) to the point where the LRP was projected.
+    pub distance_to_projection: Option<Length>,
+}
+
+impl<EdgeId> CandidateLine<EdgeId> {
+    pub const fn is_projected(&self) -> bool {
+        self.distance_to_projection.is_some()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CandidateLinePair<EdgeId> {
+    pub line_lrp1: CandidateLine<EdgeId>,
+    pub line_lrp2: CandidateLine<EdgeId>,
+}
+
+impl<EdgeId> CandidateLinePair<EdgeId> {
+    pub fn rating(&self) -> RatingScore {
+        self.line_lrp1.rating * self.line_lrp2.rating
+    }
+}
+
+/// Candidate line that is yet to be rated.
+#[derive(Debug, Clone)]
+struct ProvisionalCandidateLine<EdgeId> {
+    /// Location Reference Point associated to the line.
+    lrp: Point,
+    /// Edge of the candidate line.
+    /// When not projected, this edge exits the LRP (or enters the last LRP).
+    edge: EdgeId,
+    /// Linear distance from the LRP to the candidate line (i.e. to the candidate node vertex,
+    /// or to candidate line edge if the LRP was projected).
+    distance_to_lrp: Length,
+    /// Distance from the start of the edge to the projected LRP into the edge.
+    /// If the LRP is not projected it will be None.
+    distance_to_projection: Option<Length>,
+    /// Functional Road Class of the line.
+    frc: Frc,
+    /// Form of Way of the line.
+    fow: Fow,
+    /// Bearing of the part of the line that will be considered starting from the distance to the
+    /// LRP projection (of a fixed length).
+    bearing: Bearing,
+}
+
+/// Each location reference point contains coordinates specifying a node in the encoder map. The
+/// decoder should try to find so called candidate nodes in the decoder map whereby the coordinates
+/// of the candidate nodes are close to the coordinates of the location reference point coordinates.
+/// The straight line distance should be used to identify close-by nodes. Nodes in the decoder map
+/// which are far away from the coordinates of the location reference point should not be considered
+/// as candidate nodes in the further processing. It might happen that several candidate nodes for
+/// one location reference point exist.
+///
+/// If no candidate node has been determined for a location reference point the decoder should try
+/// to determine a candidate line directly. The LRP coordinate can be projected onto lines which are
+/// not far away from that coordinate.
+pub fn find_candidate_nodes<'a, G, I>(
+    config: &DecoderConfig,
+    graph: &G,
+    points: I,
+) -> impl ExactSizeIterator<Item = CandidateNodes<G::VertexId>>
+where
+    G: DirectedGraph,
+    I: IntoIterator,
+    I::IntoIter: ExactSizeIterator<Item = &'a Point>,
+{
+    let DecoderConfig {
+        max_node_distance, ..
+    } = config;
+
+    points.into_iter().map(move |&lrp| {
+        debug!("Finding candidate nodes for {lrp:?} at max {max_node_distance}");
+
+        let nodes: Vec<_> = graph
+            .nearest_vertices_within_distance(lrp.coordinate, *max_node_distance)
+            .map(|(vertex, distance_to_lrp)| CandidateNode {
+                vertex,
+                distance_to_lrp,
+            })
+            .collect();
+
+        debug_assert!(nodes.is_sorted_by_key(|n| n.distance_to_lrp));
+        CandidateNodes { lrp, nodes }
+    })
+}
+
+/// For each location reference point the decoder tries to determine lines which should fulfill the
+/// following constraints:
+/// - The start node, end node for the last location reference point or projection point shall be
+///   close to the coordinates of the location reference point.
+/// - The candidate lines should be outgoing lines (incoming lines for the last location reference
+///   point) of the candidate nodes or projection points determined in the previous step.
+/// - The candidate lines should match the attributes functional road class, form of way and
+///   bearing as extracted from the physical data. Slight variances are allowed and shall be taken
+///   into account in step 4.
+///
+/// The direct search of lines using a projection point may also be executed even if candidate nodes
+/// are found. This might increase the number of candidate nodes but it could help to determine the
+/// correct candidate line in the next step if the nodes in the encoder and decoder map differ
+/// significantly.
+///
+/// If no candidate line can be found for a location reference point, the decoder should report an
+/// error and stop further processing.
+pub fn find_candidate_lines<G: DirectedGraph, I>(
+    config: &DecoderConfig,
+    graph: &G,
+    candidate_nodes: I,
+) -> Result<Vec<CandidateLines<G::EdgeId>>, DecodeError>
+where
+    I: IntoIterator,
+    I::IntoIter: ExactSizeIterator<Item = CandidateNodes<G::VertexId>>,
+{
+    let candidate_nodes = candidate_nodes.into_iter();
+    let mut candidate_lines = Vec::with_capacity(candidate_nodes.len());
+
+    for lrp_nodes in candidate_nodes {
+        let mut lrp_lines = find_candidate_lines_from_nodes(config, graph, lrp_nodes);
+        append_projected_candidate_lines(config, graph, &mut lrp_lines);
+
+        if lrp_lines.lines.is_empty() {
+            return Err(DecodeError::CandidatesNotFound(lrp_lines.lrp));
+        }
+
+        lrp_lines
+            .lines
+            .sort_unstable_by_key(|line| Reverse(line.rating));
+        candidate_lines.push(lrp_lines);
+    }
+
+    Ok(candidate_lines)
+}
+
+fn find_candidate_lines_from_nodes<G: DirectedGraph>(
+    config: &DecoderConfig,
+    graph: &G,
+    candidate_nodes: CandidateNodes<G::VertexId>,
+) -> CandidateLines<G::EdgeId> {
+    let CandidateNodes { lrp, nodes } = candidate_nodes;
+    debug!("Finding lines from {} nodes of {lrp:?}", nodes.len());
+
+    let mut candidate_lines = CandidateLines { lrp, lines: vec![] };
+
+    for CandidateNode {
+        vertex,
+        distance_to_lrp,
+    } in nodes
+    {
+        // only outgoing lines are accepted for the LRPs
+        // except for the last LRP where only incoming lines are accepted
+        let edges: Box<dyn Iterator<Item = _>> = if lrp.is_last() {
+            trace!("Finding candidate lines to {vertex:?}");
+            Box::new(graph.vertex_entering_edges(vertex))
+        } else {
+            trace!("Finding candidate lines from {vertex:?}");
+            Box::new(graph.vertex_exiting_edges(vertex))
+        };
+
+        let candidates = edges.into_iter().filter_map(|(edge, _)| {
+            let bearing = if lrp.is_last() {
+                graph.get_edge_bearing_between(
+                    edge,
+                    graph.get_edge_length(edge)?,
+                    config.bearing_distance.reverse(),
+                )?
+            } else {
+                graph.get_edge_bearing_between(edge, Length::ZERO, config.bearing_distance)?
+            };
+
+            Some(ProvisionalCandidateLine {
+                lrp,
+                edge,
+                distance_to_lrp,
+                distance_to_projection: None,
+                frc: graph.get_edge_frc(edge)?,
+                fow: graph.get_edge_fow(edge)?,
+                bearing,
+            })
+        });
+
+        candidate_lines.lines.extend(
+            candidates
+                .filter_map(|line| rate_line::<G>(config, lrp, line))
+                .inspect(|line| debug!("Accepted candidate: {line:?}")),
+        );
+    }
+
+    candidate_lines
+}
+
+fn append_projected_candidate_lines<G: DirectedGraph>(
+    config: &DecoderConfig,
+    graph: &G,
+    candidate_lines: &mut CandidateLines<G::EdgeId>,
+) {
+    let lrp = candidate_lines.lrp;
+    debug!("Finding candidates from projected lines of {lrp:?}");
+
+    let projected_lines = graph
+        .nearest_edges_within_distance(lrp.coordinate, config.max_node_distance)
+        .filter_map(|(edge, distance_to_lrp)| {
+            let distance_to_projection = graph
+                .get_distance_from_start_vertex(edge, lrp.coordinate)
+                .filter(|&distance| distance > Length::ZERO)?;
+
+            let bearing = if lrp.is_last() {
+                graph.get_edge_bearing_between(
+                    edge,
+                    distance_to_projection,
+                    config.bearing_distance.reverse(),
+                )?
+            } else {
+                graph.get_edge_bearing_between(
+                    edge,
+                    distance_to_projection,
+                    config.bearing_distance,
+                )?
+            };
+
+            let line = ProvisionalCandidateLine {
+                lrp,
+                edge,
+                distance_to_lrp,
+                distance_to_projection: Some(distance_to_projection),
+                frc: graph.get_edge_frc(edge)?,
+                fow: graph.get_edge_fow(edge)?,
+                bearing,
+            };
+
+            rate_line::<G>(config, lrp, line)
+        });
+
+    for mut projected_line in projected_lines {
+        if !candidate_lines.lines.is_empty() {
+            projected_line.rating *= config.projected_line_factor;
+            if projected_line.rating < config.min_line_rating {
+                debug!("Discarding {projected_line:?} because rating became too low");
+                continue;
+            }
+        }
+
+        if let Some(candidate) = candidate_lines
+            .lines
+            .iter_mut()
+            .find(|candidate| candidate.edge == projected_line.edge)
+        {
+            if candidate.rating < projected_line.rating {
+                debug!("Overriding candidate line with {projected_line:?}");
+                candidate.rating = projected_line.rating;
+                candidate.distance_to_projection = projected_line.distance_to_projection;
+            } else {
+                debug!("Discarding {projected_line:?}: already exists with better rating");
+            }
+        } else {
+            debug!("Accepted candidate: {projected_line:?}");
+            candidate_lines.lines.push(projected_line);
+        }
+    }
+}
+
+/// All candidate lines for a location reference point shall be rated according to the following
+/// criteria:
+/// - The start node, end node for the last location reference point or projection point shall be as
+///   close as possible to the coordinates of the location reference point.
+/// - The functional road class of the candidate line should match the functional road class of the
+///   location reference point.
+/// - The form of way of the candidate line should match the form of way of the location reference
+///   point.
+/// - The bearing of the candidate line should match indicated bearing angles of the location
+///   reference point.
+///
+/// Slight variances in the concrete values are allowed and shall be considered in the rating
+/// function.
+///
+/// The candidate lines should be ordered in a way that the best matching line comes first.
+fn rate_line<G: DirectedGraph>(
+    config: &DecoderConfig,
+    lrp: Point,
+    line: ProvisionalCandidateLine<G::EdgeId>,
+) -> Option<CandidateLine<G::EdgeId>> {
+    trace!("Rating: {line:?}");
+
+    if let Some(path) = &lrp.path
+        && !line.frc.is_within_variance(&path.lfrcnp)
+    {
+        trace!("Candidate FRC variance out of bounds: {line:?}");
+        return None;
+    }
+
+    if line.bearing.difference(&lrp.line.bearing) > config.max_bearing_difference {
+        trace!("Candidate bearing out of bounds: {line:?}");
+        return None;
+    }
+
+    #[derive(Debug)]
+    struct Ratings {
+        distance: RatingScore,
+        bearing: RatingScore,
+        frc: RatingScore,
+        fow: RatingScore,
+    }
+
+    let ratings = Ratings {
+        distance: RatingScore::from(config.max_node_distance - line.distance_to_lrp),
+        bearing: Bearing::rating_score(line.bearing.rating(&lrp.line.bearing)),
+        frc: Frc::rating_score(line.frc.rating(&lrp.line.frc)),
+        fow: Fow::rating_score(line.fow.rating(&lrp.line.fow)),
+    };
+
+    let node_rating = config.node_factor * ratings.distance;
+    let line_rating = config.line_factor * (ratings.bearing + ratings.frc + ratings.fow);
+    let rating = node_rating + line_rating;
+
+    if rating < config.min_line_rating {
+        trace!("Rating too low = {rating:?} {ratings:?}");
+        None
+    } else {
+        trace!("Rating accepted = {rating:?} {ratings:?}");
+        Some(CandidateLine {
+            lrp: line.lrp,
+            edge: line.edge,
+            distance_to_projection: line.distance_to_projection,
+            rating,
+        })
+    }
+}

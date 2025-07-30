@@ -237,10 +237,10 @@ impl OpenLrBinaryWriter {
     fn write_attributes(&mut self, attributes: EncodedAttributes) -> Result<(), SerializeError> {
         let fow = attributes.line.fow.into_byte();
         let frc = attributes.line.frc.into_byte();
-        let bear = attributes.line.bear.try_into_byte()?;
+        let bearing = attributes.line.bearing.try_into_byte()?;
 
         let first_byte = fow + (frc << 3) + (attributes.orientation_or_side << 6);
-        let second_byte = bear + (attributes.lfrcnp_or_flags << 5);
+        let second_byte = bearing + (attributes.lfrcnp_or_flags << 5);
         self.cursor.write_all(&[first_byte, second_byte])?;
         Ok(())
     }
@@ -272,6 +272,8 @@ impl OpenLrBinaryWriter {
 
 #[cfg(test)]
 mod tests {
+    use test_log::test;
+
     use super::*;
     use crate::model::Offsets;
     use crate::{
@@ -291,11 +293,11 @@ mod tests {
                     line: LineAttributes {
                         frc: Frc::Frc3,
                         fow: Fow::MultipleCarriageway,
-                        bear: Bearing::from_degrees(141),
+                        bearing: Bearing::from_degrees(141),
                     },
                     path: Some(PathAttributes {
                         lfrcnp: Frc::Frc3,
-                        dnp: Length::from_meters(557),
+                        dnp: Length::from_meters(557.0),
                     }),
                 },
                 Point {
@@ -306,11 +308,11 @@ mod tests {
                     line: LineAttributes {
                         frc: Frc::Frc3,
                         fow: Fow::SingleCarriageway,
-                        bear: Bearing::from_degrees(231),
+                        bearing: Bearing::from_degrees(231),
                     },
                     path: Some(PathAttributes {
                         lfrcnp: Frc::Frc5,
-                        dnp: Length::from_meters(264),
+                        dnp: Length::from_meters(264.0),
                     }),
                 },
                 Point {
@@ -321,7 +323,7 @@ mod tests {
                     line: LineAttributes {
                         frc: Frc::Frc5,
                         fow: Fow::SingleCarriageway,
-                        bear: Bearing::from_degrees(287),
+                        bearing: Bearing::from_degrees(287),
                     },
                     path: None,
                 },
@@ -345,11 +347,11 @@ mod tests {
                     line: LineAttributes {
                         frc: Frc::Frc3,
                         fow: Fow::Roundabout,
-                        bear: Bearing::from_degrees(28),
+                        bearing: Bearing::from_degrees(28),
                     },
                     path: Some(PathAttributes {
                         lfrcnp: Frc::Frc3,
-                        dnp: Length::from_meters(498),
+                        dnp: Length::from_meters(498.0),
                     }),
                 },
                 Point {
@@ -360,7 +362,7 @@ mod tests {
                     line: LineAttributes {
                         frc: Frc::Frc3,
                         fow: Fow::MultipleCarriageway,
-                        bear: Bearing::from_degrees(197),
+                        bearing: Bearing::from_degrees(197),
                     },
                     path: None,
                 },
@@ -384,11 +386,11 @@ mod tests {
                     line: LineAttributes {
                         frc: Frc::Frc1,
                         fow: Fow::SingleCarriageway,
-                        bear: Bearing::from_degrees(298),
+                        bearing: Bearing::from_degrees(298),
                     },
                     path: Some(PathAttributes {
                         lfrcnp: Frc::Frc1,
-                        dnp: Length::from_meters(88),
+                        dnp: Length::from_meters(88.0),
                     }),
                 },
                 Point {
@@ -399,7 +401,7 @@ mod tests {
                     line: LineAttributes {
                         frc: Frc::Frc1,
                         fow: Fow::SingleCarriageway,
-                        bear: Bearing::from_degrees(298),
+                        bearing: Bearing::from_degrees(298),
                     },
                     path: None,
                 },
@@ -420,11 +422,11 @@ mod tests {
                     line: LineAttributes {
                         frc: Frc::Frc3,
                         fow: Fow::MultipleCarriageway,
-                        bear: Bearing::from_degrees(6),
+                        bearing: Bearing::from_degrees(6),
                     },
                     path: Some(PathAttributes {
                         lfrcnp: Frc::Frc3,
-                        dnp: Length::from_meters(29),
+                        dnp: Length::from_meters(29.0),
                     }),
                 },
                 Point {
@@ -435,11 +437,11 @@ mod tests {
                     line: LineAttributes {
                         frc: Frc::Frc3,
                         fow: Fow::SingleCarriageway,
-                        bear: Bearing::from_degrees(6),
+                        bearing: Bearing::from_degrees(6),
                     },
                     path: Some(PathAttributes {
                         lfrcnp: Frc::Frc5,
-                        dnp: Length::from_meters(29),
+                        dnp: Length::from_meters(29.0),
                     }),
                 },
                 Point {
@@ -450,7 +452,7 @@ mod tests {
                     line: LineAttributes {
                         frc: Frc::Frc5,
                         fow: Fow::SingleCarriageway,
-                        bear: Bearing::from_degrees(6),
+                        bearing: Bearing::from_degrees(6),
                     },
                     path: None,
                 },
@@ -471,11 +473,11 @@ mod tests {
                     line: LineAttributes {
                         frc: Frc::Frc1,
                         fow: Fow::SingleCarriageway,
-                        bear: Bearing::from_degrees(298),
+                        bearing: Bearing::from_degrees(298),
                     },
                     path: Some(PathAttributes {
                         lfrcnp: Frc::Frc1,
-                        dnp: Length::from_meters(88),
+                        dnp: Length::from_meters(88.0),
                     }),
                 },
                 Point {
@@ -486,7 +488,7 @@ mod tests {
                     line: LineAttributes {
                         frc: Frc::Frc1,
                         fow: Fow::SingleCarriageway,
-                        bear: Bearing::from_degrees(298),
+                        bearing: Bearing::from_degrees(298),
                     },
                     path: None,
                 },
@@ -547,11 +549,11 @@ mod tests {
                     line: LineAttributes {
                         frc: Frc::Frc2,
                         fow: Fow::MultipleCarriageway,
-                        bear: Bearing::from_degrees(73),
+                        bearing: Bearing::from_degrees(73),
                     },
                     path: Some(PathAttributes {
                         lfrcnp: Frc::Frc2,
-                        dnp: Length::from_meters(1436),
+                        dnp: Length::from_meters(1436.0),
                     }),
                 },
                 Point {
@@ -562,7 +564,7 @@ mod tests {
                     line: LineAttributes {
                         frc: Frc::Frc2,
                         fow: Fow::MultipleCarriageway,
-                        bear: Bearing::from_degrees(219),
+                        bearing: Bearing::from_degrees(219),
                     },
                     path: None,
                 },
@@ -585,11 +587,11 @@ mod tests {
                     line: LineAttributes {
                         frc: Frc::Frc2,
                         fow: Fow::Roundabout,
-                        bear: Bearing::from_degrees(264),
+                        bearing: Bearing::from_degrees(264),
                     },
                     path: Some(PathAttributes {
                         lfrcnp: Frc::Frc4,
-                        dnp: Length::from_meters(88),
+                        dnp: Length::from_meters(88.0),
                     }),
                 },
                 Point {
@@ -600,7 +602,7 @@ mod tests {
                     line: LineAttributes {
                         frc: Frc::Frc2,
                         fow: Fow::Roundabout,
-                        bear: Bearing::from_degrees(321),
+                        bearing: Bearing::from_degrees(321),
                     },
                     path: None,
                 },
@@ -624,11 +626,11 @@ mod tests {
                         line: LineAttributes {
                             frc: Frc::Frc4,
                             fow: Fow::SingleCarriageway,
-                            bear: Bearing::from_degrees(219),
+                            bearing: Bearing::from_degrees(219),
                         },
                         path: Some(PathAttributes {
                             lfrcnp: Frc::Frc4,
-                            dnp: Length::from_meters(147),
+                            dnp: Length::from_meters(147.0),
                         }),
                     },
                     Point {
@@ -639,7 +641,7 @@ mod tests {
                         line: LineAttributes {
                             frc: Frc::Frc4,
                             fow: Fow::SingleCarriageway,
-                            bear: Bearing::from_degrees(39),
+                            bearing: Bearing::from_degrees(39),
                         },
                         path: None,
                     },
@@ -662,7 +664,7 @@ mod tests {
                 lon: 5.1018512,
                 lat: 52.1059763,
             },
-            radius: Length::from_meters(300),
+            radius: Length::from_meters(300.0),
         }));
     }
 
@@ -673,7 +675,7 @@ mod tests {
                 lon: -3.3115947,
                 lat: 55.9452903,
             },
-            radius: Length::from_meters(2000),
+            radius: Length::from_meters(2000.0),
         }));
     }
 
@@ -781,11 +783,11 @@ mod tests {
                     line: LineAttributes {
                         frc: Frc::Frc2,
                         fow: Fow::MultipleCarriageway,
-                        bear: Bearing::from_degrees(129),
+                        bearing: Bearing::from_degrees(129),
                     },
                     path: Some(PathAttributes {
                         lfrcnp: Frc::Frc3,
-                        dnp: Length::from_meters(264),
+                        dnp: Length::from_meters(264.0),
                     }),
                 },
                 Point {
@@ -796,18 +798,18 @@ mod tests {
                     line: LineAttributes {
                         frc: Frc::Frc3,
                         fow: Fow::SingleCarriageway,
-                        bear: Bearing::from_degrees(231),
+                        bearing: Bearing::from_degrees(231),
                     },
                     path: Some(PathAttributes {
                         lfrcnp: Frc::Frc7,
-                        dnp: Length::from_meters(498),
+                        dnp: Length::from_meters(498.0),
                     }),
                 },
             ],
             last_line: LineAttributes {
                 frc: Frc::Frc2,
                 fow: Fow::SingleCarriageway,
-                bear: Bearing::from_degrees(242),
+                bearing: Bearing::from_degrees(242),
             },
         }));
     }

@@ -1,4 +1,5 @@
 use openlr::{LocationType, deserialize_base64_openlr, serialize_base64_openlr};
+use test_log::test;
 
 #[test]
 fn openlr_binary_deserialization() {
