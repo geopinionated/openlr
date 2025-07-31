@@ -263,7 +263,7 @@ impl DirectedGraph for NetworkGraph {
         Some(Length::from_meters(distance_from_start))
     }
 
-    fn get_edge_bearing_between(
+    fn get_edge_bearing(
         &self,
         edge: Self::EdgeId,
         distance_start: Length,
@@ -432,21 +432,21 @@ fn network_graph_edge_bearing_between() {
 
     assert_eq!(
         graph
-            .get_edge_bearing_between(EdgeId(109783), Length::ZERO, Length::from_meters(20.0))
+            .get_edge_bearing(EdgeId(109783), Length::ZERO, Length::from_meters(20.0))
             .unwrap(),
         Bearing::from_degrees(200)
     );
 
     assert_eq!(
         graph
-            .get_edge_bearing_between(EdgeId(-109783), Length::ZERO, Length::from_meters(20.0))
+            .get_edge_bearing(EdgeId(-109783), Length::ZERO, Length::from_meters(20.0))
             .unwrap(),
         Bearing::from_degrees(18)
     );
 
     assert_eq!(
         graph
-            .get_edge_bearing_between(
+            .get_edge_bearing(
                 EdgeId(5359425),
                 graph.get_edge_length(EdgeId(5359425)).unwrap() - Length::from_meters(1.0),
                 Length::from_meters(20.0)
@@ -457,21 +457,21 @@ fn network_graph_edge_bearing_between() {
 
     assert_eq!(
         graph
-            .get_edge_bearing_between(EdgeId(-5359425), Length::ZERO, Length::from_meters(20.0))
+            .get_edge_bearing(EdgeId(-5359425), Length::ZERO, Length::from_meters(20.0))
             .unwrap(),
         Bearing::from_degrees(17)
     );
 
     assert_eq!(
         graph
-            .get_edge_bearing_between(EdgeId(5104156), Length::ZERO, Length::from_meters(10.0))
+            .get_edge_bearing(EdgeId(5104156), Length::ZERO, Length::from_meters(10.0))
             .unwrap(),
         Bearing::from_degrees(139)
     );
 
     assert_eq!(
         graph
-            .get_edge_bearing_between(
+            .get_edge_bearing(
                 EdgeId(5104156),
                 Length::from_meters(15.0),
                 Length::from_meters(5.0)
@@ -482,7 +482,7 @@ fn network_graph_edge_bearing_between() {
 
     assert_eq!(
         graph
-            .get_edge_bearing_between(
+            .get_edge_bearing(
                 EdgeId(109783),
                 graph.get_edge_length(EdgeId(109783)).unwrap(),
                 Length::from_meters(-20.0)
@@ -498,7 +498,7 @@ fn network_graph_edge_bearing() {
 
     let get_edge_bearing = |edge| {
         graph
-            .get_edge_bearing_between(edge, Length::ZERO, graph.get_edge_length(edge).unwrap())
+            .get_edge_bearing(edge, Length::ZERO, graph.get_edge_length(edge).unwrap())
             .unwrap()
     };
 

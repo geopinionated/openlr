@@ -90,7 +90,7 @@ pub trait DirectedGraph {
     /// given distance from the start vertex, and the coordinate (B) that is at the given distance
     /// from A. The segment length can be negative.
     /// Returns None if the edge doesn't belong to the graph or if the segment cannot be constructed.
-    fn get_edge_bearing_between(
+    fn get_edge_bearing(
         &self,
         edge: Self::EdgeId,
         distance_from_start: Length,
