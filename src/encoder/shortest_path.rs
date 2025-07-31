@@ -376,3 +376,307 @@ fn unpack_path<EdgeId: Copy + Eq + Hash>(
     edges.reverse();
     edges
 }
+
+#[cfg(test)]
+mod tests {
+    use test_log::test;
+
+    use super::*;
+    use crate::tests::{EdgeId, NETWORK_GRAPH, NetworkGraph};
+
+    #[test]
+    fn encoder_shortest_path_location_001() {
+        let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+        let location = [EdgeId(-9044470), EdgeId(-9044471)];
+
+        let route = shortest_path_location(graph, &location, Length::MAX).unwrap();
+
+        assert_eq!(route, ShortestRoute::Location);
+    }
+
+    #[test]
+    fn encoder_shortest_path_location_002() {
+        let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+        let location = [EdgeId(-9044470), EdgeId(-9044471), EdgeId(-9044472)];
+
+        let route = shortest_path_location(graph, &location, Length::MAX).unwrap();
+
+        assert_eq!(route, ShortestRoute::Location);
+    }
+
+    #[test]
+    fn encoder_shortest_path_location_003() {
+        let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+        let location = [EdgeId(-9044472), EdgeId(4993083)];
+
+        let route = shortest_path_location(graph, &location, Length::MAX).unwrap();
+
+        assert_eq!(route, ShortestRoute::Location);
+    }
+
+    #[test]
+    fn encoder_shortest_path_location_004() {
+        let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+        let location = [
+            EdgeId(-7292030),
+            EdgeId(-7292029),
+            EdgeId(7516886),
+            EdgeId(7516883),
+            EdgeId(7516885),
+        ];
+
+        let route = shortest_path_location(graph, &location, Length::MAX).unwrap();
+
+        assert_eq!(
+            route,
+            ShortestRoute::Intermediate(IntermediateLocation { location_index: 1 })
+        );
+    }
+
+    #[test]
+    fn encoder_shortest_path_location_005() {
+        let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+        let location = [
+            EdgeId(-4925290),
+            EdgeId(-7292030),
+            EdgeId(-7292029),
+            EdgeId(7516886),
+            EdgeId(7516883),
+            EdgeId(7516885),
+        ];
+
+        let route = shortest_path_location(graph, &location, Length::MAX).unwrap();
+
+        assert_eq!(
+            route,
+            ShortestRoute::Intermediate(IntermediateLocation { location_index: 2 })
+        );
+    }
+
+    #[test]
+    fn encoder_shortest_path_location_006() {
+        let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+        let location = [EdgeId(-7519159), EdgeId(5104156), EdgeId(-7519157)];
+
+        let route = shortest_path_location(graph, &location, Length::MAX).unwrap();
+
+        assert_eq!(
+            route,
+            ShortestRoute::Intermediate(IntermediateLocation { location_index: 1 })
+        );
+    }
+
+    #[test]
+    fn encoder_shortest_path_location_007() {
+        let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+        let location = [
+            EdgeId(7531947),
+            EdgeId(86727),
+            EdgeId(4921654),
+            EdgeId(-7144581),
+            EdgeId(-7144582),
+            EdgeId(-7144580),
+            EdgeId(-7144579),
+            EdgeId(-79715),
+            EdgeId(7430361),
+        ];
+
+        let route = shortest_path_location(graph, &location, Length::MAX).unwrap();
+
+        assert_eq!(
+            route,
+            ShortestRoute::Intermediate(IntermediateLocation { location_index: 2 })
+        );
+    }
+
+    #[test]
+    fn encoder_shortest_path_location_008() {
+        let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+        let location = [
+            EdgeId(7516884),
+            EdgeId(-7292029),
+            EdgeId(7516886),
+            EdgeId(-7516883),
+            EdgeId(7516884),
+        ];
+
+        let route = shortest_path_location(graph, &location, Length::MAX).unwrap();
+
+        assert_eq!(
+            route,
+            ShortestRoute::Intermediate(IntermediateLocation { location_index: 1 })
+        );
+    }
+
+    #[test]
+    fn encoder_shortest_path_location_009() {
+        let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+        let location = [
+            EdgeId(7516884),
+            EdgeId(7516884), // loop into first line
+            EdgeId(7516885),
+        ];
+
+        let route = shortest_path_location(graph, &location, Length::MAX).unwrap();
+
+        assert_eq!(
+            route,
+            ShortestRoute::Intermediate(IntermediateLocation { location_index: 1 })
+        );
+    }
+
+    #[test]
+    fn encoder_shortest_path_location_010() {
+        let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+        let location = [
+            EdgeId(-7516884),
+            EdgeId(-7292029),
+            EdgeId(7516886),
+            EdgeId(7516883),
+            EdgeId(-7516884), // loop into origin
+            EdgeId(7292030),
+        ];
+
+        let route = shortest_path_location(graph, &location, Length::MAX).unwrap();
+
+        assert_eq!(
+            route,
+            ShortestRoute::Intermediate(IntermediateLocation { location_index: 4 })
+        );
+    }
+
+    #[test]
+    fn encoder_shortest_path_location_011() {
+        let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+        let location = [
+            EdgeId(-7516885),
+            EdgeId(-7516884), // loop into destination
+            EdgeId(-7292029),
+            EdgeId(7516886),
+            EdgeId(7516883),
+            EdgeId(-7516884),
+        ];
+
+        let route = shortest_path_location(graph, &location, Length::MAX).unwrap();
+
+        assert_eq!(
+            route,
+            ShortestRoute::Intermediate(IntermediateLocation { location_index: 1 })
+        );
+    }
+
+    #[test]
+    fn encoder_shortest_path_location_012() {
+        let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+        let location = [
+            EdgeId(961825),
+            EdgeId(7531950),
+            EdgeId(-6770340),
+            EdgeId(7531949),
+            EdgeId(7430352),
+            EdgeId(7430353),
+            EdgeId(-4232179),
+            EdgeId(961825),
+            EdgeId(7531950),
+            EdgeId(-6770340),
+            EdgeId(7531949),
+            EdgeId(7430352),
+            EdgeId(7430353),
+            EdgeId(-4232179),
+            EdgeId(4993081),
+            EdgeId(4957478),
+            EdgeId(4957479),
+            EdgeId(4957480),
+            EdgeId(-869555),
+            EdgeId(-869554),
+        ];
+
+        let route = shortest_path_location(graph, &location, Length::MAX).unwrap();
+
+        assert_eq!(
+            route,
+            ShortestRoute::Intermediate(IntermediateLocation { location_index: 7 })
+        );
+    }
+
+    #[test]
+    fn encoder_shortest_path_location_013() {
+        let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+        let location = [EdgeId(-9044470), EdgeId(-9044471), EdgeId(-9044472)];
+
+        let route = shortest_path_location(graph, &location, Length::from_meters(19.0)).unwrap();
+
+        assert_eq!(
+            route,
+            ShortestRoute::Intermediate(IntermediateLocation { location_index: 1 })
+        );
+    }
+
+    #[test]
+    fn encoder_shortest_path_location_014() {
+        let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+        let location = [EdgeId(-9044470), EdgeId(-9044471), EdgeId(-9044472)];
+
+        let route = shortest_path_location(graph, &location, Length::from_meters(30.0)).unwrap();
+
+        assert_eq!(
+            route,
+            ShortestRoute::Intermediate(IntermediateLocation { location_index: 1 })
+        );
+    }
+
+    #[test]
+    fn encoder_shortest_path_location_015() {
+        let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+        let location = [EdgeId(-9044470), EdgeId(-9044471), EdgeId(-9044472)];
+
+        let route = shortest_path_location(graph, &location, Length::from_meters(31.0)).unwrap();
+
+        assert_eq!(
+            route,
+            ShortestRoute::Intermediate(IntermediateLocation { location_index: 2 })
+        );
+    }
+
+    #[test]
+    fn encoder_shortest_path_location_016() {
+        let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+        let location = [EdgeId(8717174), EdgeId(8717175), EdgeId(109783)];
+
+        let route = shortest_path_location(graph, &location, Length::MAX).unwrap();
+
+        assert_eq!(route, ShortestRoute::Location);
+    }
+
+    #[test]
+    fn encoder_shortest_path_location_017() {
+        let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+        let location = [
+            EdgeId(1653344),
+            EdgeId(4997411),
+            EdgeId(5359424),
+            EdgeId(5359425),
+        ];
+
+        let route = shortest_path_location(graph, &location, Length::MAX).unwrap();
+
+        assert_eq!(route, ShortestRoute::Location);
+    }
+}
