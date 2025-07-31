@@ -1,18 +1,14 @@
 #![doc = include_str!("../README.md")]
 
-mod binary;
 mod decoder;
 mod encoder;
 mod error;
+mod format;
 mod graph;
 mod location;
 mod model;
 mod path;
 
-pub use binary::{
-    deserialize_base64_openlr, deserialize_binary_openlr, serialize_base64_openlr,
-    serialize_binary_openlr,
-};
 pub use decoder::candidates::{
     CandidateLine, CandidateLinePair, CandidateLines, CandidateNode, CandidateNodes,
     find_candidate_lines, find_candidate_nodes,
@@ -32,6 +28,10 @@ pub use encoder::resolver::resolve_lrps;
 pub use encoder::shortest_path::{IntermediateLocation, ShortestRoute, shortest_path_location};
 pub use encoder::{EncoderConfig, encode_base64_openlr, encode_binary_openlr};
 pub use error::{DecodeError, DeserializeError, EncoderError, LocationError, SerializeError};
+pub use format::{
+    deserialize_base64_openlr, deserialize_binary_openlr, serialize_base64_openlr,
+    serialize_binary_openlr,
+};
 pub use graph::DirectedGraph;
 pub use location::{LineLocation, Location, ensure_line_is_valid};
 pub use model::{
