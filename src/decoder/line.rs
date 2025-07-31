@@ -1,9 +1,8 @@
 use tracing::info;
 
-use crate::{
-    DecodeError, DecoderConfig, DirectedGraph, Line, LineLocation, find_candidate_lines,
-    find_candidate_nodes, resolve_routes,
-};
+use crate::decoder::candidates::{find_candidate_lines, find_candidate_nodes};
+use crate::decoder::resolver::resolve_routes;
+use crate::{DecodeError, DecoderConfig, DirectedGraph, Line, LineLocation};
 
 pub fn decode_line<G: DirectedGraph>(
     config: &DecoderConfig,

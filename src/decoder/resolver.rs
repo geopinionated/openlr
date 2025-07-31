@@ -4,9 +4,11 @@ use std::fmt::Debug;
 
 use tracing::debug;
 
+use crate::decoder::candidates::{CandidateLine, CandidateLinePair, CandidateLines};
+use crate::decoder::route::{Route, Routes};
+use crate::decoder::shortest_path::shortest_path;
 use crate::{
-    CandidateLine, CandidateLinePair, CandidateLines, DecodeError, DecoderConfig, DirectedGraph,
-    Frc, Length, Path, RatingScore, Route, Routes, is_path_connected, shortest_path,
+    DecodeError, DecoderConfig, DirectedGraph, Frc, Length, Path, RatingScore, is_path_connected,
 };
 
 /// The decoder needs to compute a shortest-path between each pair of subsequent location reference
@@ -269,10 +271,11 @@ mod tests {
     use test_log::test;
 
     use super::*;
-    use crate::{CandidateLine, Point};
+    use crate::tests::{EdgeId, NETWORK_GRAPH, NetworkGraph};
+    use crate::{Bearing, Coordinate, Fow, LineAttributes, PathAttributes, Point};
 
     #[test]
-    fn resolve_top_k_candidate_pairs_001() {
+    fn decoder_resolve_top_k_candidate_pairs_001() {
         let config = DecoderConfig {
             max_number_retries: 3,
             ..Default::default()
@@ -346,6 +349,425 @@ mod tests {
                     line_lrp2: line4
                 }
             ]
+        );
+    }
+
+    #[test]
+    fn decoder_resolve_routes_001() {
+        let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+        let config = DecoderConfig {
+            max_node_distance: Length::from_meters(100.0),
+            max_bearing_difference: Bearing::from_degrees(90),
+            min_line_rating: RatingScore::from(800.0),
+            ..Default::default()
+        };
+
+        let first_lrp = Point {
+            coordinate: Coordinate {
+                lon: 13.46112,
+                lat: 52.51711,
+            },
+            line: LineAttributes {
+                frc: Frc::Frc6,
+                fow: Fow::SingleCarriageway,
+                bearing: Bearing::from_degrees(107),
+            },
+            path: Some(PathAttributes {
+                lfrcnp: Frc::Frc6,
+                dnp: Length::from_meters(381.0),
+            }),
+        };
+
+        let last_lrp = Point {
+            coordinate: Coordinate {
+                lon: 13.46284,
+                lat: 52.51500,
+            },
+            line: LineAttributes {
+                frc: Frc::Frc6,
+                fow: Fow::SingleCarriageway,
+                bearing: Bearing::from_degrees(17),
+            },
+            path: None,
+        };
+
+        let line1_first_lrp = CandidateLine {
+            lrp: first_lrp,
+            edge: EdgeId(8717174),
+            rating: RatingScore::from(926.3),
+            distance_to_projection: None,
+        };
+
+        let line2_first_lrp = CandidateLine {
+            lrp: first_lrp,
+            edge: EdgeId(4925291),
+            rating: RatingScore::from(880.4),
+            distance_to_projection: Some(Length::from_meters(141.6)),
+        };
+
+        let line_last_lrp = CandidateLine {
+            lrp: last_lrp,
+            edge: EdgeId(109783),
+            rating: RatingScore::from(924.9),
+            distance_to_projection: None,
+        };
+
+        let candidate_lines = [
+            CandidateLines {
+                lrp: first_lrp,
+                lines: vec![line1_first_lrp, line2_first_lrp],
+            },
+            CandidateLines {
+                lrp: last_lrp,
+                lines: vec![line_last_lrp],
+            },
+        ];
+
+        let routes = resolve_routes(&config, graph, &candidate_lines).unwrap();
+
+        assert_eq!(
+            routes,
+            Routes::from(vec![Route {
+                path: Path {
+                    edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
+                    length: Length::from_meters(379.0),
+                },
+                candidates: CandidateLinePair {
+                    line_lrp1: line1_first_lrp,
+                    line_lrp2: line_last_lrp
+                }
+            }])
+        );
+    }
+
+    #[test]
+    fn decoder_resolve_routes_002() {
+        let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+        let config = DecoderConfig::default();
+
+        let first_lrp = Point {
+            coordinate: Coordinate {
+                lon: 13.4615506,
+                lat: 52.5170544,
+            },
+            line: LineAttributes {
+                frc: Frc::Frc6,
+                fow: Fow::SingleCarriageway,
+                bearing: Bearing::from_degrees(107),
+            },
+            path: Some(PathAttributes {
+                lfrcnp: Frc::Frc6,
+                dnp: Length::from_meters(70.0),
+            }),
+        };
+
+        let last_lrp = Point {
+            coordinate: Coordinate {
+                lon: 13.4625506,
+                lat: 52.5168944,
+            },
+            line: LineAttributes {
+                frc: Frc::Frc6,
+                fow: Fow::SingleCarriageway,
+                bearing: Bearing::from_degrees(287),
+            },
+            path: None,
+        };
+
+        let line_first_lrp = CandidateLine {
+            lrp: first_lrp,
+            edge: EdgeId(8717174),
+            rating: RatingScore::from(1128.7),
+            distance_to_projection: Some(Length::from_meters(29.0)),
+        };
+
+        let line1_last_lrp = CandidateLine {
+            lrp: last_lrp,
+            edge: EdgeId(8717174),
+            rating: RatingScore::from(1122.7),
+            distance_to_projection: Some(Length::from_meters(99.0)),
+        };
+
+        let line2_last_lrp = CandidateLine {
+            lrp: last_lrp,
+            edge: EdgeId(4925291),
+            rating: RatingScore::from(900.0),
+            distance_to_projection: None,
+        };
+
+        let candidate_lines = [
+            CandidateLines {
+                lrp: first_lrp,
+                lines: vec![line_first_lrp],
+            },
+            CandidateLines {
+                lrp: last_lrp,
+                lines: vec![line1_last_lrp, line2_last_lrp],
+            },
+        ];
+
+        let routes = resolve_routes(&config, graph, &candidate_lines).unwrap();
+
+        assert_eq!(
+            routes,
+            Routes::from(vec![Route {
+                path: Path {
+                    edges: vec![EdgeId(8717174)],
+                    length: Length::from_meters(136.0),
+                },
+                candidates: CandidateLinePair {
+                    line_lrp1: line_first_lrp,
+                    line_lrp2: line1_last_lrp
+                }
+            }])
+        );
+    }
+
+    #[test]
+    fn decoder_resolve_routes_003() {
+        let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+        let config = DecoderConfig::default();
+
+        let first_lrp = Point {
+            coordinate: Coordinate {
+                lon: 13.4615506,
+                lat: 52.5170544,
+            },
+            line: LineAttributes {
+                frc: Frc::Frc6,
+                fow: Fow::SingleCarriageway,
+                bearing: Bearing::from_degrees(107),
+            },
+            path: Some(PathAttributes {
+                lfrcnp: Frc::Frc6,
+                dnp: Length::from_meters(70.0),
+            }),
+        };
+
+        let second_lrp = Point {
+            coordinate: Coordinate {
+                lon: 13.4625506,
+                lat: 52.5168944,
+            },
+            line: LineAttributes {
+                frc: Frc::Frc6,
+                fow: Fow::SingleCarriageway,
+                bearing: Bearing::from_degrees(107),
+            },
+            path: Some(PathAttributes {
+                lfrcnp: Frc::Frc6,
+                dnp: Length::from_meters(280.0),
+            }),
+        };
+
+        let last_lrp = Point {
+            coordinate: Coordinate {
+                lon: 13.46284,
+                lat: 52.51500,
+            },
+            line: LineAttributes {
+                frc: Frc::Frc6,
+                fow: Fow::SingleCarriageway,
+                bearing: Bearing::from_degrees(17),
+            },
+            path: None,
+        };
+
+        let line_first_lrp = CandidateLine {
+            lrp: first_lrp,
+            edge: EdgeId(8717174),
+            rating: RatingScore::from(1128.7),
+            distance_to_projection: Some(Length::from_meters(29.0)),
+        };
+
+        let line_second_lrp = CandidateLine {
+            lrp: second_lrp,
+            edge: EdgeId(8717174),
+            rating: RatingScore::from(1122.7),
+            distance_to_projection: Some(Length::from_meters(99.0)),
+        };
+
+        let line_last_lrp = CandidateLine {
+            lrp: last_lrp,
+            edge: EdgeId(109783),
+            rating: RatingScore::from(924.9),
+            distance_to_projection: None,
+        };
+
+        let candidate_lines = [
+            CandidateLines {
+                lrp: first_lrp,
+                lines: vec![line_first_lrp],
+            },
+            CandidateLines {
+                lrp: second_lrp,
+                lines: vec![line_second_lrp],
+            },
+            CandidateLines {
+                lrp: last_lrp,
+                lines: vec![line_last_lrp],
+            },
+        ];
+
+        let routes = resolve_routes(&config, graph, &candidate_lines).unwrap();
+
+        assert_eq!(
+            routes,
+            Routes::from(vec![
+                Route {
+                    path: Path {
+                        edges: vec![], // first and second LRPs are on the same line
+                        length: Length::ZERO,
+                    },
+                    candidates: CandidateLinePair {
+                        line_lrp1: line_first_lrp,
+                        line_lrp2: line_second_lrp
+                    }
+                },
+                Route {
+                    path: Path {
+                        edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
+                        length: Length::from_meters(379.0),
+                    },
+                    candidates: CandidateLinePair {
+                        line_lrp1: line_second_lrp,
+                        line_lrp2: line_last_lrp
+                    }
+                }
+            ])
+        );
+    }
+
+    #[test]
+    fn decoder_resolve_routes_004() {
+        let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+        let config = DecoderConfig::default();
+
+        let first_lrp = Point {
+            coordinate: Coordinate {
+                lon: 13.46112,
+                lat: 52.51711,
+            },
+            line: LineAttributes {
+                frc: Frc::Frc6,
+                fow: Fow::SingleCarriageway,
+                bearing: Bearing::from_degrees(107),
+            },
+            path: Some(PathAttributes {
+                lfrcnp: Frc::Frc6,
+                dnp: Length::from_meters(381.0),
+            }),
+        };
+
+        let second_lrp = Point {
+            coordinate: Coordinate {
+                lon: 13.46284,
+                lat: 52.51500,
+            },
+            line: LineAttributes {
+                frc: Frc::Frc6,
+                fow: Fow::SingleCarriageway,
+                bearing: Bearing::from_degrees(197),
+            },
+            path: Some(PathAttributes {
+                lfrcnp: Frc::Frc6,
+                dnp: Length::from_meters(45.0),
+            }),
+        };
+
+        let last_lrp = Point {
+            coordinate: Coordinate {
+                lon: 13.4632200,
+                lat: 52.5147507,
+            },
+            line: LineAttributes {
+                frc: Frc::Frc2,
+                fow: Fow::SingleCarriageway,
+                bearing: Bearing::from_degrees(280),
+            },
+            path: None,
+        };
+
+        let line1_first_lrp = CandidateLine {
+            lrp: first_lrp,
+            edge: EdgeId(8717174),
+            rating: RatingScore::from(1194.8),
+            distance_to_projection: None,
+        };
+
+        let line2_first_lrp = CandidateLine {
+            lrp: first_lrp,
+            edge: EdgeId(4925291),
+            rating: RatingScore::from(1135.3),
+            distance_to_projection: Some(Length::from_meters(142.0)),
+        };
+
+        let line1_second_lrp = CandidateLine {
+            lrp: second_lrp,
+            edge: EdgeId(6770340),
+            rating: RatingScore::from(1193.5),
+            distance_to_projection: None,
+        };
+
+        let line2_second_lrp = CandidateLine {
+            lrp: second_lrp,
+            edge: EdgeId(109783),
+            rating: RatingScore::from(1137.7),
+            distance_to_projection: Some(Length::from_meters(191.0)),
+        };
+
+        let line_last_lrp = CandidateLine {
+            lrp: last_lrp,
+            edge: EdgeId(7531947),
+            rating: RatingScore::from(1176.0),
+            distance_to_projection: None,
+        };
+
+        let candidate_lines = [
+            CandidateLines {
+                lrp: first_lrp,
+                lines: vec![line1_first_lrp, line2_first_lrp],
+            },
+            CandidateLines {
+                lrp: second_lrp,
+                lines: vec![line1_second_lrp, line2_second_lrp],
+            },
+            CandidateLines {
+                lrp: last_lrp,
+                lines: vec![line_last_lrp],
+            },
+        ];
+
+        let routes = resolve_routes(&config, graph, &candidate_lines).unwrap();
+
+        assert_eq!(
+            routes,
+            Routes::from(vec![
+                Route {
+                    path: Path {
+                        edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
+                        length: Length::from_meters(379.0),
+                    },
+                    candidates: CandidateLinePair {
+                        line_lrp1: line1_first_lrp,
+                        line_lrp2: line1_second_lrp
+                    }
+                },
+                Route {
+                    path: Path {
+                        edges: vec![EdgeId(6770340), EdgeId(7531947)],
+                        length: Length::from_meters(53.0),
+                    },
+                    candidates: CandidateLinePair {
+                        line_lrp1: line1_second_lrp,
+                        line_lrp2: line_last_lrp
+                    }
+                },
+            ])
         );
     }
 }
