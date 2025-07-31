@@ -121,6 +121,8 @@ pub trait DirectedGraph {
 
 #[cfg(test)]
 pub mod tests {
-    pub mod geojson;
-    pub mod network;
+    mod geojson;
+    mod network;
+
+    pub use network::{EdgeId, NETWORK_GRAPH, NetworkGraph, VertexId};
 }

@@ -170,7 +170,7 @@ mod tests {
     use test_log::test;
 
     use super::*;
-    use crate::graph::tests::network::{EdgeId, NETWORK_GRAPH, NetworkGraph};
+    use crate::graph::tests::{EdgeId, NETWORK_GRAPH, NetworkGraph};
 
     #[test]
     fn trim_line_location_001() {

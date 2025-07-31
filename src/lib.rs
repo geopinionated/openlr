@@ -12,7 +12,7 @@ mod path;
 pub use decoder::{DecoderConfig, decode_base64_openlr, decode_binary_openlr};
 pub use encoder::{EncoderConfig, encode_base64_openlr, encode_binary_openlr};
 pub use error::{DecodeError, DeserializeError, EncoderError, LocationError, SerializeError};
-pub use format::{
+pub use format::binary::{
     deserialize_base64_openlr, deserialize_binary_openlr, serialize_base64_openlr,
     serialize_binary_openlr,
 };
