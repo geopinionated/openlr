@@ -21,16 +21,17 @@
 //!    of the corresponding path.
 //! 10. Create physical representation of the location reference.
 
-pub mod expansion;
-pub mod line;
-pub mod lrp;
-pub mod resolver;
-pub mod shortest_path;
+mod expansion;
+mod line;
+mod lrp;
+mod resolver;
+mod shortest_path;
 
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 
-use crate::{DirectedGraph, EncoderError, Length, Location, encode_line, serialize_binary_openlr};
+use crate::encoder::line::encode_line;
+use crate::{DirectedGraph, EncoderError, Length, Location, serialize_binary_openlr};
 
 #[derive(Debug, Clone, Copy)]
 pub struct EncoderConfig {

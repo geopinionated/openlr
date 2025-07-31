@@ -7,9 +7,8 @@ use tracing::debug;
 use crate::decoder::candidates::{CandidateLine, CandidateLinePair, CandidateLines};
 use crate::decoder::route::{Route, Routes};
 use crate::decoder::shortest_path::shortest_path;
-use crate::{
-    DecodeError, DecoderConfig, DirectedGraph, Frc, Length, Path, RatingScore, is_path_connected,
-};
+use crate::path::{Path, is_path_connected};
+use crate::{DecodeError, DecoderConfig, DirectedGraph, Frc, Length, RatingScore};
 
 /// The decoder needs to compute a shortest-path between each pair of subsequent location reference
 /// points. For each pair of location reference points suitable candidate lines must be chosen. The
@@ -271,7 +270,7 @@ mod tests {
     use test_log::test;
 
     use super::*;
-    use crate::tests::{EdgeId, NETWORK_GRAPH, NetworkGraph};
+    use crate::graph::tests::network::{EdgeId, NETWORK_GRAPH, NetworkGraph};
     use crate::{Bearing, Coordinate, Fow, LineAttributes, PathAttributes, Point};
 
     #[test]

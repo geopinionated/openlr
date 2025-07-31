@@ -180,3 +180,228 @@ impl<EdgeId> From<LocRefPoints<EdgeId>> for Line {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use test_log::test;
+
+    use super::*;
+    use crate::graph::tests::network::{EdgeId, NETWORK_GRAPH, NetworkGraph};
+    use crate::{Bearing, Coordinate, Fow};
+
+    #[test]
+    fn encoder_trim_lrps_001() {
+        let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+        let config = EncoderConfig::default();
+
+        let lrps = vec![
+            LocRefPoint {
+                edges: vec![EdgeId(9044472)],
+                point: Point {
+                    coordinate: Coordinate {
+                        lon: 13.459407,
+                        lat: 52.5143601,
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc6,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(303),
+                    },
+                    path: Some(PathAttributes {
+                        lfrcnp: Frc::Frc6,
+                        dnp: Length::from_meters(14.0),
+                    }),
+                },
+            },
+            LocRefPoint {
+                edges: vec![],
+                point: Point {
+                    coordinate: Coordinate {
+                        lon: 13.4592303,
+                        lat: 52.5144292,
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc6,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(123),
+                    },
+                    path: None,
+                },
+            },
+        ];
+
+        assert_eq!(
+            LocRefPoints {
+                pos_offset: Length::ZERO,
+                neg_offset: Length::ZERO,
+                lrps: lrps.clone()
+            }
+            .trim(&config, graph)
+            .unwrap(),
+            LocRefPoints {
+                pos_offset: Length::ZERO,
+                neg_offset: Length::ZERO,
+                lrps: lrps.clone()
+            }
+        );
+    }
+
+    #[test]
+    fn encoder_trim_lrps_002() {
+        let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+        let config = EncoderConfig::default();
+
+        let lrps = vec![
+            LocRefPoint {
+                edges: vec![EdgeId(-7292030)],
+                point: Point {
+                    coordinate: Coordinate {
+                        lon: 13.4571122,
+                        lat: 52.5177995,
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc6,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(20),
+                    },
+                    path: Some(PathAttributes {
+                        lfrcnp: Frc::Frc6,
+                        dnp: Length::from_meters(108.0),
+                    }),
+                },
+            },
+            LocRefPoint {
+                edges: vec![
+                    EdgeId(-7292029),
+                    EdgeId(7516886),
+                    EdgeId(7516883),
+                    EdgeId(7516885),
+                ],
+                point: Point {
+                    coordinate: Coordinate {
+                        lon: 13.4576677,
+                        lat: 52.518717,
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc6,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(20),
+                    },
+                    path: Some(PathAttributes {
+                        lfrcnp: Frc::Frc6,
+                        dnp: Length::from_meters(94.0),
+                    }),
+                },
+            },
+            LocRefPoint {
+                edges: vec![],
+                point: Point {
+                    coordinate: Coordinate {
+                        lon: 13.4580594,
+                        lat: 52.5186534,
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc6,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(286),
+                    },
+                    path: None,
+                },
+            },
+        ];
+
+        assert_eq!(
+            LocRefPoints {
+                pos_offset: Length::from_meters(1.0),
+                neg_offset: Length::ZERO,
+                lrps: lrps.clone()
+            }
+            .trim(&config, graph)
+            .unwrap(),
+            LocRefPoints {
+                pos_offset: Length::from_meters(1.0),
+                neg_offset: Length::ZERO,
+                lrps: lrps.clone()
+            }
+        );
+
+        assert_eq!(
+            LocRefPoints {
+                pos_offset: Length::from_meters(108.0),
+                neg_offset: Length::ZERO,
+                lrps: lrps.clone()
+            }
+            .trim(&config, graph)
+            .unwrap(),
+            LocRefPoints {
+                pos_offset: Length::ZERO,
+                neg_offset: Length::ZERO,
+                lrps: lrps[1..].to_vec()
+            }
+        );
+
+        assert_eq!(
+            LocRefPoints {
+                pos_offset: Length::from_meters(1.0),
+                neg_offset: Length::from_meters(1.0),
+                lrps: lrps.clone()
+            }
+            .trim(&config, graph)
+            .unwrap(),
+            LocRefPoints {
+                pos_offset: Length::from_meters(1.0),
+                neg_offset: Length::from_meters(1.0),
+                lrps: lrps.clone()
+            }
+        );
+
+        assert_eq!(
+            LocRefPoints {
+                pos_offset: Length::from_meters(109.0),
+                neg_offset: Length::ZERO,
+                lrps: lrps.clone()
+            }
+            .trim(&config, graph)
+            .unwrap(),
+            LocRefPoints {
+                pos_offset: Length::from_meters(1.0),
+                neg_offset: Length::ZERO,
+                lrps: lrps[1..].to_vec()
+            }
+        );
+
+        assert_eq!(
+            LocRefPoints {
+                pos_offset: Length::ZERO,
+                neg_offset: Length::from_meters(95.0),
+                lrps: lrps.clone()
+            }
+            .trim(&config, graph)
+            .unwrap(),
+            LocRefPoints {
+                pos_offset: Length::ZERO,
+                neg_offset: Length::from_meters(1.0),
+                lrps: vec![
+                    lrps[0].clone(),
+                    LocRefPoint {
+                        edges: vec![],
+                        point: Point {
+                            coordinate: Coordinate {
+                                lon: 13.4576677,
+                                lat: 52.518717
+                            },
+                            line: LineAttributes {
+                                frc: Frc::Frc6,
+                                fow: Fow::SingleCarriageway,
+                                bearing: Bearing::from_degrees(200),
+                            },
+                            path: None
+                        }
+                    }
+                ]
+            }
+        );
+    }
+}

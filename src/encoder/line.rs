@@ -1,9 +1,9 @@
 use tracing::info;
 
-use crate::{
-    DirectedGraph, EncoderConfig, EncoderError, LineLocation, LocationReference,
-    ensure_line_is_valid, line_location_expansion, resolve_lrps,
-};
+use crate::encoder::expansion::line_location_expansion;
+use crate::encoder::resolver::resolve_lrps;
+use crate::location::ensure_line_is_valid;
+use crate::{DirectedGraph, EncoderConfig, EncoderError, LineLocation, LocationReference};
 
 pub fn encode_line<G: DirectedGraph>(
     config: &EncoderConfig,
@@ -28,4 +28,48 @@ pub fn encode_line<G: DirectedGraph>(
     let lrps = lrps.trim(config, graph)?;
 
     Ok(LocationReference::Line(lrps.into()))
+}
+
+#[cfg(test)]
+mod tests {
+    use test_log::test;
+
+    use super::*;
+    use crate::graph::tests::network::{EdgeId, NETWORK_GRAPH, NetworkGraph};
+    use crate::{DecoderConfig, Length, Location, decode_base64_openlr, encode_base64_openlr};
+
+    #[test]
+    fn encoder_encode_line_location_reference_001() {
+        let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+        let line = Location::Line(LineLocation {
+            path: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
+            pos_offset: Length::ZERO,
+            neg_offset: Length::ZERO,
+        });
+
+        let encoded = encode_base64_openlr(&EncoderConfig::default(), graph, line.clone()).unwrap();
+        let decoded = decode_base64_openlr(&DecoderConfig::default(), graph, &encoded).unwrap();
+        assert_eq!(decoded, line);
+    }
+
+    #[test]
+    fn encoder_encode_line_location_reference_002() {
+        let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+        let line = Location::Line(LineLocation {
+            path: vec![
+                EdgeId(1653344),
+                EdgeId(4997411),
+                EdgeId(5359424),
+                EdgeId(5359425),
+            ],
+            pos_offset: Length::from_meters(11.0),
+            neg_offset: Length::from_meters(14.0),
+        });
+
+        let encoded = encode_base64_openlr(&EncoderConfig::default(), graph, line.clone()).unwrap();
+        let decoded = decode_base64_openlr(&DecoderConfig::default(), graph, &encoded).unwrap();
+        assert_eq!(decoded, line);
+    }
 }

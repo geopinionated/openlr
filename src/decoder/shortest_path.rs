@@ -4,7 +4,8 @@ use std::fmt::Debug;
 
 use tracing::debug;
 
-use crate::{DirectedGraph, Frc, Length, Path};
+use crate::path::Path;
+use crate::{DirectedGraph, Frc, Length};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct HeapElement<VertexId> {
@@ -112,7 +113,7 @@ mod tests {
     use test_log::test;
 
     use super::*;
-    use crate::tests::{EdgeId, NETWORK_GRAPH, NetworkGraph, VertexId};
+    use crate::graph::tests::network::{EdgeId, NETWORK_GRAPH, NetworkGraph, VertexId};
 
     #[test]
     fn decoder_shortest_path_001() {

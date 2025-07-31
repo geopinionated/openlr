@@ -4,8 +4,8 @@ use std::hash::Hash;
 use crate::{Bearing, Coordinate, Fow, Frc, Length};
 
 /// Directed graph.
-/// Exposes the behavior of a Geospatial Index and a Road Network Graph.
-/// Should be implemented by the graph the represents the map the decoder is supposed to run on.
+/// Exposes the behavior of a Geospatial Index and of a Road Network Graph.
+/// Should be implemented by the graph the represents the map the decoder and encoder run on.
 pub trait DirectedGraph {
     /// Uniquely identify a vertex that belongs to the graph.
     type VertexId: Debug + Copy + Ord + Hash;
@@ -28,11 +28,11 @@ pub trait DirectedGraph {
     /// Returns None if the edge doesn't belong to the graph.
     fn get_edge_length(&self, edge: Self::EdgeId) -> Option<Length>;
 
-    /// Gets the Functional Road Class of the directed edge.
+    /// Gets the Functional Road Class (FRC) of the directed edge.
     /// Returns None if the edge doesn't belong to the graph.
     fn get_edge_frc(&self, edge: Self::EdgeId) -> Option<Frc>;
 
-    /// Gets the Form of Way of the directed edge.
+    /// Gets the Form of Way (FOW) of the directed edge.
     /// Returns None if the edge doesn't belong to the graph.
     fn get_edge_fow(&self, edge: Self::EdgeId) -> Option<Fow>;
 
@@ -117,4 +117,10 @@ pub trait DirectedGraph {
         self.vertex_entering_edges(vertex)
             .chain(self.vertex_exiting_edges(vertex))
     }
+}
+
+#[cfg(test)]
+pub mod tests {
+    pub mod geojson;
+    pub mod network;
 }

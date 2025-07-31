@@ -1,4 +1,5 @@
-use crate::{DirectedGraph, Length, LocationError, is_path_connected};
+use crate::path::is_path_connected;
+use crate::{DirectedGraph, Length, LocationError};
 
 /// Defines a location (in a map) that can be encoded using the OpenLR encoder
 /// and is also the result of the decoding process.
@@ -169,7 +170,7 @@ mod tests {
     use test_log::test;
 
     use super::*;
-    use crate::tests::{EdgeId, NETWORK_GRAPH, NetworkGraph};
+    use crate::graph::tests::network::{EdgeId, NETWORK_GRAPH, NetworkGraph};
 
     #[test]
     fn trim_line_location_001() {

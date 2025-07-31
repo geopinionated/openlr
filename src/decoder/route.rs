@@ -2,7 +2,8 @@ use std::fmt::Debug;
 use std::ops::Deref;
 
 use crate::decoder::candidates::{CandidateLine, CandidateLinePair};
-use crate::{DirectedGraph, Length, Offsets, Path};
+use crate::path::Path;
+use crate::{DirectedGraph, Length, Offsets};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Route<EdgeId> {
@@ -122,7 +123,7 @@ mod tests {
     use test_log::test;
 
     use super::*;
-    use crate::tests::{EdgeId, NETWORK_GRAPH, NetworkGraph};
+    use crate::graph::tests::network::{EdgeId, NETWORK_GRAPH, NetworkGraph};
     use crate::{
         Bearing, Coordinate, Fow, Frc, LineAttributes, PathAttributes, Point, RatingScore,
     };

@@ -5,7 +5,8 @@ use std::hash::Hash;
 
 use tracing::{debug, warn};
 
-use crate::{DirectedGraph, EncoderError, Length, LocationError, is_node_valid};
+use crate::encoder::expansion::is_node_valid;
+use crate::{DirectedGraph, EncoderError, Length, LocationError};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ShortestRoute {
@@ -382,7 +383,7 @@ mod tests {
     use test_log::test;
 
     use super::*;
-    use crate::tests::{EdgeId, NETWORK_GRAPH, NetworkGraph};
+    use crate::graph::tests::network::{EdgeId, NETWORK_GRAPH, NetworkGraph};
 
     #[test]
     fn encoder_shortest_path_location_001() {
