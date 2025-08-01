@@ -127,18 +127,18 @@ impl Frc {
     /// Variance is an estimate of how a FRC can differ from another FRC of different class.
     /// The higher the variance the more the two classes can differ and still be considered
     /// equal during the decoding process.
-    pub const fn variance(&self) -> i8 {
+    pub(crate) const fn variance(&self) -> i8 {
         match self {
             Self::Frc0 | Self::Frc1 | Self::Frc2 | Self::Frc3 => 2,
             Self::Frc4 | Self::Frc5 | Self::Frc6 | Self::Frc7 => 3,
         }
     }
 
-    pub const fn is_within_variance(&self, other: &Self) -> bool {
+    pub(crate) const fn is_within_variance(&self, other: &Self) -> bool {
         self.value() <= other.value() + other.variance()
     }
 
-    pub fn rating(&self, other: &Self) -> Rating {
+    pub(crate) fn rating(&self, other: &Self) -> Rating {
         let delta = (self.value() - other.value()).abs();
 
         let rating_interval = |rating| match rating {
@@ -153,7 +153,7 @@ impl Frc {
             .unwrap_or(Rating::Poor)
     }
 
-    pub fn rating_score(rating: Rating) -> RatingScore {
+    pub(crate) fn rating_score(rating: Rating) -> RatingScore {
         match rating {
             Rating::Excellent => RatingScore::from(100.0),
             Rating::Good => RatingScore::from(75.0),
@@ -209,7 +209,7 @@ impl Fow {
         Self::try_from_byte(value.try_into().ok()?).ok()
     }
 
-    pub const fn rating(&self, other: &Self) -> Rating {
+    pub(crate) const fn rating(&self, other: &Self) -> Rating {
         use Fow::*;
         match (self, other) {
             (Undefined, _) | (_, Undefined) => Rating::Average,
@@ -238,7 +238,7 @@ impl Fow {
         }
     }
 
-    pub fn rating_score(rating: Rating) -> RatingScore {
+    pub(crate) fn rating_score(rating: Rating) -> RatingScore {
         match rating {
             Rating::Excellent => RatingScore::from(100.0),
             Rating::Good | Rating::Average => RatingScore::from(50.0),
@@ -397,7 +397,7 @@ impl Bearing {
         Self::from_degrees(degrees)
     }
 
-    pub fn rating(&self, other: &Self) -> Rating {
+    pub(crate) fn rating(&self, other: &Self) -> Rating {
         let difference = self.difference(other);
 
         let rating_interval = |rating| match rating {
@@ -412,7 +412,7 @@ impl Bearing {
             .unwrap_or(Rating::Poor)
     }
 
-    pub fn rating_score(rating: Rating) -> RatingScore {
+    pub(crate) fn rating_score(rating: Rating) -> RatingScore {
         match rating {
             Rating::Excellent => RatingScore::from(100.0),
             Rating::Good => RatingScore::from(50.0),

@@ -126,9 +126,8 @@ mod tests {
 
     use super::*;
     use crate::graph::tests::{EdgeId, NETWORK_GRAPH, NetworkGraph};
-    use crate::{
-        Bearing, Coordinate, Fow, Frc, LineAttributes, PathAttributes, Point, RatingScore,
-    };
+    use crate::model::RatingScore;
+    use crate::{Bearing, Coordinate, Fow, Frc, LineAttributes, PathAttributes, Point};
 
     #[test]
     fn decoder_calculate_offsets_001() {

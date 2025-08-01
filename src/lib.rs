@@ -21,5 +21,5 @@ pub use location::{LineLocation, Location};
 pub use model::{
     Bearing, Circle, ClosedLine, Coordinate, Fow, Frc, Grid, GridSize, Length, Line,
     LineAttributes, LocationReference, LocationType, Offset, Offsets, Orientation, PathAttributes,
-    Poi, Point, PointAlongLine, Polygon, Rating, RatingScore, Rectangle, SideOfRoad,
+    Poi, Point, PointAlongLine, Polygon, Rectangle, SideOfRoad,
 };

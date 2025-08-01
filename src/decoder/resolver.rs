@@ -7,8 +7,9 @@ use tracing::debug;
 use crate::decoder::candidates::{CandidateLinePair, CandidateLines};
 use crate::decoder::route::{CandidateRoute, CandidateRoutes};
 use crate::decoder::shortest_path::shortest_path;
+use crate::model::RatingScore;
 use crate::path::{Path, is_path_connected};
-use crate::{DecodeError, DecoderConfig, DirectedGraph, Frc, Length, RatingScore};
+use crate::{DecodeError, DecoderConfig, DirectedGraph, Frc, Length};
 
 /// The decoder needs to compute a shortest-path between each pair of subsequent location reference
 /// points. For each pair of location reference points suitable candidate lines must be chosen. The
