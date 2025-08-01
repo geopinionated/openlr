@@ -49,6 +49,13 @@ impl Add for RatingScore {
     }
 }
 
+impl Sub for RatingScore {
+    type Output = Self;
+    fn sub(self, other: Self) -> Self {
+        Self(self.0 - other.0)
+    }
+}
+
 impl Mul<f64> for RatingScore {
     type Output = Self;
     fn mul(self, rhs: f64) -> Self::Output {
