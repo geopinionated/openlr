@@ -33,9 +33,10 @@ pub fn decode_line<G: DirectedGraph>(
         path: routes.to_path(),
         pos_offset,
         neg_offset,
-    };
+    }
+    .trim(graph)?;
 
-    Ok(location.trim(graph)?)
+    Ok(location)
 }
 
 #[cfg(test)]
@@ -67,11 +68,7 @@ mod tests {
     fn decode_line_location_reference_002() {
         let graph: &NetworkGraph = &NETWORK_GRAPH;
 
-        let config = DecoderConfig {
-            max_node_distance: Length::from_meters(10.0),
-            ..Default::default()
-        };
-
+        let config = DecoderConfig::default();
         let location = decode_base64_openlr(&config, graph, "CwmTaSVYpTPZCP4a/5UjYQUH").unwrap();
 
         assert_eq!(
