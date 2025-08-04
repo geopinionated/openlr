@@ -82,6 +82,7 @@ impl<EdgeId: Copy> LineLocation<EdgeId> {
         };
 
         ensure_line_is_valid(graph, &line, Length::MAX_BINARY_LRP_DISTANCE)?;
+
         Ok(line)
     }
 
@@ -109,7 +110,9 @@ impl<EdgeId: Copy> LineLocation<EdgeId> {
 /// A line location is valid if the following constraints are fulfilled:
 /// - The location is a connected path.
 /// - The location is traversable from its start to its end.
-pub fn ensure_line_is_valid<G: DirectedGraph>(
+/// - The sum of the positive and negative offset cannot be greater than the total length of the
+///   location lines.
+fn ensure_line_is_valid<G: DirectedGraph>(
     graph: &G,
     line: &LineLocation<G::EdgeId>,
     max_lrp_distance: Length,
