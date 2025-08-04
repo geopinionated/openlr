@@ -8,23 +8,25 @@ use tracing::{debug, warn};
 use crate::graph::path::is_node_valid;
 use crate::{DirectedGraph, EncoderError, Length, LocationError};
 
+/// Represents a subset, or the totality, of the location that is a shortest path.
 #[derive(Debug, Clone, PartialEq)]
-pub enum ShortestRoute {
+pub enum ShortestPath {
     /// The whole location is the shortest path, and therefore it has no intermediate edges.
     Location,
     /// Route of the location converges to the shortest path up to the intermediate edge.
-    Intermediate(IntermediateLocation),
+    Intermediate(Intermediate),
     /// Route not found.
     NotFound,
 }
 
-/// Lines which can be used as intermediates which are good lines to split the location into
-/// several shortest-paths.
+/// An intermediate is a line in the location where the shortest path diverges.
+/// Intermediates are good places where to split the location with a new LRP.
 #[derive(Debug, Clone, PartialEq)]
-pub struct IntermediateLocation {
+pub struct Intermediate {
     /// Index of the intermediate edge in the location edges list, where the location can be split
     /// at its start to add a new LRP (since there is a deviation from the location path to the
-    /// actual shortest path).
+    /// actual shortest path). The intermediate edge will act as the new starting line for the
+    /// location subset that comes next.
     pub location_index: usize,
 }
 
@@ -81,23 +83,23 @@ pub fn shortest_path_location<G: DirectedGraph>(
     graph: &G,
     location: &[G::EdgeId],
     max_lrp_distance: Length,
-) -> Result<ShortestRoute, EncoderError> {
+) -> Result<ShortestPath, EncoderError> {
     debug!("Computing shortest path following {location:?}");
 
     let (origin, destination) = match location.first().zip(location.last()) {
         Some((origin, destination)) => (*origin, *destination),
-        _ => return Ok(ShortestRoute::NotFound),
+        _ => return Err(LocationError::Empty.into()),
     };
 
     if origin == destination && location.len() > 1 {
         // origin and destination are equals but there is a path in between
         // skip the origin and proceed with the next line in the location
-        return Ok(ShortestRoute::Intermediate(IntermediateLocation {
+        return Ok(ShortestPath::Intermediate(Intermediate {
             location_index: 1,
         }));
     }
 
-    // Find the indices of eventual loops at the start and at the end of the location
+    // Find the indices of eventual loops into origin and destination
     let mut postfix = location.get(1..).into_iter().flatten();
     let origin_loop_index = postfix.position(|&e| e == origin);
 
@@ -106,7 +108,7 @@ pub fn shortest_path_location<G: DirectedGraph>(
 
     if let Some(0) = origin_loop_index {
         // origin loops onto itself
-        return Ok(ShortestRoute::Intermediate(IntermediateLocation {
+        return Ok(ShortestPath::Intermediate(Intermediate {
             location_index: 1,
         }));
     }
@@ -130,28 +132,27 @@ pub fn shortest_path_location<G: DirectedGraph>(
     while let Some(element) = frontier.pop() {
         if location.contains(&element.edge) {
             // Step – 5 Determine the position of a new intermediate location reference point
-            if let Some(route) = intermediator.get_intermediate_route(element, &previous_map)? {
-                return Ok(ShortestRoute::Intermediate(route));
+            if let Some(intermediate) = intermediator.get_intermediate(element, &previous_map)? {
+                return Ok(ShortestPath::Intermediate(intermediate));
             }
         }
 
         if element.edge == destination {
-            if let Some(loop_index) = destination_loop_index {
-                // route found until the destination loop starts
-                return Ok(ShortestRoute::Intermediate(IntermediateLocation {
-                    location_index: loop_index,
-                }));
+            if let Some(location_index) = destination_loop_index {
+                // route found until the destination loop ends
+                debug_assert_eq!(location[location_index], destination);
+                return Ok(ShortestPath::Intermediate(Intermediate { location_index }));
             }
 
             debug_assert_eq!(location, unpack_path(&previous_map, destination));
-            return Ok(ShortestRoute::Location);
+            return Ok(ShortestPath::Location);
         }
 
         if let Some(loop_index) = origin_loop_index
             && intermediator.last_edge_index == loop_index
         {
-            // the loop starting at origin has been completely followed
-            return Ok(ShortestRoute::Intermediate(IntermediateLocation {
+            // the loop ending at origin has been completely followed
+            return Ok(ShortestPath::Intermediate(Intermediate {
                 location_index: loop_index + 1,
             }));
         }
@@ -191,10 +192,10 @@ pub fn shortest_path_location<G: DirectedGraph>(
         }
     }
 
-    Ok(ShortestRoute::NotFound)
+    Ok(ShortestPath::NotFound)
 }
 
-/// Breaks the location, if this doesn't follow the shortest path, at intermediate edges.
+/// Splits the location, if this doesn't follow the shortest path, at intermediate edges.
 #[derive(Debug)]
 struct Intermediator<'a, G: DirectedGraph> {
     graph: &'a G,
@@ -222,24 +223,24 @@ impl<'a, G: DirectedGraph> Intermediator<'a, G> {
         })
     }
 
-    /// Checks if the route should be split because it diverges from the shortest path.
-    /// If it does, returns the intermediate route (up to the diversion), otherwise returns None.
+    /// Checks if the location should be split because it diverges from the shortest path.
+    /// If it does, returns the intermediate (up to the diversion), otherwise returns None.
     ///
-    /// If the location (between current start and end) is not fully part of the shortest-path or
-    /// the order of the lines is mixed up then a proper intermediate location reference point
+    /// If the location (between current start and end) is not fully part of the shortest-path, or
+    /// the order of the lines is mixed up, then a proper intermediate location reference point
     /// needs to be determined. This intermediate must fulfill the following constraints:
     /// - The shortest-path between the current start and the line indicated by the intermediate
     ///   location reference point must cover the corresponding part of the location completely.
     /// - The start node of the line indicated by the intermediate location reference point shall be
     ///   positioned on a valid node (if no valid node can be determined, an invalid node may be
     ///   chosen).
-    fn get_intermediate_route(
+    fn get_intermediate(
         &mut self,
         element: HeapElement<G::EdgeId>,
         previous_map: &HashMap<G::EdgeId, G::EdgeId>,
-    ) -> Result<Option<IntermediateLocation>, EncoderError> {
+    ) -> Result<Option<Intermediate>, EncoderError> {
         if element.edge == self.location[0] {
-            // first line is always found because all paths start from the origin
+            // the first line is always found because all paths start from the origin
             return Ok(None);
         }
 
@@ -248,7 +249,7 @@ impl<'a, G: DirectedGraph> Intermediator<'a, G> {
             self.last_edge_index += 1;
 
             if element.distance > self.max_lrp_distance {
-                return Ok(Some(IntermediateLocation {
+                return Ok(Some(Intermediate {
                     location_index: self.last_edge_index,
                 }));
             } else {
@@ -259,46 +260,37 @@ impl<'a, G: DirectedGraph> Intermediator<'a, G> {
         // The location deviates from the shortest path that would allow to reach this element.
         // Find the start of this deviation along the current path, at least the start line should
         // be found because all the paths go back to the origin.
-        let common_edge = find_common_edge(self.location, previous_map, element.edge)
-            .ok_or(EncoderError::IntermediateError(self.last_edge_index))?;
+        let common_edge =
+            find_common_edge(self.location, previous_map, element.edge).ok_or_else(|| {
+                warn!("Cannot find common edge of {element:?}");
+                EncoderError::IntermediateError(self.last_edge_index)
+            })?;
 
         // check if the deviation starts at the last element found so far or earlier in the path
         if common_edge == self.last_edge {
             let location_index = self.last_edge_index + 1;
+            let intermediate = self.location[location_index];
 
-            let intermediate = *self
-                .location
-                .get(location_index)
-                .ok_or(EncoderError::IntermediateError(self.last_edge_index))?;
-
-            let previous_edge = *previous_map
-                .get(&intermediate)
-                .ok_or(EncoderError::IntermediateError(self.last_edge_index))?;
+            let previous_edge = *previous_map.get(&intermediate).ok_or_else(|| {
+                warn!("Cannot find previous edge of intermediate {intermediate:?}");
+                EncoderError::IntermediateError(self.last_edge_index)
+            })?;
 
             if previous_edge != self.last_edge {
                 // the shortest path to the intermediate (next location edge) does not include
                 // the last (location) edge, therefore there is an additional (2nd) deviation
-                let intermediate = self.rfind_valid_intermediate(previous_map);
-                warn!("Multiple deviations from shortest path at: {intermediate:?}");
+                let location_index = self.rfind_intermediate_index(previous_map);
+                warn!("Multiple deviations from shortest path at {location_index:?}");
             }
 
-            let route = IntermediateLocation { location_index };
-
-            Ok(Some(route))
+            Ok(Some(Intermediate { location_index }))
         } else {
-            let intermediate = self
-                .rfind_valid_intermediate(previous_map)
-                .ok_or(EncoderError::IntermediateError(self.last_edge_index))?;
+            let location_index = self.rfind_intermediate_index(previous_map).ok_or_else(|| {
+                warn!("Cannot find valid intermediate earlier in the path");
+                EncoderError::IntermediateError(self.last_edge_index)
+            })?;
 
-            let location_index = self
-                .location
-                .iter()
-                .position(|&e| e == intermediate)
-                .ok_or(EncoderError::IntermediateError(self.last_edge_index))?;
-
-            let route = IntermediateLocation { location_index };
-
-            Ok(Some(route))
+            Ok(Some(Intermediate { location_index }))
         }
     }
 
@@ -324,11 +316,10 @@ impl<'a, G: DirectedGraph> Intermediator<'a, G> {
     /// Find an intermediate which has a valid start node.
     /// The method traverses the path from the last element found in the location back to the start
     /// and searches for a line having a valid start node.
-    fn rfind_valid_intermediate(
+    fn rfind_intermediate_index(
         &self,
         previous_map: &HashMap<G::EdgeId, G::EdgeId>,
-    ) -> Option<G::EdgeId> {
-        debug_assert!(!self.location.is_empty());
+    ) -> Option<usize> {
         let mut edge = self.last_edge;
 
         loop {
@@ -336,9 +327,9 @@ impl<'a, G: DirectedGraph> Intermediator<'a, G> {
             // and cannot find a proper intersection to place the new intermediate.
             // We choose the last element found in location which is not placed at an intersection.
             if edge == self.location[0] {
-                return Some(self.last_edge);
+                return Some(0);
             } else if is_node_valid(self.graph, self.graph.get_edge_start_vertex(edge)?) {
-                return Some(edge);
+                return self.location.iter().position(|&e| e == edge);
             }
 
             edge = previous_map.get(&edge).copied()?;
@@ -393,7 +384,7 @@ mod tests {
 
         let route = shortest_path_location(graph, &location, Length::MAX).unwrap();
 
-        assert_eq!(route, ShortestRoute::Location);
+        assert_eq!(route, ShortestPath::Location);
     }
 
     #[test]
@@ -404,7 +395,7 @@ mod tests {
 
         let route = shortest_path_location(graph, &location, Length::MAX).unwrap();
 
-        assert_eq!(route, ShortestRoute::Location);
+        assert_eq!(route, ShortestPath::Location);
     }
 
     #[test]
@@ -415,7 +406,7 @@ mod tests {
 
         let route = shortest_path_location(graph, &location, Length::MAX).unwrap();
 
-        assert_eq!(route, ShortestRoute::Location);
+        assert_eq!(route, ShortestPath::Location);
     }
 
     #[test]
@@ -434,7 +425,7 @@ mod tests {
 
         assert_eq!(
             route,
-            ShortestRoute::Intermediate(IntermediateLocation { location_index: 1 })
+            ShortestPath::Intermediate(Intermediate { location_index: 1 })
         );
     }
 
@@ -455,7 +446,7 @@ mod tests {
 
         assert_eq!(
             route,
-            ShortestRoute::Intermediate(IntermediateLocation { location_index: 2 })
+            ShortestPath::Intermediate(Intermediate { location_index: 2 })
         );
     }
 
@@ -469,7 +460,7 @@ mod tests {
 
         assert_eq!(
             route,
-            ShortestRoute::Intermediate(IntermediateLocation { location_index: 1 })
+            ShortestPath::Intermediate(Intermediate { location_index: 1 })
         );
     }
 
@@ -493,7 +484,7 @@ mod tests {
 
         assert_eq!(
             route,
-            ShortestRoute::Intermediate(IntermediateLocation { location_index: 2 })
+            ShortestPath::Intermediate(Intermediate { location_index: 2 })
         );
     }
 
@@ -513,7 +504,7 @@ mod tests {
 
         assert_eq!(
             route,
-            ShortestRoute::Intermediate(IntermediateLocation { location_index: 1 })
+            ShortestPath::Intermediate(Intermediate { location_index: 1 })
         );
     }
 
@@ -531,7 +522,7 @@ mod tests {
 
         assert_eq!(
             route,
-            ShortestRoute::Intermediate(IntermediateLocation { location_index: 1 })
+            ShortestPath::Intermediate(Intermediate { location_index: 1 })
         );
     }
 
@@ -552,7 +543,7 @@ mod tests {
 
         assert_eq!(
             route,
-            ShortestRoute::Intermediate(IntermediateLocation { location_index: 4 })
+            ShortestPath::Intermediate(Intermediate { location_index: 4 })
         );
     }
 
@@ -573,7 +564,7 @@ mod tests {
 
         assert_eq!(
             route,
-            ShortestRoute::Intermediate(IntermediateLocation { location_index: 1 })
+            ShortestPath::Intermediate(Intermediate { location_index: 1 })
         );
     }
 
@@ -608,7 +599,7 @@ mod tests {
 
         assert_eq!(
             route,
-            ShortestRoute::Intermediate(IntermediateLocation { location_index: 7 })
+            ShortestPath::Intermediate(Intermediate { location_index: 7 })
         );
     }
 
@@ -622,7 +613,7 @@ mod tests {
 
         assert_eq!(
             route,
-            ShortestRoute::Intermediate(IntermediateLocation { location_index: 1 })
+            ShortestPath::Intermediate(Intermediate { location_index: 1 })
         );
     }
 
@@ -636,7 +627,7 @@ mod tests {
 
         assert_eq!(
             route,
-            ShortestRoute::Intermediate(IntermediateLocation { location_index: 1 })
+            ShortestPath::Intermediate(Intermediate { location_index: 1 })
         );
     }
 
@@ -650,7 +641,7 @@ mod tests {
 
         assert_eq!(
             route,
-            ShortestRoute::Intermediate(IntermediateLocation { location_index: 2 })
+            ShortestPath::Intermediate(Intermediate { location_index: 2 })
         );
     }
 
@@ -662,7 +653,7 @@ mod tests {
 
         let route = shortest_path_location(graph, &location, Length::MAX).unwrap();
 
-        assert_eq!(route, ShortestRoute::Location);
+        assert_eq!(route, ShortestPath::Location);
     }
 
     #[test]
@@ -678,6 +669,6 @@ mod tests {
 
         let route = shortest_path_location(graph, &location, Length::MAX).unwrap();
 
-        assert_eq!(route, ShortestRoute::Location);
+        assert_eq!(route, ShortestPath::Location);
     }
 }

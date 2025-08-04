@@ -18,11 +18,11 @@ pub fn encode_line<G: DirectedGraph>(
     let line = line_location_with_expansion(config, graph, line);
     debug_assert!(!line.path.is_empty());
 
-    // Step – 3..8 Split location into intermediate LRPs until full coverage.
-    let lrps = resolve_lrps(config, graph, &line)?;
+    // Step – 3..8 Split location into intermediate LRPs until full coverage
+    let lrps = resolve_lrps(config, graph, line)?;
     debug_assert!(!lrps.is_empty());
 
-    // Step – 9 Trim LRPs if the offset values exceeds the length of the corresponding path.
+    // Step – 9 Trim LRPs if the offset values exceeds the length of the corresponding path
     let lrps = lrps.trim(config, graph)?;
 
     Ok(LocationReference::Line(lrps.into()))

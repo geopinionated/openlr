@@ -35,7 +35,7 @@ impl<EdgeId> From<Vec<LocRefPoint<EdgeId>>> for LocRefPoints<EdgeId> {
 #[derive(Debug, Clone, PartialEq)]
 pub struct LocRefPoint<EdgeId> {
     /// The (non-empty) shortest path to the next LRP.
-    /// The line the LRP refers to is the first edge of the path.
+    /// The line the LRP refers to is the first edge of this path.
     pub edges: Vec<EdgeId>,
     /// The Location Reference Point.
     pub point: Point,
@@ -43,7 +43,7 @@ pub struct LocRefPoint<EdgeId> {
 
 impl<EdgeId: Copy> LocRefPoint<EdgeId> {
     /// Constructs a new LRP based on a node.
-    pub fn from_node<G>(
+    pub fn node<G>(
         config: &EncoderConfig,
         graph: &G,
         path: Vec<EdgeId>,
@@ -55,7 +55,7 @@ impl<EdgeId: Copy> LocRefPoint<EdgeId> {
     }
 
     /// Constructs a new LRP based on the last node.
-    pub fn from_last_node<G>(
+    pub fn last_node<G>(
         config: &EncoderConfig,
         graph: &G,
         edge: EdgeId,
@@ -155,7 +155,7 @@ impl<EdgeId: Copy + Debug> LocRefPoints<EdgeId> {
         if let Some(last_lrp) = lrps_rev.next().filter(|lrp| !lrp.point.is_last())
             && let Some(&last_edge) = lrps_rev.next().and_then(|lrp| lrp.edges.last())
         {
-            *last_lrp = LocRefPoint::from_last_node(config, graph, last_edge)?;
+            *last_lrp = LocRefPoint::last_node(config, graph, last_edge)?;
         }
 
         Ok(self)
