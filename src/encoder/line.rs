@@ -1,6 +1,6 @@
 use tracing::info;
 
-use crate::encoder::expansion::line_location_expansion;
+use crate::encoder::expansion::line_location_with_expansion;
 use crate::encoder::resolver::resolve_lrps;
 use crate::{DirectedGraph, EncoderConfig, EncoderError, LineLocation, LocationReference};
 
@@ -15,7 +15,7 @@ pub fn encode_line<G: DirectedGraph>(
     let line = line.trim(graph)?;
 
     // Step – 2 Adjust start and end node of the location to represent valid map nodes
-    let line = line_location_expansion(config, graph, &line);
+    let line = line_location_with_expansion(config, graph, line);
     debug_assert!(!line.path.is_empty());
 
     // Step – 3..8 Split location into intermediate LRPs until full coverage.

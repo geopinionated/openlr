@@ -16,30 +16,29 @@ use crate::{DirectedGraph, EncoderConfig, Length, LineLocation};
 ///
 /// For line locations the real start of the location can then be referenced using offsets
 /// (positive offset for the start node and negative offset for the end node, respectively).
-pub fn line_location_expansion<G: DirectedGraph>(
+pub fn line_location_with_expansion<G: DirectedGraph>(
     config: &EncoderConfig,
     graph: &G,
-    line: &LineLocation<G::EdgeId>,
+    mut line: LineLocation<G::EdgeId>,
 ) -> LineLocation<G::EdgeId> {
-    let prefix = edge_backward_expansion(config, graph, line);
-    let postfix = edge_forward_expansion(config, graph, line);
+    let prefix = edge_backward_expansion(config, graph, &line);
+    let mut postfix = edge_forward_expansion(config, graph, &line);
 
-    let path = prefix
-        .edges
-        .into_iter()
-        .chain(line.path.iter().copied())
-        .chain(postfix.edges)
-        .collect();
+    let mut path = prefix.edges;
+    path.reserve_exact(line.path.len() + postfix.edges.len());
+    path.append(&mut line.path);
+    path.append(&mut postfix.edges);
 
-    LineLocation {
-        path,
-        pos_offset: line.pos_offset + prefix.length,
-        neg_offset: line.neg_offset + postfix.length,
-    }
+    line.path = path;
+    line.pos_offset += prefix.length;
+    line.neg_offset += postfix.length;
+
+    line
 }
 
-/// Returns the expansion path in forward direction (from the line end).
-pub fn edge_forward_expansion<G: DirectedGraph>(
+/// Returns the expansion path in forward direction (from the line last edge).
+/// The path cannot contain any turn restriction, in which case this function returns an empty one.
+fn edge_forward_expansion<G: DirectedGraph>(
     config: &EncoderConfig,
     graph: &G,
     line: &LineLocation<G::EdgeId>,
@@ -80,8 +79,9 @@ pub fn edge_forward_expansion<G: DirectedGraph>(
     expansion
 }
 
-/// Returns the expansion path in backward direction (from the line start).
-pub fn edge_backward_expansion<G: DirectedGraph>(
+/// Returns the expansion path in backward direction (into the line first edge).
+/// The path cannot contain any turn restriction, in which case this function returns an empty one.
+fn edge_backward_expansion<G: DirectedGraph>(
     config: &EncoderConfig,
     graph: &G,
     line: &LineLocation<G::EdgeId>,
@@ -124,9 +124,9 @@ pub fn edge_backward_expansion<G: DirectedGraph>(
     expansion
 }
 
-/// Selects the next valid edge candidate for the given line.
-/// Returns the selected edge and its length, otherwise None if no candidate could be selected.
-pub fn resolve_edge_expansion<G, I>(
+/// Selects the next valid edge that can expand the line from the given candidate edge.
+/// Returns the selected edge and its length, otherwise None if no edge could be selected.
+fn resolve_edge_expansion<G, I>(
     config: &EncoderConfig,
     graph: &G,
     line: &LineLocation<G::EdgeId>,
@@ -155,7 +155,7 @@ where
 
 /// Selects a single expansion edge from a list of candidates.
 /// If no expansion is possible returns None.
-pub fn select_edge_expansion_candidate<G, I>(
+fn select_edge_expansion_candidate<G, I>(
     graph: &G,
     edge: G::EdgeId,
     candidates: I,
@@ -262,15 +262,9 @@ mod tests {
         };
 
         assert_eq!(
-            edge_forward_expansion(&config, graph, &line),
-            Path::default(),
-            "End VertexId(20) is a valid node"
-        );
-
-        assert_eq!(
-            edge_backward_expansion(&config, graph, &line),
-            Path::default(),
-            "Start VertexId(68) is a valid node"
+            line_location_with_expansion(&config, graph, line.clone()),
+            line,
+            "Start VertexId(68) and End VertexId(20) are both valid nodes"
         );
     }
 
@@ -287,18 +281,13 @@ mod tests {
         };
 
         assert_eq!(
-            edge_forward_expansion(&config, graph, &line),
-            Path {
-                edges: vec![EdgeId(7430347)],
-                length: Length::from_meters(78.0)
+            line_location_with_expansion(&config, graph, line),
+            LineLocation {
+                path: vec![EdgeId(16219), EdgeId(7430347)],
+                pos_offset: Length::ZERO,
+                neg_offset: Length::from_meters(78.0),
             },
-            "End VertexId(3) is not a valid node"
-        );
-
-        assert_eq!(
-            edge_backward_expansion(&config, graph, &line),
-            Path::default(),
-            "Start VertexId(2) is a valid node"
+            "Start VertexId(2) is a valid node but End VertexId(3) is not a valid node"
         );
     }
 
@@ -315,18 +304,13 @@ mod tests {
         };
 
         assert_eq!(
-            edge_forward_expansion(&config, graph, &line),
-            Path::default(),
-            "End VertexId(34) is a valid node"
-        );
-
-        assert_eq!(
-            edge_backward_expansion(&config, graph, &line),
-            Path {
-                edges: vec![EdgeId(16219)],
-                length: Length::from_meters(109.0)
+            line_location_with_expansion(&config, graph, line),
+            LineLocation {
+                path: vec![EdgeId(16219), EdgeId(7430347)],
+                pos_offset: Length::from_meters(109.0),
+                neg_offset: Length::ZERO,
             },
-            "Start VertexId(3) is not a valid node"
+            "Start VertexId(3) is not a valid node but End VertexId(34) is a valid node"
         );
     }
 
