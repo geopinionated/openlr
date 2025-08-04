@@ -706,15 +706,15 @@ pub enum LocationType {
 /// an example for a location which is bound to the road network and a simple geo-coordinate
 /// is an example for a location which is not bound to the road network.
 /// The main idea for locations which are bound to the road network is covering the location with a
-/// concatenation of (several) shortest-paths. The concatenation of such shortest-paths shall cover the
-/// location completely. Each shortest-path is specified by information about its start line and its end line.
-/// This information is combined in the location reference points (LRPs). The LRPs are ordered from the
-/// start of the location to the end of the location and the shortest-path between two subsequent LRPs
-/// covers a part of the location. The concatenation of all these shortest-paths covers the location
-/// completely and this path is called the location reference path. The location reference path may be
-/// longer than the original location and offsets trim this path down to the size of the location path.
-/// Offsets are also used to define a location on a line more precisely (e.g. point locations along a line)
-/// than using the start and end node of that line.
+/// concatenation of (several) shortest-paths. The concatenation of such shortest-paths shall cover
+/// the location completely. Each shortest-path is specified by information about its start line and
+/// its end line. This information is combined in the location reference points (LRPs). The LRPs are
+/// ordered from the start of the location to the end of the location and the shortest-path between
+/// two subsequent LRPs covers a part of the location. The concatenation of all these shortest-paths
+/// covers the location completely and this path is called the location reference path. The location
+/// reference path may be longer than the original location and offsets trim this path down to the
+/// size of the location path. Offsets are also used to define a location on a line more precisely
+/// (e.g. point locations along a line) than using the start and end node of that line.
 #[derive(Debug, Clone, PartialEq)]
 pub enum LocationReference {
     // Line Locations

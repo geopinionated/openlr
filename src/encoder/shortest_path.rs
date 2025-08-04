@@ -69,8 +69,8 @@ impl<EdgeId: Ord> PartialOrd for HeapElement<EdgeId> {
 /// The shortest path algorithm should take the whole network or a well-defined subset of the
 /// network into account in order to calculate a shortest path between the current start and end.
 /// Additionally it should fulfill the following constraints:
-/// - All lengths of the lines should be measured in meters and should also be converted to
-///   integer values, so that float values need to be rounded correctly.
+/// - All lengths of the lines should be measured in meters and should also be converted to integer
+///   values, so that float values need to be rounded correctly.
 /// - The search is node based and starts at the start node of the first line and ends at the end
 ///   node of the last line.
 /// - The algorithm shall return an ordered list of lines representing the calculated shortest-path.
@@ -230,8 +230,8 @@ impl<'a, G: DirectedGraph> Intermediator<'a, G> {
     /// needs to be determined. This intermediate must fulfill the following constraints:
     /// - The shortest-path between the current start and the line indicated by the intermediate
     ///   location reference point must cover the corresponding part of the location completely.
-    /// - The start node of the line indicated by the intermediate location reference point shall
-    ///   be positioned on a valid node (if no valid node can be determined, an invalid node may be
+    /// - The start node of the line indicated by the intermediate location reference point shall be
+    ///   positioned on a valid node (if no valid node can be determined, an invalid node may be
     ///   chosen).
     fn get_intermediate_route(
         &mut self,

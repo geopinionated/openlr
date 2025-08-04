@@ -154,8 +154,8 @@ impl Coordinate {
 }
 
 impl Length {
-    /// This representation defines 256 intervals and each interval has a length of approximately 58.6 meters.
-    /// Maximum length between two consecutive LR-points is limited by 15000m.
+    /// This representation defines 256 intervals and each interval has a length of approximately
+    /// 58.6 meters. Maximum length between two consecutive LR-points is limited by 15000m.
     const DISTANCE_PER_INTERVAL: f64 = 58.6;
 
     /// Returns the distance to next LR-point in meters from a byte.

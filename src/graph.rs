@@ -79,7 +79,8 @@ pub trait DirectedGraph {
 
     /// Gets the distance of the projected coordinate to the start vertex of the edge when following
     /// the edge coordinates.
-    /// Returns None if the edge doesn't belong to the graph or if the coordinate cannot be projected.
+    /// Returns None if the edge doesn't belong to the graph or if the coordinate cannot be
+    /// projected.
     fn get_distance_from_start_vertex(
         &self,
         edge: Self::EdgeId,
@@ -89,7 +90,8 @@ pub trait DirectedGraph {
     /// Gets the bearing of a subsection A-B of the edge that goes from the coordinate (A) at the
     /// given distance from the start vertex, and the coordinate (B) that is at the given distance
     /// from A. The segment length can be negative.
-    /// Returns None if the edge doesn't belong to the graph or if the segment cannot be constructed.
+    /// Returns None if the edge doesn't belong to the graph or if the segment cannot be
+    /// constructed.
     fn get_edge_bearing(
         &self,
         edge: Self::EdgeId,

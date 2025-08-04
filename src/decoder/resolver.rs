@@ -24,8 +24,8 @@ use crate::{DecodeError, DecoderConfig, DirectedGraph, Frc, Length};
 /// anticipates having different functional road class values than the encoder map.
 ///
 /// Additionally the shortest-path algorithm should fulfill the following constraints:
-/// - All lengths of the lines should be measured in meters and should also be converted to
-///   integer values, float values need to be rounded correctly.
+/// - All lengths of the lines should be measured in meters and should also be converted to integer
+///   values, float values need to be rounded correctly.
 /// - The search is node based and will start at the start node of the first line and will end at
 ///   the end node of the last line.
 /// - The algorithm shall return an ordered list of lines representing the calculated shortest-path.

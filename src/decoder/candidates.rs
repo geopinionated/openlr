@@ -132,9 +132,9 @@ where
 ///   close to the coordinates of the location reference point.
 /// - The candidate lines should be outgoing lines (incoming lines for the last location reference
 ///   point) of the candidate nodes or projection points determined in the previous step.
-/// - The candidate lines should match the attributes functional road class, form of way and
-///   bearing as extracted from the physical data. Slight variances are allowed and shall be taken
-///   into account in step 4.
+/// - The candidate lines should match the attributes functional road class, form of way and bearing
+///   as extracted from the physical data. Slight variances are allowed and shall be taken into
+///   account in step 4.
 ///
 /// The direct search of lines using a projection point may also be executed even if candidate nodes
 /// are found. This might increase the number of candidate nodes but it could help to determine the

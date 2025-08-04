@@ -204,10 +204,10 @@ where
 ///
 /// A node is invalid if:
 /// 1. The node has a degree of 2 and it is not a dead-end street:
-///   - If a node has only one incoming and one outgoing line, then it can be skipped during
-///     route search because no deviation at this point is possible.
-///   - If the node is part of a dead-end street, then the node is still valid because otherwise
-///     at this point it is only possible to go back the line.
+///   - If a node has only one incoming and one outgoing line, then it can be skipped during route
+///     search because no deviation at this point is possible.
+///   - If the node is part of a dead-end street, then the node is still valid because otherwise at
+///     this point it is only possible to go back the line.
 ///   - If such a dead-end node is the start or end of a location, it needs to be valid; otherwise,
 ///     every extension might be useless.
 /// 2. The node has a degree of 4 and the incoming/outgoing lines are pairwise:
