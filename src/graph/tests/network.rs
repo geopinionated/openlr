@@ -230,7 +230,7 @@ impl DirectedGraph for NetworkGraph {
             })
     }
 
-    fn get_distance_from_start_vertex(
+    fn get_distance_along_edge(
         &self,
         edge: Self::EdgeId,
         coordinate: Coordinate,
@@ -261,6 +261,22 @@ impl DirectedGraph for NetworkGraph {
         }
 
         Some(Length::from_meters(distance_from_start))
+    }
+
+    fn get_coordinate_along_edge(
+        &self,
+        edge: Self::EdgeId,
+        distance: Length,
+    ) -> Option<Coordinate> {
+        let ratio = distance.meters() / self.get_edge_length(edge)?.meters();
+
+        let geometry = self.edge_line_string(edge);
+        let point = geometry.point_at_ratio_from_start(&Haversine, ratio)?;
+
+        Some(Coordinate {
+            lon: point.x(),
+            lat: point.y(),
+        })
     }
 
     fn get_edge_bearing(
@@ -366,6 +382,74 @@ impl NetworkGraph {
             edge_properties,
         }
     }
+}
+
+#[test]
+fn network_graph_coordinate_along_edge() {
+    let graph = &NETWORK_GRAPH;
+
+    assert_eq!(
+        graph
+            .get_coordinate_along_edge(EdgeId(16218), Length::ZERO)
+            .unwrap(),
+        Coordinate {
+            lon: 13.454214,
+            lat: 52.5157088
+        }
+    );
+
+    assert_eq!(
+        graph
+            .get_coordinate_along_edge(EdgeId(16218), graph.get_edge_length(EdgeId(16218)).unwrap())
+            .unwrap(),
+        Coordinate {
+            lon: 13.457386,
+            lat: 52.5153814
+        }
+    );
+
+    assert_eq!(
+        graph
+            .get_coordinate_along_edge(EdgeId(16218), Length::from_meters(10.0))
+            .unwrap(),
+        Coordinate {
+            lon: 13.454360,
+            lat: 52.515693
+        }
+    );
+
+    assert_eq!(
+        graph
+            .get_coordinate_along_edge(EdgeId(16218), Length::from_meters(100.0))
+            .unwrap(),
+        Coordinate {
+            lon: 13.455676,
+            lat: 52.515561
+        }
+    );
+
+    assert_eq!(
+        graph
+            .get_coordinate_along_edge(EdgeId(16218), Length::from_meters(-1.0))
+            .unwrap(),
+        Coordinate {
+            lon: 13.454214,
+            lat: 52.5157088
+        }
+    );
+
+    assert_eq!(
+        graph
+            .get_coordinate_along_edge(
+                EdgeId(16218),
+                graph.get_edge_length(EdgeId(16218)).unwrap() + Length::from_meters(1.0)
+            )
+            .unwrap(),
+        Coordinate {
+            lon: 13.457386,
+            lat: 52.5153814
+        }
+    );
 }
 
 #[test]
@@ -533,12 +617,12 @@ fn network_graph_edge_bearing() {
 }
 
 #[test]
-fn network_graph_distance_from_start_vertex() {
+fn network_graph_distance_along_edge() {
     let graph = &NETWORK_GRAPH;
 
     assert_eq!(
         graph
-            .get_distance_from_start_vertex(
+            .get_distance_along_edge(
                 EdgeId(6770340),
                 Coordinate {
                     lon: 13.462836552352906,
@@ -552,7 +636,7 @@ fn network_graph_distance_from_start_vertex() {
 
     assert_eq!(
         graph
-            .get_distance_from_start_vertex(
+            .get_distance_along_edge(
                 EdgeId(-109783),
                 Coordinate {
                     lon: 13.462836552352906,
@@ -566,7 +650,7 @@ fn network_graph_distance_from_start_vertex() {
 
     assert_eq!(
         graph
-            .get_distance_from_start_vertex(
+            .get_distance_along_edge(
                 EdgeId(109783),
                 Coordinate {
                     lon: 13.462836552352906,
@@ -580,7 +664,7 @@ fn network_graph_distance_from_start_vertex() {
 
     assert_eq!(
         graph
-            .get_distance_from_start_vertex(
+            .get_distance_along_edge(
                 EdgeId(4925291),
                 Coordinate {
                     lon: 13.461116552352905,
@@ -594,7 +678,7 @@ fn network_graph_distance_from_start_vertex() {
 
     assert_eq!(
         graph
-            .get_distance_from_start_vertex(
+            .get_distance_along_edge(
                 EdgeId(-4925291),
                 Coordinate {
                     lon: 13.461116552352905,
@@ -608,7 +692,7 @@ fn network_graph_distance_from_start_vertex() {
 
     assert_eq!(
         graph
-            .get_distance_from_start_vertex(
+            .get_distance_along_edge(
                 EdgeId(8717174),
                 Coordinate {
                     lon: 13.461951,
@@ -622,7 +706,7 @@ fn network_graph_distance_from_start_vertex() {
 
     assert_eq!(
         graph
-            .get_distance_from_start_vertex(
+            .get_distance_along_edge(
                 EdgeId(-8717174),
                 Coordinate {
                     lon: 13.461951,

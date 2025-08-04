@@ -81,11 +81,18 @@ pub trait DirectedGraph {
     /// the edge coordinates.
     /// Returns None if the edge doesn't belong to the graph or if the coordinate cannot be
     /// projected.
-    fn get_distance_from_start_vertex(
-        &self,
-        edge: Self::EdgeId,
-        coordinate: Coordinate,
-    ) -> Option<Length>;
+    fn get_distance_along_edge(&self, edge: Self::EdgeId, coordinate: Coordinate)
+    -> Option<Length>;
+
+    /// Gets the coordinate along the edge geometry which is at the given distance from the edge
+    /// start vertex. Returns None if the edge doesn't belong to the graph or if the coordinate
+    /// cannot be found.
+    ///
+    /// The distance is clipped within the edge length, therefore for distances lower of equal to
+    /// zero the edge start vertex coordinate will be returned and for distances greater or equal to
+    /// the edge length the edge end vertex coordinate will be returned.
+    fn get_coordinate_along_edge(&self, edge: Self::EdgeId, distance: Length)
+    -> Option<Coordinate>;
 
     /// Gets the bearing of a subsection A-B of the edge that goes from the coordinate (A) at the
     /// given distance from the start vertex, and the coordinate (B) that is at the given distance

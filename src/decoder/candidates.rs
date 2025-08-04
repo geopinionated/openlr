@@ -241,7 +241,7 @@ fn append_projected_candidate_lines<G: DirectedGraph>(
             debug_assert!(distance_to_lrp <= config.max_node_distance);
 
             let distance_to_projection = graph
-                .get_distance_from_start_vertex(edge, lrp.coordinate)
+                .get_distance_along_edge(edge, lrp.coordinate)
                 .filter(|&distance| distance > Length::ZERO)?;
 
             let bearing = if lrp.is_last() {
