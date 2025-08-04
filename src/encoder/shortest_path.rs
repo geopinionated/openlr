@@ -5,7 +5,7 @@ use std::hash::Hash;
 
 use tracing::{debug, warn};
 
-use crate::encoder::expansion::is_node_valid;
+use crate::graph::path::is_node_valid;
 use crate::{DirectedGraph, EncoderError, Length, LocationError};
 
 #[derive(Debug, Clone, PartialEq)]

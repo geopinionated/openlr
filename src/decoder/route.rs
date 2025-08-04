@@ -2,7 +2,7 @@ use std::fmt::Debug;
 use std::ops::Deref;
 
 use crate::decoder::candidates::{CandidateLine, CandidateLinePair};
-use crate::path::Path;
+use crate::graph::path::Path;
 use crate::{DirectedGraph, Length, Offsets};
 
 /// The shortest route between two (consecutive) LRPs.

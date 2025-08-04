@@ -103,10 +103,10 @@ pub trait DirectedGraph {
     /// If any of the given edges doesn't belog to the path returns true.
     fn is_turn_restricted(&self, start: Self::EdgeId, end: Self::EdgeId) -> bool;
 
-    /// Returns the number of edges that are connected to the vertex, that is, the sum of the
-    /// number of outgoing directed edges plus the incoming ones.
+    /// Returns the total number of edges that are connected to the vertex, that is, the sum of the
+    /// number of entering edges and the exiting edges.
     fn vertex_degree(&self, vertex: Self::VertexId) -> usize {
-        self.vertex_entering_edges(vertex).count() + self.vertex_exiting_edges(vertex).count()
+        self.vertex_edges(vertex).count()
     }
 
     /// Gets an iterator over all the edges (entering and exiting) into/from the given vertex.
@@ -120,6 +120,8 @@ pub trait DirectedGraph {
             .chain(self.vertex_exiting_edges(vertex))
     }
 }
+
+pub mod path;
 
 #[cfg(test)]
 pub mod tests {

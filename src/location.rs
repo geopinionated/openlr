@@ -1,4 +1,4 @@
-use crate::path::is_path_connected;
+use crate::graph::path::is_path_connected;
 use crate::{DirectedGraph, Length, LocationError};
 
 /// Defines a location (in a map) that can be encoded using the OpenLR encoder

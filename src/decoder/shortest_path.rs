@@ -4,7 +4,7 @@ use std::fmt::Debug;
 
 use tracing::debug;
 
-use crate::path::Path;
+use crate::graph::path::Path;
 use crate::{DirectedGraph, Frc, Length};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -7,7 +7,6 @@ mod format;
 mod graph;
 mod location;
 mod model;
-mod path;
 
 pub use decoder::{DecoderConfig, decode_base64_openlr, decode_binary_openlr};
 pub use encoder::{EncoderConfig, encode_base64_openlr, encode_binary_openlr};
