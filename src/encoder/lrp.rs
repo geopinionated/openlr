@@ -160,9 +160,11 @@ impl<EdgeId: Copy + Debug> LocRefPoints<EdgeId> {
         }
 
         let mut lrps_rev = self.lrps.iter_mut().rev();
+
         if let Some(last_lrp) = lrps_rev.next().filter(|lrp| !lrp.point.is_last())
             && let Some(&last_edge) = lrps_rev.next().and_then(|lrp| lrp.edges.last())
         {
+            // the last LRP was trimmed: update the remaining one to become the last LRP
             *last_lrp = LocRefPoint::last_node(config, graph, last_edge)
                 .ok_or(EncoderError::InvalidLrpOffsets)?;
         }

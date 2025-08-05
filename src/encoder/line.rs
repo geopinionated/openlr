@@ -20,7 +20,7 @@ pub fn encode_line<G: DirectedGraph>(
 
     // Step – 3..8 Split location into intermediate LRPs until full coverage
     let lrps = resolve_lrps(config, graph, line)?;
-    debug_assert!(!lrps.is_empty());
+    debug_assert!(lrps.len() > 1);
 
     // Step – 9 Trim LRPs if the offset values exceeds the length of the corresponding path
     let lrps = lrps.trim(config, graph)?;

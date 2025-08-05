@@ -43,13 +43,11 @@ pub fn resolve_lrps<G: DirectedGraph>(
 
     candidate_lrps.push(last_lrp);
 
+    let lrp_edges = || candidate_lrps.iter().flat_map(|lrp| &lrp.edges);
+    debug_assert_eq!(line.path.len(), lrp_edges().count());
+
     // Step – 8 Check validity of the location reference path.
-    if line
-        .path
-        .iter()
-        .zip(candidate_lrps.iter().flat_map(|lrp| &lrp.edges))
-        .any(|(e1, e2)| e1 != e2)
-    {
+    if line.path.iter().zip(lrp_edges()).any(|(e1, e2)| e1 != e2) {
         warn!("Resolved LRPs don't exactly cover the location edges");
         return Err(InvalidLrp);
     }
@@ -82,10 +80,14 @@ fn split_lrp<G: DirectedGraph>(
     graph: &G,
     lrp: LocRefPoint<G::EdgeId>,
 ) -> Result<Vec<LocRefPoint<G::EdgeId>>, EncoderError> {
+    let EncoderConfig {
+        max_lrp_distance, ..
+    } = *config;
+
     let mut lrps = vec![lrp];
     let lrp = &lrps[0];
 
-    if lrp.point.dnp() <= config.max_lrp_distance {
+    if lrp.point.dnp() <= max_lrp_distance {
         return Ok(lrps);
     }
 
@@ -95,25 +97,26 @@ fn split_lrp<G: DirectedGraph>(
 
     let edge = lrp.edges[0];
     let mut dnp = lrp.point.dnp();
-    let mut distance = config.max_lrp_distance;
+    let mut distance = max_lrp_distance;
 
-    while dnp > config.max_lrp_distance {
+    while dnp > max_lrp_distance {
         let coordinate = graph
             .get_coordinate_along_edge(edge, distance)
             .ok_or(EncoderError::MaxDistanceExceeded)?;
 
         if let Some(path) = lrps.last_mut().and_then(|lrp| lrp.point.path.as_mut()) {
             // creating another LRP on the same line requires updating the DNP of the previous
-            path.dnp = config.max_lrp_distance;
+            path.dnp = max_lrp_distance;
         }
 
         let lrp = LocRefPoint::line(config, graph, edge, coordinate).ok_or(InvalidLrp)?;
         lrps.push(lrp);
 
-        dnp -= config.max_lrp_distance;
-        distance += config.max_lrp_distance;
+        dnp -= max_lrp_distance;
+        distance += max_lrp_distance;
     }
 
+    debug_assert!(lrps.iter().all(|lrp| lrp.point.dnp() <= max_lrp_distance));
     Ok(lrps)
 }
 
