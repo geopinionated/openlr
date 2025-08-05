@@ -104,32 +104,19 @@ fn resolve_single_line_routes<G: DirectedGraph>(
         return None;
     }
 
-    let pairs = candidate_lines.windows(2).filter_map(|window| {
-        Some(CandidateLinePair {
-            line_lrp1: window[0].best_candidate()?,
-            line_lrp2: window[1].best_candidate()?,
-        })
-    });
+    let path = Path {
+        length: graph.get_edge_length(best_candidate.edge)?,
+        edges: vec![best_candidate.edge],
+    };
 
-    let routes: Vec<_> = pairs
-        .enumerate()
-        .map(|(i, candidates)| {
-            let edges = if i == 0 {
-                vec![best_candidate.edge]
-            } else {
-                vec![]
-            };
+    let candidates = CandidateLinePair {
+        line_lrp1: candidate_lines.first().and_then(|c| c.best_candidate())?,
+        line_lrp2: candidate_lines.last().and_then(|c| c.best_candidate())?,
+    };
 
-            let path = Path {
-                length: edges.iter().filter_map(|&e| graph.get_edge_length(e)).sum(),
-                edges,
-            };
+    let route = CandidateRoute { path, candidates };
 
-            CandidateRoute { path, candidates }
-        })
-        .collect();
-
-    Some(CandidateRoutes::from(routes))
+    Some(CandidateRoutes::from(vec![route]))
 }
 
 fn resolve_candidates_route<G, I>(
@@ -923,6 +910,121 @@ mod tests {
                     }
                 },
             ])
+        );
+    }
+
+    #[test]
+    fn decoder_resolve_routes_006() {
+        let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+        let config = DecoderConfig::default();
+
+        let first_lrp = Point {
+            coordinate: Coordinate {
+                lon: 13.454214,
+                lat: 52.5157088,
+            },
+            line: LineAttributes {
+                frc: Frc::Frc2,
+                fow: Fow::SingleCarriageway,
+                bearing: Bearing::from_degrees(99),
+            },
+            path: Some(PathAttributes {
+                lfrcnp: Frc::Frc2,
+                dnp: Length::from_meters(100.0),
+            }),
+        };
+
+        let second_lrp = Point {
+            coordinate: Coordinate {
+                lon: 13.455676,
+                lat: 52.515561,
+            },
+            line: LineAttributes {
+                frc: Frc::Frc2,
+                fow: Fow::SingleCarriageway,
+                bearing: Bearing::from_degrees(100),
+            },
+            path: Some(PathAttributes {
+                lfrcnp: Frc::Frc2,
+                dnp: Length::from_meters(100.0),
+            }),
+        };
+
+        let third_lrp = Point {
+            coordinate: Coordinate {
+                lon: 13.457137,
+                lat: 52.515407,
+            },
+            line: LineAttributes {
+                frc: Frc::Frc2,
+                fow: Fow::SingleCarriageway,
+                bearing: Bearing::from_degrees(100),
+            },
+            path: Some(PathAttributes {
+                lfrcnp: Frc::Frc2,
+                dnp: Length::from_meters(17.0),
+            }),
+        };
+
+        let last_lrp = Point {
+            coordinate: Coordinate {
+                lon: 13.457386,
+                lat: 52.5153814,
+            },
+            line: LineAttributes {
+                frc: Frc::Frc2,
+                fow: Fow::SingleCarriageway,
+                bearing: Bearing::from_degrees(280),
+            },
+            path: None,
+        };
+
+        let lrp_on_same_line = |lrp| CandidateLine {
+            lrp,
+            edge: EdgeId(16218),
+            rating: RatingScore::from(1000.0),
+            distance_to_projection: None,
+        };
+
+        let line_first_lrp = lrp_on_same_line(first_lrp);
+        let line_second_lrp = lrp_on_same_line(second_lrp);
+        let line_third_lrp = lrp_on_same_line(third_lrp);
+        let line_last_lrp = lrp_on_same_line(last_lrp);
+
+        let candidate_lines = [
+            CandidateLines {
+                lrp: first_lrp,
+                lines: vec![line_first_lrp],
+            },
+            CandidateLines {
+                lrp: second_lrp,
+                lines: vec![line_second_lrp],
+            },
+            CandidateLines {
+                lrp: third_lrp,
+                lines: vec![line_third_lrp],
+            },
+            CandidateLines {
+                lrp: last_lrp,
+                lines: vec![line_last_lrp],
+            },
+        ];
+
+        let routes = resolve_routes(&config, graph, &candidate_lines).unwrap();
+
+        assert_eq!(
+            routes,
+            CandidateRoutes::from(vec![CandidateRoute {
+                path: Path {
+                    edges: vec![EdgeId(16218)],
+                    length: Length::from_meters(217.0),
+                },
+                candidates: CandidateLinePair {
+                    line_lrp1: line_first_lrp,
+                    line_lrp2: line_last_lrp
+                }
+            }])
         );
     }
 }

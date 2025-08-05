@@ -36,6 +36,9 @@ pub fn decode_line<G: DirectedGraph>(
     }
     .trim(graph)?;
 
+    debug_assert!(!location.path.is_empty());
+    debug_assert!(location.path.windows(2).all(|w| w[0] != w[1]));
+
     Ok(location)
 }
 
