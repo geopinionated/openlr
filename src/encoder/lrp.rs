@@ -2,8 +2,8 @@ use std::fmt::Debug;
 use std::ops::Deref;
 
 use crate::{
-    DirectedGraph, EncoderConfig, EncoderError, Frc, Length, Line, LineAttributes, Offset, Offsets,
-    PathAttributes, Point,
+    Coordinate, DirectedGraph, EncoderConfig, EncoderError, Frc, Length, Line, LineAttributes,
+    Offset, Offsets, PathAttributes, Point,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -43,85 +43,93 @@ pub struct LocRefPoint<EdgeId> {
 
 impl<EdgeId: Copy> LocRefPoint<EdgeId> {
     /// Constructs a new LRP based on a node.
-    pub fn node<G>(
-        config: &EncoderConfig,
-        graph: &G,
-        path: Vec<EdgeId>,
-    ) -> Result<Self, EncoderError>
+    pub fn node<G>(config: &EncoderConfig, graph: &G, edges: Vec<EdgeId>) -> Option<Self>
     where
         G: DirectedGraph<EdgeId = EdgeId>,
     {
-        Self::new(config, graph, path, false).ok_or(EncoderError::LrpConstructionFailed)
+        let edge = *edges.first()?;
+        let coordinate = graph.get_vertex_coordinate(graph.get_edge_start_vertex(edge)?)?;
+        let projection = Length::ZERO;
+        let bearing_distance = config.bearing_distance;
+
+        let lfrcnp = edges.iter().filter_map(|&e| graph.get_edge_frc(e)).max();
+        let dnp: Length = edges.iter().filter_map(|&e| graph.get_edge_length(e)).sum();
+
+        let line = LineAttributes {
+            frc: graph.get_edge_frc(edge)?,
+            fow: graph.get_edge_fow(edge)?,
+            bearing: graph.get_edge_bearing(edge, projection, bearing_distance)?,
+        };
+
+        let path = PathAttributes {
+            lfrcnp: lfrcnp.unwrap_or(Frc::Frc7),
+            dnp: dnp.ceil(),
+        };
+
+        Some(Self {
+            edges,
+            point: Point {
+                coordinate,
+                line,
+                path: Some(path),
+            },
+        })
     }
 
     /// Constructs a new LRP based on the last node.
-    pub fn last_node<G>(
-        config: &EncoderConfig,
-        graph: &G,
-        edge: EdgeId,
-    ) -> Result<Self, EncoderError>
+    pub fn last_node<G>(config: &EncoderConfig, graph: &G, edge: EdgeId) -> Option<Self>
     where
         G: DirectedGraph<EdgeId = EdgeId>,
     {
-        Self::new(config, graph, vec![edge], true).ok_or(EncoderError::LrpConstructionFailed)
+        let coordinate = graph.get_vertex_coordinate(graph.get_edge_end_vertex(edge)?)?;
+        let projection = graph.get_edge_length(edge)?;
+        let bearing_distance = config.bearing_distance.reverse();
+
+        let line = LineAttributes {
+            frc: graph.get_edge_frc(edge)?,
+            fow: graph.get_edge_fow(edge)?,
+            bearing: graph.get_edge_bearing(edge, projection, bearing_distance)?,
+        };
+
+        Some(Self {
+            edges: vec![],
+            point: Point {
+                coordinate,
+                line,
+                path: None,
+            },
+        })
     }
 
-    fn new<G>(
+    /// Constructs a new LRP based on a line.
+    pub fn line<G>(
         config: &EncoderConfig,
         graph: &G,
-        mut edges: Vec<EdgeId>,
-        is_last: bool,
+        edge: EdgeId,
+        coordinate: Coordinate,
     ) -> Option<Self>
     where
         G: DirectedGraph<EdgeId = EdgeId>,
     {
-        let line_attributes = |edge, projection, bearing_distance| {
-            Some(LineAttributes {
-                frc: graph.get_edge_frc(edge)?,
-                fow: graph.get_edge_fow(edge)?,
-                bearing: graph.get_edge_bearing(edge, projection, bearing_distance)?,
-            })
+        let projection = graph.get_distance_along_edge(edge, coordinate)?;
+        let bearing_distance = config.bearing_distance;
+        let lfrcnp = graph.get_edge_frc(edge)?;
+        let dnp = (graph.get_edge_length(edge)? - projection).ceil();
+
+        let line = LineAttributes {
+            frc: graph.get_edge_frc(edge)?,
+            fow: graph.get_edge_fow(edge)?,
+            bearing: graph.get_edge_bearing(edge, projection, bearing_distance)?,
         };
 
-        let lrp = if is_last {
-            let edge = edges.pop()?;
-            let coordinate = graph.get_vertex_coordinate(graph.get_edge_end_vertex(edge)?)?;
-            let projection = graph.get_edge_length(edge)?;
-            let bearing_distance = config.bearing_distance.reverse();
-
-            Self {
-                edges,
-                point: Point {
-                    coordinate,
-                    line: line_attributes(edge, projection, bearing_distance)?,
-                    path: None,
-                },
-            }
-        } else {
-            let edge = *edges.first()?;
-            let coordinate = graph.get_vertex_coordinate(graph.get_edge_start_vertex(edge)?)?;
-            let projection = Length::ZERO;
-            let bearing_distance = config.bearing_distance;
-
-            let lfrcnp = edges.iter().filter_map(|&e| graph.get_edge_frc(e)).max();
-            let dnp = edges.iter().filter_map(|&e| graph.get_edge_length(e)).sum();
-
-            let path = PathAttributes {
-                lfrcnp: lfrcnp.unwrap_or(Frc::Frc7),
-                dnp,
-            };
-
-            Self {
-                edges,
-                point: Point {
-                    coordinate,
-                    line: line_attributes(edge, projection, bearing_distance)?,
-                    path: Some(path),
-                },
-            }
-        };
-
-        Some(lrp)
+        Some(Self {
+            edges: vec![edge],
+            point: Point {
+                coordinate,
+                line,
+                path: Some(PathAttributes { lfrcnp, dnp }),
+            },
+        })
     }
 }
 
@@ -148,14 +156,15 @@ impl<EdgeId: Copy + Debug> LocRefPoints<EdgeId> {
         }
 
         if self.lrps.len() < 2 {
-            return Err(EncoderError::LrpOffsetTrimmingFailed);
+            return Err(EncoderError::InvalidLrpOffsets);
         }
 
         let mut lrps_rev = self.lrps.iter_mut().rev();
         if let Some(last_lrp) = lrps_rev.next().filter(|lrp| !lrp.point.is_last())
             && let Some(&last_edge) = lrps_rev.next().and_then(|lrp| lrp.edges.last())
         {
-            *last_lrp = LocRefPoint::last_node(config, graph, last_edge)?;
+            *last_lrp = LocRefPoint::last_node(config, graph, last_edge)
+                .ok_or(EncoderError::InvalidLrpOffsets)?;
         }
 
         Ok(self)

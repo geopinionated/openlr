@@ -248,13 +248,19 @@ impl<'a, G: DirectedGraph> Intermediator<'a, G> {
             self.last_edge = next_edge;
             self.last_edge_index += 1;
 
-            if element.distance > self.max_lrp_distance {
-                return Ok(Some(Intermediate {
-                    location_index: self.last_edge_index,
-                }));
+            let intermediate = if element.distance > self.max_lrp_distance {
+                let location_index =
+                    self.rfind_intermediate_index(previous_map).ok_or_else(|| {
+                        warn!("Cannot rfind valid intermediate to split max LRP distance");
+                        EncoderError::IntermediateError(self.last_edge_index)
+                    })?;
+
+                Some(Intermediate { location_index })
             } else {
-                return Ok(None);
-            }
+                None
+            };
+
+            return Ok(intermediate);
         }
 
         // The location deviates from the shortest path that would allow to reach this element.
@@ -286,7 +292,7 @@ impl<'a, G: DirectedGraph> Intermediator<'a, G> {
             Ok(Some(Intermediate { location_index }))
         } else {
             let location_index = self.rfind_intermediate_index(previous_map).ok_or_else(|| {
-                warn!("Cannot find valid intermediate earlier in the path");
+                warn!("Cannot rfind valid intermediate earlier in the path");
                 EncoderError::IntermediateError(self.last_edge_index)
             })?;
 
@@ -324,10 +330,10 @@ impl<'a, G: DirectedGraph> Intermediator<'a, G> {
 
         loop {
             // Check if we came back to the previous LRP, this means that we had a cycle in our path
-            // and cannot find a proper intersection to place the new intermediate.
-            // We choose the last element found in location which is not placed at an intersection.
+            // and cannot find a valid node to place the intermediate. Fallback to the last element
+            // found in the location.
             if edge == self.location[0] {
-                return Some(0);
+                return Some(self.last_edge_index);
             } else if is_node_valid(self.graph, self.graph.get_edge_start_vertex(edge)?) {
                 return self.location.iter().position(|&e| e == edge);
             }
