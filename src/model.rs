@@ -330,6 +330,10 @@ impl Length {
     pub fn reverse(self) -> Self {
         Self(self.0 * -1.0)
     }
+
+    pub fn clamp(self, min: Self, max: Self) -> Self {
+        self.max(min).min(max)
+    }
 }
 
 impl Add for Length {

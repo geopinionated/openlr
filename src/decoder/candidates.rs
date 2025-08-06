@@ -239,10 +239,13 @@ fn append_projected_candidate_lines<G: DirectedGraph>(
         .nearest_edges_within_distance(lrp.coordinate, config.max_node_distance)
         .filter_map(|(edge, distance_to_lrp)| {
             debug_assert!(distance_to_lrp <= config.max_node_distance);
+            let edge_length = graph.get_edge_length(edge)?;
 
             let distance_to_projection = graph
                 .get_distance_along_edge(edge, lrp.coordinate)
-                .filter(|&distance| distance > Length::ZERO)?;
+                // if distance is 0 or equal to the edge length it would essentially reprensent a
+                // line based on a node, instead of the outcome of the LRP projection
+                .filter(|&distance| distance > Length::ZERO && distance < edge_length)?;
 
             let bearing = if lrp.is_last() {
                 graph.get_edge_bearing(
@@ -269,6 +272,9 @@ fn append_projected_candidate_lines<G: DirectedGraph>(
 
     for mut projected_line in projected_lines {
         if !candidate_lines.lines.is_empty() {
+            // Candidate lines based on nodes have higher importance compared to candidates lines
+            // based on the projection of the LRPs into them. This is because the encoder strives
+            // to encode LRPs at "valid" node coordinates.
             projected_line.rating *= config.projected_line_factor;
             if projected_line.rating < config.min_line_rating {
                 debug!("Discarding {projected_line:?} because rating became too low");

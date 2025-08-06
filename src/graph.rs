@@ -81,6 +81,9 @@ pub trait DirectedGraph {
     /// the edge coordinates.
     /// Returns None if the edge doesn't belong to the graph or if the coordinate cannot be
     /// projected.
+    ///
+    /// The projection point shall be that coordinate on the line with the smallest distance between
+    /// the line and the given coordinate.
     fn get_distance_along_edge(&self, edge: Self::EdgeId, coordinate: Coordinate)
     -> Option<Length>;
 
@@ -88,7 +91,7 @@ pub trait DirectedGraph {
     /// start vertex. Returns None if the edge doesn't belong to the graph or if the coordinate
     /// cannot be found.
     ///
-    /// The distance is clipped within the edge length, therefore for distances lower of equal to
+    /// The distance is clamped within the edge length, therefore for distances lower of equal to
     /// zero the edge start vertex coordinate will be returned and for distances greater or equal to
     /// the edge length the edge end vertex coordinate will be returned.
     fn get_coordinate_along_edge(&self, edge: Self::EdgeId, distance: Length)

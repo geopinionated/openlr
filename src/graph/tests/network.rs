@@ -236,7 +236,7 @@ impl DirectedGraph for NetworkGraph {
         coordinate: Coordinate,
     ) -> Option<Length> {
         let mut closest_distance = f64::INFINITY;
-        let mut distance_from_start = 0.0;
+        let mut distance_along_edge = 0.0;
         let mut distance_acc = 0.0;
 
         let point = Point::new(coordinate.lon, coordinate.lat);
@@ -250,7 +250,7 @@ impl DirectedGraph for NetworkGraph {
                         // this is the closest line segment of the whole geometry (so far)
                         closest_distance = distance_to_line;
                         let distance = Haversine.distance(line.start_point(), p);
-                        distance_from_start = distance_acc + distance;
+                        distance_along_edge = distance_acc + distance;
                     }
 
                     use geo::Length;
@@ -260,7 +260,7 @@ impl DirectedGraph for NetworkGraph {
             }
         }
 
-        Some(Length::from_meters(distance_from_start))
+        Some(Length::from_meters(distance_along_edge).min(self.get_edge_length(edge)?))
     }
 
     fn get_coordinate_along_edge(
@@ -282,22 +282,18 @@ impl DirectedGraph for NetworkGraph {
     fn get_edge_bearing(
         &self,
         edge: Self::EdgeId,
-        distance_start: Length,
-        offset: Length,
+        distance_from_start: Length,
+        segment_length: Length,
     ) -> Option<Bearing> {
         let edge_length = self.get_edge_length(edge)?;
-        if distance_start > edge_length {
-            return None;
-        }
+        let distance_start = distance_from_start.clamp(Length::ZERO, edge_length);
+        let distance_end = (distance_start + segment_length).clamp(Length::ZERO, edge_length);
 
-        let distance_end = (distance_start + offset).min(edge_length).max(Length::ZERO);
+        let c1 = self.get_coordinate_along_edge(edge, distance_start)?;
+        let p1 = Point::new(c1.lon, c1.lat);
 
-        let ratio_p1 = distance_start.meters() / edge_length.meters();
-        let ratio_p2 = distance_end.meters() / edge_length.meters();
-
-        let geometry = self.edge_line_string(edge);
-        let p1 = geometry.point_at_ratio_from_start(&Haversine, ratio_p1)?;
-        let p2 = geometry.point_at_ratio_from_start(&Haversine, ratio_p2)?;
+        let c2 = self.get_coordinate_along_edge(edge, distance_end)?;
+        let p2 = Point::new(c2.lon, c2.lat);
 
         let degrees = {
             use geo::Bearing;
@@ -613,6 +609,16 @@ fn network_graph_edge_bearing() {
     assert_eq!(
         get_edge_bearing(EdgeId(7531947)),
         Bearing::from_degrees(100)
+    );
+
+    assert_eq!(
+        get_edge_bearing(EdgeId(6770340)),
+        Bearing::from_degrees(192)
+    );
+
+    assert_eq!(
+        get_edge_bearing(EdgeId(-6770340)),
+        Bearing::from_degrees(12)
     );
 }
 
