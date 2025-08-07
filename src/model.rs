@@ -392,7 +392,12 @@ impl Bearing {
     pub const NORTH: Self = Self(0);
 
     pub const fn from_degrees(degrees: u16) -> Self {
-        Self(degrees)
+        Self(degrees % 360)
+    }
+
+    pub fn from_radians(radians: f64) -> Self {
+        let degrees = radians.to_degrees().rem_euclid(360.0).round() as u16;
+        Self::from_degrees(degrees)
     }
 
     pub const fn degrees(&self) -> u16 {
@@ -757,6 +762,8 @@ impl LocationReference {
 
 #[cfg(test)]
 mod tests {
+    use std::f64::consts::{FRAC_PI_2, PI};
+
     use strum::IntoEnumIterator;
     use test_log::test;
 
@@ -767,5 +774,26 @@ mod tests {
         for (fow1, fow2) in Fow::iter().zip(Fow::iter()) {
             assert_eq!(fow1.rating(&fow2), fow2.rating(&fow1));
         }
+    }
+
+    #[test]
+    fn bearing_degrees() {
+        assert_eq!(Bearing::from_degrees(0).degrees(), 0);
+        assert_eq!(Bearing::from_degrees(90).degrees(), 90);
+        assert_eq!(Bearing::from_degrees(180).degrees(), 180);
+        assert_eq!(Bearing::from_degrees(270).degrees(), 270);
+        assert_eq!(Bearing::from_degrees(360).degrees(), 0);
+        assert_eq!(Bearing::from_degrees(360 + 90).degrees(), 90);
+
+        assert_eq!(Bearing::from_radians(0.0).degrees(), 0);
+        assert_eq!(Bearing::from_radians(FRAC_PI_2).degrees(), 90);
+        assert_eq!(Bearing::from_radians(PI).degrees(), 180);
+        assert_eq!(Bearing::from_radians(PI + FRAC_PI_2).degrees(), 270);
+        assert_eq!(Bearing::from_radians(PI + PI).degrees(), 0);
+        assert_eq!(Bearing::from_radians(PI + PI + FRAC_PI_2).degrees(), 90);
+
+        assert_eq!(Bearing::from_radians(-PI).degrees(), 180);
+        assert_eq!(Bearing::from_radians(-FRAC_PI_2).degrees(), 270);
+        assert_eq!(Bearing::from_radians(-PI - FRAC_PI_2).degrees(), 90);
     }
 }
