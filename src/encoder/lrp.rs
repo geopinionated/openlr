@@ -2,8 +2,8 @@ use std::fmt::Debug;
 use std::ops::Deref;
 
 use crate::{
-    DirectedGraph, EncoderConfig, EncoderError, Frc, Length, Line, LineAttributes, Offset, Offsets,
-    PathAttributes, Point,
+    Coordinate, DirectedGraph, EncoderConfig, EncoderError, Frc, Length, Line, LineAttributes,
+    Offset, Offsets, PathAttributes, Point,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -35,7 +35,7 @@ impl<EdgeId> From<Vec<LocRefPoint<EdgeId>>> for LocRefPoints<EdgeId> {
 #[derive(Debug, Clone, PartialEq)]
 pub struct LocRefPoint<EdgeId> {
     /// The (non-empty) shortest path to the next LRP.
-    /// The line the LRP refers to is the first edge of the path.
+    /// The line the LRP refers to is the first edge of this path.
     pub edges: Vec<EdgeId>,
     /// The Location Reference Point.
     pub point: Point,
@@ -43,85 +43,93 @@ pub struct LocRefPoint<EdgeId> {
 
 impl<EdgeId: Copy> LocRefPoint<EdgeId> {
     /// Constructs a new LRP based on a node.
-    pub fn from_node<G>(
-        config: &EncoderConfig,
-        graph: &G,
-        path: Vec<EdgeId>,
-    ) -> Result<Self, EncoderError>
+    pub fn node<G>(config: &EncoderConfig, graph: &G, edges: Vec<EdgeId>) -> Option<Self>
     where
         G: DirectedGraph<EdgeId = EdgeId>,
     {
-        Self::new(config, graph, path, false).ok_or(EncoderError::LrpConstructionFailed)
+        let edge = *edges.first()?;
+        let coordinate = graph.get_vertex_coordinate(graph.get_edge_start_vertex(edge)?)?;
+        let projection = Length::ZERO;
+        let bearing_distance = config.bearing_distance;
+
+        let lfrcnp = edges.iter().filter_map(|&e| graph.get_edge_frc(e)).max();
+        let dnp: Length = edges.iter().filter_map(|&e| graph.get_edge_length(e)).sum();
+
+        let line = LineAttributes {
+            frc: graph.get_edge_frc(edge)?,
+            fow: graph.get_edge_fow(edge)?,
+            bearing: graph.get_edge_bearing(edge, projection, bearing_distance)?,
+        };
+
+        let path = PathAttributes {
+            lfrcnp: lfrcnp.unwrap_or(Frc::Frc7),
+            dnp: dnp.ceil(),
+        };
+
+        Some(Self {
+            edges,
+            point: Point {
+                coordinate,
+                line,
+                path: Some(path),
+            },
+        })
     }
 
     /// Constructs a new LRP based on the last node.
-    pub fn from_last_node<G>(
-        config: &EncoderConfig,
-        graph: &G,
-        edge: EdgeId,
-    ) -> Result<Self, EncoderError>
+    pub fn last_node<G>(config: &EncoderConfig, graph: &G, edge: EdgeId) -> Option<Self>
     where
         G: DirectedGraph<EdgeId = EdgeId>,
     {
-        Self::new(config, graph, vec![edge], true).ok_or(EncoderError::LrpConstructionFailed)
+        let coordinate = graph.get_vertex_coordinate(graph.get_edge_end_vertex(edge)?)?;
+        let projection = graph.get_edge_length(edge)?;
+        let bearing_distance = config.bearing_distance.reverse();
+
+        let line = LineAttributes {
+            frc: graph.get_edge_frc(edge)?,
+            fow: graph.get_edge_fow(edge)?,
+            bearing: graph.get_edge_bearing(edge, projection, bearing_distance)?,
+        };
+
+        Some(Self {
+            edges: vec![],
+            point: Point {
+                coordinate,
+                line,
+                path: None,
+            },
+        })
     }
 
-    fn new<G>(
+    /// Constructs a new LRP based on a line.
+    pub fn line<G>(
         config: &EncoderConfig,
         graph: &G,
-        mut edges: Vec<EdgeId>,
-        is_last: bool,
+        edge: EdgeId,
+        coordinate: Coordinate,
     ) -> Option<Self>
     where
         G: DirectedGraph<EdgeId = EdgeId>,
     {
-        let line_attributes = |edge, projection, bearing_distance| {
-            Some(LineAttributes {
-                frc: graph.get_edge_frc(edge)?,
-                fow: graph.get_edge_fow(edge)?,
-                bearing: graph.get_edge_bearing_between(edge, projection, bearing_distance)?,
-            })
+        let projection = graph.get_distance_along_edge(edge, coordinate)?;
+        let bearing_distance = config.bearing_distance;
+        let lfrcnp = graph.get_edge_frc(edge)?;
+        let dnp = (graph.get_edge_length(edge)? - projection).ceil();
+
+        let line = LineAttributes {
+            frc: graph.get_edge_frc(edge)?,
+            fow: graph.get_edge_fow(edge)?,
+            bearing: graph.get_edge_bearing(edge, projection, bearing_distance)?,
         };
 
-        let lrp = if is_last {
-            let edge = edges.pop()?;
-            let coordinate = graph.get_vertex_coordinate(graph.get_edge_end_vertex(edge)?)?;
-            let projection = graph.get_edge_length(edge)?;
-            let bearing_distance = config.bearing_distance.reverse();
-
-            Self {
-                edges,
-                point: Point {
-                    coordinate,
-                    line: line_attributes(edge, projection, bearing_distance)?,
-                    path: None,
-                },
-            }
-        } else {
-            let edge = *edges.first()?;
-            let coordinate = graph.get_vertex_coordinate(graph.get_edge_start_vertex(edge)?)?;
-            let projection = Length::ZERO;
-            let bearing_distance = config.bearing_distance;
-
-            let lfrcnp = edges.iter().filter_map(|&e| graph.get_edge_frc(e)).max();
-            let dnp = edges.iter().filter_map(|&e| graph.get_edge_length(e)).sum();
-
-            let path = PathAttributes {
-                lfrcnp: lfrcnp.unwrap_or(Frc::Frc7),
-                dnp,
-            };
-
-            Self {
-                edges,
-                point: Point {
-                    coordinate,
-                    line: line_attributes(edge, projection, bearing_distance)?,
-                    path: Some(path),
-                },
-            }
-        };
-
-        Some(lrp)
+        Some(Self {
+            edges: vec![edge],
+            point: Point {
+                coordinate,
+                line,
+                path: Some(PathAttributes { lfrcnp, dnp }),
+            },
+        })
     }
 }
 
@@ -148,14 +156,17 @@ impl<EdgeId: Copy + Debug> LocRefPoints<EdgeId> {
         }
 
         if self.lrps.len() < 2 {
-            return Err(EncoderError::LrpOffsetTrimmingFailed);
+            return Err(EncoderError::InvalidLrpOffsets);
         }
 
         let mut lrps_rev = self.lrps.iter_mut().rev();
+
         if let Some(last_lrp) = lrps_rev.next().filter(|lrp| !lrp.point.is_last())
             && let Some(&last_edge) = lrps_rev.next().and_then(|lrp| lrp.edges.last())
         {
-            *last_lrp = LocRefPoint::from_last_node(config, graph, last_edge)?;
+            // the last LRP was trimmed: update the remaining one to become the last LRP
+            *last_lrp = LocRefPoint::last_node(config, graph, last_edge)
+                .ok_or(EncoderError::InvalidLrpOffsets)?;
         }
 
         Ok(self)
@@ -178,5 +189,230 @@ impl<EdgeId> From<LocRefPoints<EdgeId>> for Line {
             points: lrps.into_iter().map(|lrp| lrp.point).collect(),
             offsets: Offsets { pos, neg },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use test_log::test;
+
+    use super::*;
+    use crate::graph::tests::{EdgeId, NETWORK_GRAPH, NetworkGraph};
+    use crate::{Bearing, Coordinate, Fow};
+
+    #[test]
+    fn encoder_trim_lrps_001() {
+        let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+        let config = EncoderConfig::default();
+
+        let lrps = vec![
+            LocRefPoint {
+                edges: vec![EdgeId(9044472)],
+                point: Point {
+                    coordinate: Coordinate {
+                        lon: 13.459407,
+                        lat: 52.5143601,
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc6,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(303),
+                    },
+                    path: Some(PathAttributes {
+                        lfrcnp: Frc::Frc6,
+                        dnp: Length::from_meters(14.0),
+                    }),
+                },
+            },
+            LocRefPoint {
+                edges: vec![],
+                point: Point {
+                    coordinate: Coordinate {
+                        lon: 13.4592303,
+                        lat: 52.5144292,
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc6,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(123),
+                    },
+                    path: None,
+                },
+            },
+        ];
+
+        assert_eq!(
+            LocRefPoints {
+                pos_offset: Length::ZERO,
+                neg_offset: Length::ZERO,
+                lrps: lrps.clone()
+            }
+            .trim(&config, graph)
+            .unwrap(),
+            LocRefPoints {
+                pos_offset: Length::ZERO,
+                neg_offset: Length::ZERO,
+                lrps: lrps.clone()
+            }
+        );
+    }
+
+    #[test]
+    fn encoder_trim_lrps_002() {
+        let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+        let config = EncoderConfig::default();
+
+        let lrps = vec![
+            LocRefPoint {
+                edges: vec![EdgeId(-7292030)],
+                point: Point {
+                    coordinate: Coordinate {
+                        lon: 13.4571122,
+                        lat: 52.5177995,
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc6,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(20),
+                    },
+                    path: Some(PathAttributes {
+                        lfrcnp: Frc::Frc6,
+                        dnp: Length::from_meters(108.0),
+                    }),
+                },
+            },
+            LocRefPoint {
+                edges: vec![
+                    EdgeId(-7292029),
+                    EdgeId(7516886),
+                    EdgeId(7516883),
+                    EdgeId(7516885),
+                ],
+                point: Point {
+                    coordinate: Coordinate {
+                        lon: 13.4576677,
+                        lat: 52.518717,
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc6,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(20),
+                    },
+                    path: Some(PathAttributes {
+                        lfrcnp: Frc::Frc6,
+                        dnp: Length::from_meters(94.0),
+                    }),
+                },
+            },
+            LocRefPoint {
+                edges: vec![],
+                point: Point {
+                    coordinate: Coordinate {
+                        lon: 13.4580594,
+                        lat: 52.5186534,
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc6,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(286),
+                    },
+                    path: None,
+                },
+            },
+        ];
+
+        assert_eq!(
+            LocRefPoints {
+                pos_offset: Length::from_meters(1.0),
+                neg_offset: Length::ZERO,
+                lrps: lrps.clone()
+            }
+            .trim(&config, graph)
+            .unwrap(),
+            LocRefPoints {
+                pos_offset: Length::from_meters(1.0),
+                neg_offset: Length::ZERO,
+                lrps: lrps.clone()
+            }
+        );
+
+        assert_eq!(
+            LocRefPoints {
+                pos_offset: Length::from_meters(108.0),
+                neg_offset: Length::ZERO,
+                lrps: lrps.clone()
+            }
+            .trim(&config, graph)
+            .unwrap(),
+            LocRefPoints {
+                pos_offset: Length::ZERO,
+                neg_offset: Length::ZERO,
+                lrps: lrps[1..].to_vec()
+            }
+        );
+
+        assert_eq!(
+            LocRefPoints {
+                pos_offset: Length::from_meters(1.0),
+                neg_offset: Length::from_meters(1.0),
+                lrps: lrps.clone()
+            }
+            .trim(&config, graph)
+            .unwrap(),
+            LocRefPoints {
+                pos_offset: Length::from_meters(1.0),
+                neg_offset: Length::from_meters(1.0),
+                lrps: lrps.clone()
+            }
+        );
+
+        assert_eq!(
+            LocRefPoints {
+                pos_offset: Length::from_meters(109.0),
+                neg_offset: Length::ZERO,
+                lrps: lrps.clone()
+            }
+            .trim(&config, graph)
+            .unwrap(),
+            LocRefPoints {
+                pos_offset: Length::from_meters(1.0),
+                neg_offset: Length::ZERO,
+                lrps: lrps[1..].to_vec()
+            }
+        );
+
+        assert_eq!(
+            LocRefPoints {
+                pos_offset: Length::ZERO,
+                neg_offset: Length::from_meters(95.0),
+                lrps: lrps.clone()
+            }
+            .trim(&config, graph)
+            .unwrap(),
+            LocRefPoints {
+                pos_offset: Length::ZERO,
+                neg_offset: Length::from_meters(1.0),
+                lrps: vec![
+                    lrps[0].clone(),
+                    LocRefPoint {
+                        edges: vec![],
+                        point: Point {
+                            coordinate: Coordinate {
+                                lon: 13.4576677,
+                                lat: 52.518717
+                            },
+                            line: LineAttributes {
+                                frc: Frc::Frc6,
+                                fow: Fow::SingleCarriageway,
+                                bearing: Bearing::from_degrees(200),
+                            },
+                            path: None
+                        }
+                    }
+                ]
+            }
+        );
     }
 }

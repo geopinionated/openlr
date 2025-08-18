@@ -1,23 +1,21 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::LazyLock;
 
-use geo::{BoundingRect, Distance, HaversineClosestPoint, InterpolatableLine};
+use geo::{
+    BoundingRect, Closest, Distance, Haversine, HaversineClosestPoint, InterpolatableLine,
+    LineString, Point, coord,
+};
 use graph::prelude::{DirectedCsrGraph, DirectedNeighborsWithValues};
-use openlr::{Bearing, Coordinate, DirectedGraph, Fow, Frc, Length};
+use rstar::{AABB, PointDistance, RTree, RTreeObject};
 
-use crate::graph::{GEOJSON_GRAPH, GeojsonGraph};
+use crate::graph::tests::geojson::{GEOJSON_GRAPH, GeojsonGraph};
+use crate::{Bearing, Coordinate, DirectedGraph, Fow, Frc, Length};
 
 pub static NETWORK_GRAPH: LazyLock<NetworkGraph> =
     LazyLock::new(|| NetworkGraph::from_geojson_graph(&GEOJSON_GRAPH));
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct VertexId(pub i64);
-
-impl VertexId {
-    const fn index(&self) -> usize {
-        self.0 as usize
-    }
-}
+pub struct VertexId(pub u64);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct EdgeId(pub i64);
@@ -32,67 +30,65 @@ impl EdgeId {
     }
 }
 
+pub struct NetworkGraph {
+    network: DirectedCsrGraph<u64, (), EdgeId>,
+    geospatial_nodes: RTree<GeospatialNode>,
+    geospatial_edges: RTree<GeospatialEdge>,
+    edge_properties: HashMap<EdgeId, EdgeProperties>,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 struct EdgeProperties {
     length: Length,
     frc: Frc,
     fow: Fow,
-    geometry: geo::LineString,
+    geometry: LineString,
     vertices: [VertexId; 2],
-}
-
-pub struct NetworkGraph {
-    network: DirectedCsrGraph<usize, (), EdgeId>,
-    geospatial_nodes: rstar::RTree<GeospatialNode>,
-    geospatial_edges: rstar::RTree<GeospatialEdge>,
-    edge_properties: HashMap<EdgeId, EdgeProperties>,
 }
 
 #[derive(Debug)]
 struct GeospatialNode {
     vertex: VertexId,
-    location: Coordinate,
+    coordinate: Coordinate,
 }
 
-impl rstar::RTreeObject for GeospatialNode {
-    type Envelope = rstar::AABB<geo::Point>;
+impl RTreeObject for GeospatialNode {
+    type Envelope = AABB<Point>;
     fn envelope(&self) -> Self::Envelope {
-        geo::Point::new(self.location.lon, self.location.lat).envelope()
+        Point::new(self.coordinate.lon, self.coordinate.lat).envelope()
     }
 }
 
-impl rstar::PointDistance for GeospatialNode {
-    fn distance_2(&self, point: &geo::Point) -> f64 {
-        let location = geo::Point::new(self.location.lon, self.location.lat);
-        geo::Haversine.distance(location, *point).powf(2.0)
+impl PointDistance for GeospatialNode {
+    fn distance_2(&self, destination: &Point) -> f64 {
+        let origin = Point::new(self.coordinate.lon, self.coordinate.lat);
+        Haversine.distance(origin, *destination).powf(2.0)
     }
 }
 
 #[derive(Debug)]
 struct GeospatialEdge {
     edge: EdgeId,
-    geometry: geo::LineString,
+    geometry: LineString,
 }
 
-impl rstar::RTreeObject for GeospatialEdge {
-    type Envelope = rstar::AABB<geo::Point>;
-
+impl RTreeObject for GeospatialEdge {
+    type Envelope = AABB<Point>;
     fn envelope(&self) -> Self::Envelope {
         let bbox = self.geometry.bounding_rect().unwrap();
-        rstar::AABB::from_corners(
-            geo::Point::new(bbox.min().x, bbox.min().y),
-            geo::Point::new(bbox.max().x, bbox.max().y),
+        AABB::from_corners(
+            Point::new(bbox.min().x, bbox.min().y),
+            Point::new(bbox.max().x, bbox.max().y),
         )
     }
 }
 
-impl rstar::PointDistance for GeospatialEdge {
-    fn distance_2(&self, point: &geo::Point) -> f64 {
+impl PointDistance for GeospatialEdge {
+    fn distance_2(&self, point: &Point) -> f64 {
+        use Closest::*;
         match self.geometry.haversine_closest_point(point) {
-            geo::Closest::SinglePoint(p) | geo::Closest::Intersection(p) => {
-                geo::Haversine.distance(p, *point).powf(2.0)
-            }
-            geo::Closest::Indeterminate => f64::INFINITY,
+            SinglePoint(p) | Intersection(p) => Haversine.distance(p, *point).powf(2.0),
+            Indeterminate => f64::INFINITY,
         }
     }
 }
@@ -176,10 +172,11 @@ impl DirectedGraph for NetworkGraph {
     ) -> impl Iterator<Item = (Self::EdgeId, Self::VertexId)> {
         let mut edges: Vec<_> = self
             .network
-            .out_neighbors_with_values(vertex.index())
-            .map(|item| (item.value, VertexId(item.target as i64)))
+            .out_neighbors_with_values(vertex.0)
+            .map(|item| (item.value, VertexId(item.target)))
             .collect();
 
+        // edges returned in a deterministic order
         edges.sort();
         edges.into_iter()
     }
@@ -190,10 +187,11 @@ impl DirectedGraph for NetworkGraph {
     ) -> impl Iterator<Item = (Self::EdgeId, Self::VertexId)> {
         let mut edges: Vec<_> = self
             .network
-            .in_neighbors_with_values(vertex.index())
-            .map(|item| (item.value, VertexId(item.target as i64)))
+            .in_neighbors_with_values(vertex.0)
+            .map(|item| (item.value, VertexId(item.target)))
             .collect();
 
+        // edges returned in a deterministic order
         edges.sort();
         edges.into_iter()
     }
@@ -204,7 +202,7 @@ impl DirectedGraph for NetworkGraph {
         max_distance: Length,
     ) -> impl Iterator<Item = (Self::VertexId, Length)> {
         let max_distance_2 = max_distance.meters() * max_distance.meters();
-        let point = geo::Point::new(coordinate.lon, coordinate.lat);
+        let point = Point::new(coordinate.lon, coordinate.lat);
 
         self.geospatial_nodes
             .nearest_neighbor_iter_with_distance_2(&point)
@@ -221,7 +219,7 @@ impl DirectedGraph for NetworkGraph {
         max_distance: Length,
     ) -> impl Iterator<Item = (Self::EdgeId, Length)> {
         let max_distance_2 = max_distance.meters() * max_distance.meters();
-        let point = geo::Point::new(coordinate.lon, coordinate.lat);
+        let point = Point::new(coordinate.lon, coordinate.lat);
 
         self.geospatial_edges
             .nearest_neighbor_iter_with_distance_2(&point)
@@ -232,62 +230,74 @@ impl DirectedGraph for NetworkGraph {
             })
     }
 
-    fn get_distance_from_start_vertex(
+    fn get_distance_along_edge(
         &self,
         edge: Self::EdgeId,
         coordinate: Coordinate,
     ) -> Option<Length> {
         let mut closest_distance = f64::INFINITY;
-        let mut distance_from_start = 0.0;
+        let mut distance_along_edge = 0.0;
         let mut distance_acc = 0.0;
 
-        let point = geo::Point::new(coordinate.lon, coordinate.lat);
+        let point = Point::new(coordinate.lon, coordinate.lat);
 
         for line in self.edge_line_string(edge).lines() {
             match line.haversine_closest_point(&point) {
-                geo::Closest::SinglePoint(p) | geo::Closest::Intersection(p) => {
-                    let distance_to_line = geo::Haversine.distance(point, p);
+                Closest::SinglePoint(p) | Closest::Intersection(p) => {
+                    let distance_to_line = Haversine.distance(point, p);
 
                     if distance_to_line < closest_distance {
                         // this is the closest line segment of the whole geometry (so far)
                         closest_distance = distance_to_line;
-                        let distance = geo::Haversine.distance(line.start_point(), p);
-                        distance_from_start = distance_acc + distance;
+                        let distance = Haversine.distance(line.start_point(), p);
+                        distance_along_edge = distance_acc + distance;
                     }
 
                     use geo::Length;
-                    distance_acc += geo::Haversine.length(&line);
+                    distance_acc += Haversine.length(&line);
                 }
-                geo::Closest::Indeterminate => return None,
+                Closest::Indeterminate => return None,
             }
         }
 
-        Some(Length::from_meters(distance_from_start))
+        Some(Length::from_meters(distance_along_edge).min(self.get_edge_length(edge)?))
     }
 
-    fn get_edge_bearing_between(
+    fn get_coordinate_along_edge(
         &self,
         edge: Self::EdgeId,
-        distance_start: Length,
-        offset: Length,
-    ) -> Option<Bearing> {
-        let edge_length = self.get_edge_length(edge)?;
-        if distance_start > edge_length {
-            return None;
-        }
-
-        let distance_end = (distance_start + offset).min(edge_length).max(Length::ZERO);
-
-        let ratio_p1 = distance_start.meters() / edge_length.meters();
-        let ratio_p2 = distance_end.meters() / edge_length.meters();
+        distance: Length,
+    ) -> Option<Coordinate> {
+        let ratio = distance.meters() / self.get_edge_length(edge)?.meters();
 
         let geometry = self.edge_line_string(edge);
-        let p1 = geometry.point_at_ratio_from_start(&geo::Haversine, ratio_p1)?;
-        let p2 = geometry.point_at_ratio_from_start(&geo::Haversine, ratio_p2)?;
+        let point = geometry.point_at_ratio_from_start(&Haversine, ratio)?;
+
+        Some(Coordinate {
+            lon: point.x(),
+            lat: point.y(),
+        })
+    }
+
+    fn get_edge_bearing(
+        &self,
+        edge: Self::EdgeId,
+        distance_from_start: Length,
+        segment_length: Length,
+    ) -> Option<Bearing> {
+        let edge_length = self.get_edge_length(edge)?;
+        let distance_start = distance_from_start.clamp(Length::ZERO, edge_length);
+        let distance_end = (distance_start + segment_length).clamp(Length::ZERO, edge_length);
+
+        let c1 = self.get_coordinate_along_edge(edge, distance_start)?;
+        let p1 = Point::new(c1.lon, c1.lat);
+
+        let c2 = self.get_coordinate_along_edge(edge, distance_end)?;
+        let p2 = Point::new(c2.lon, c2.lat);
 
         let degrees = {
             use geo::Bearing;
-            geo::Haversine.bearing(p1, p2).round() as u16
+            Haversine.bearing(p1, p2).round() as u16
         };
 
         Some(Bearing::from_degrees(degrees))
@@ -299,10 +309,10 @@ impl DirectedGraph for NetworkGraph {
 }
 
 impl NetworkGraph {
-    fn edge_line_string(&self, edge: EdgeId) -> geo::LineString {
-        geo::LineString::from_iter(
+    fn edge_line_string(&self, edge: EdgeId) -> LineString {
+        LineString::from_iter(
             self.get_edge_coordinates(edge)
-                .map(|coordinate| geo::coord! { x: coordinate.lon, y: coordinate.lat }),
+                .map(|coordinate| coord! { x: coordinate.lon, y: coordinate.lat }),
         )
     }
 
@@ -316,31 +326,25 @@ impl NetworkGraph {
                     frc: line.frc,
                     fow: line.fow,
                     geometry: line.geometry.clone(),
-                    vertices: [VertexId(line.start_id), VertexId(line.end_id)],
+                    vertices: [VertexId(line.start_node_id), VertexId(line.end_node_id)],
                 };
 
                 (EdgeId(line_id), property)
             })
             .collect();
 
-        let network_edges: Vec<(usize, usize, EdgeId)> = graph
-            .nodes
-            .iter()
-            .flat_map(|(&from_id, node)| {
-                let from_id: usize = from_id.try_into().unwrap();
-                node.outgoing_lines.iter().map(move |&(line_id, to_id)| {
-                    let to_id: usize = to_id.try_into().unwrap();
-                    (from_id, to_id, EdgeId(line_id))
-                })
-            })
-            .collect();
+        let network_edges = graph.nodes.iter().flat_map(|(&from_id, node)| {
+            node.exiting_lines
+                .iter()
+                .map(move |&(line_id, to_id)| (from_id, to_id, EdgeId(line_id)))
+        });
 
         let geospatial_nodes: Vec<GeospatialNode> = graph
             .nodes
             .iter()
             .map(|(&from_id, node)| GeospatialNode {
                 vertex: VertexId(from_id),
-                location: node.location,
+                coordinate: node.coordinate,
             })
             .collect();
 
@@ -348,7 +352,7 @@ impl NetworkGraph {
             .nodes
             .iter()
             .flat_map(|(_, node)| {
-                node.outgoing_lines
+                node.exiting_lines
                     .iter()
                     .map(|&(line_id, _)| EdgeId(line_id))
             })
@@ -369,11 +373,79 @@ impl NetworkGraph {
             network: graph::prelude::GraphBuilder::new()
                 .edges_with_values(network_edges)
                 .build(),
-            geospatial_nodes: rstar::RTree::bulk_load(geospatial_nodes),
-            geospatial_edges: rstar::RTree::bulk_load(geospatial_edges),
+            geospatial_nodes: RTree::bulk_load(geospatial_nodes),
+            geospatial_edges: RTree::bulk_load(geospatial_edges),
             edge_properties,
         }
     }
+}
+
+#[test]
+fn network_graph_coordinate_along_edge() {
+    let graph = &NETWORK_GRAPH;
+
+    assert_eq!(
+        graph
+            .get_coordinate_along_edge(EdgeId(16218), Length::ZERO)
+            .unwrap(),
+        Coordinate {
+            lon: 13.454214,
+            lat: 52.5157088
+        }
+    );
+
+    assert_eq!(
+        graph
+            .get_coordinate_along_edge(EdgeId(16218), graph.get_edge_length(EdgeId(16218)).unwrap())
+            .unwrap(),
+        Coordinate {
+            lon: 13.457386,
+            lat: 52.5153814
+        }
+    );
+
+    assert_eq!(
+        graph
+            .get_coordinate_along_edge(EdgeId(16218), Length::from_meters(10.0))
+            .unwrap(),
+        Coordinate {
+            lon: 13.454360,
+            lat: 52.515693
+        }
+    );
+
+    assert_eq!(
+        graph
+            .get_coordinate_along_edge(EdgeId(16218), Length::from_meters(100.0))
+            .unwrap(),
+        Coordinate {
+            lon: 13.455676,
+            lat: 52.515561
+        }
+    );
+
+    assert_eq!(
+        graph
+            .get_coordinate_along_edge(EdgeId(16218), Length::from_meters(-1.0))
+            .unwrap(),
+        Coordinate {
+            lon: 13.454214,
+            lat: 52.5157088
+        }
+    );
+
+    assert_eq!(
+        graph
+            .get_coordinate_along_edge(
+                EdgeId(16218),
+                graph.get_edge_length(EdgeId(16218)).unwrap() + Length::from_meters(1.0)
+            )
+            .unwrap(),
+        Coordinate {
+            lon: 13.457386,
+            lat: 52.5153814
+        }
+    );
 }
 
 #[test]
@@ -440,21 +512,21 @@ fn network_graph_edge_bearing_between() {
 
     assert_eq!(
         graph
-            .get_edge_bearing_between(EdgeId(109783), Length::ZERO, Length::from_meters(20.0))
+            .get_edge_bearing(EdgeId(109783), Length::ZERO, Length::from_meters(20.0))
             .unwrap(),
         Bearing::from_degrees(200)
     );
 
     assert_eq!(
         graph
-            .get_edge_bearing_between(EdgeId(-109783), Length::ZERO, Length::from_meters(20.0))
+            .get_edge_bearing(EdgeId(-109783), Length::ZERO, Length::from_meters(20.0))
             .unwrap(),
         Bearing::from_degrees(18)
     );
 
     assert_eq!(
         graph
-            .get_edge_bearing_between(
+            .get_edge_bearing(
                 EdgeId(5359425),
                 graph.get_edge_length(EdgeId(5359425)).unwrap() - Length::from_meters(1.0),
                 Length::from_meters(20.0)
@@ -465,21 +537,21 @@ fn network_graph_edge_bearing_between() {
 
     assert_eq!(
         graph
-            .get_edge_bearing_between(EdgeId(-5359425), Length::ZERO, Length::from_meters(20.0))
+            .get_edge_bearing(EdgeId(-5359425), Length::ZERO, Length::from_meters(20.0))
             .unwrap(),
         Bearing::from_degrees(17)
     );
 
     assert_eq!(
         graph
-            .get_edge_bearing_between(EdgeId(5104156), Length::ZERO, Length::from_meters(10.0))
+            .get_edge_bearing(EdgeId(5104156), Length::ZERO, Length::from_meters(10.0))
             .unwrap(),
         Bearing::from_degrees(139)
     );
 
     assert_eq!(
         graph
-            .get_edge_bearing_between(
+            .get_edge_bearing(
                 EdgeId(5104156),
                 Length::from_meters(15.0),
                 Length::from_meters(5.0)
@@ -490,7 +562,7 @@ fn network_graph_edge_bearing_between() {
 
     assert_eq!(
         graph
-            .get_edge_bearing_between(
+            .get_edge_bearing(
                 EdgeId(109783),
                 graph.get_edge_length(EdgeId(109783)).unwrap(),
                 Length::from_meters(-20.0)
@@ -506,7 +578,7 @@ fn network_graph_edge_bearing() {
 
     let get_edge_bearing = |edge| {
         graph
-            .get_edge_bearing_between(edge, Length::ZERO, graph.get_edge_length(edge).unwrap())
+            .get_edge_bearing(edge, Length::ZERO, graph.get_edge_length(edge).unwrap())
             .unwrap()
     };
 
@@ -538,15 +610,25 @@ fn network_graph_edge_bearing() {
         get_edge_bearing(EdgeId(7531947)),
         Bearing::from_degrees(100)
     );
+
+    assert_eq!(
+        get_edge_bearing(EdgeId(6770340)),
+        Bearing::from_degrees(192)
+    );
+
+    assert_eq!(
+        get_edge_bearing(EdgeId(-6770340)),
+        Bearing::from_degrees(12)
+    );
 }
 
 #[test]
-fn network_graph_distance_from_start_vertex() {
+fn network_graph_distance_along_edge() {
     let graph = &NETWORK_GRAPH;
 
     assert_eq!(
         graph
-            .get_distance_from_start_vertex(
+            .get_distance_along_edge(
                 EdgeId(6770340),
                 Coordinate {
                     lon: 13.462836552352906,
@@ -560,7 +642,7 @@ fn network_graph_distance_from_start_vertex() {
 
     assert_eq!(
         graph
-            .get_distance_from_start_vertex(
+            .get_distance_along_edge(
                 EdgeId(-109783),
                 Coordinate {
                     lon: 13.462836552352906,
@@ -574,7 +656,7 @@ fn network_graph_distance_from_start_vertex() {
 
     assert_eq!(
         graph
-            .get_distance_from_start_vertex(
+            .get_distance_along_edge(
                 EdgeId(109783),
                 Coordinate {
                     lon: 13.462836552352906,
@@ -588,7 +670,7 @@ fn network_graph_distance_from_start_vertex() {
 
     assert_eq!(
         graph
-            .get_distance_from_start_vertex(
+            .get_distance_along_edge(
                 EdgeId(4925291),
                 Coordinate {
                     lon: 13.461116552352905,
@@ -602,7 +684,7 @@ fn network_graph_distance_from_start_vertex() {
 
     assert_eq!(
         graph
-            .get_distance_from_start_vertex(
+            .get_distance_along_edge(
                 EdgeId(-4925291),
                 Coordinate {
                     lon: 13.461116552352905,
@@ -616,7 +698,7 @@ fn network_graph_distance_from_start_vertex() {
 
     assert_eq!(
         graph
-            .get_distance_from_start_vertex(
+            .get_distance_along_edge(
                 EdgeId(8717174),
                 Coordinate {
                     lon: 13.461951,
@@ -630,7 +712,7 @@ fn network_graph_distance_from_start_vertex() {
 
     assert_eq!(
         graph
-            .get_distance_from_start_vertex(
+            .get_distance_along_edge(
                 EdgeId(-8717174),
                 Coordinate {
                     lon: 13.461951,

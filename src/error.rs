@@ -64,16 +64,16 @@ pub enum EncoderError {
     InvalidLocation(LocationError),
     #[error("Cannot serialize location: {0:?}")]
     InvalidLocationReference(SerializeError),
-    #[error("Cannot compute intermediate at location index {0}")]
+    #[error("Cannot find intermediate at location index {0}")]
     IntermediateError(usize),
     #[error("Cannot find route between LRPs")]
     RouteNotFound,
-    #[error("Cannot construct LRP for location")]
-    LrpConstructionFailed,
+    #[error("Cannot construct a valid LRP for location")]
+    InvalidLrp,
     #[error("Maximum distance between consecutive LRPs exceeded")]
     MaxDistanceExceeded,
-    #[error("Cannot construct LRPs for location after trimming")]
-    LrpOffsetTrimmingFailed,
+    #[error("Cannot construct valid LRP offsets for location")]
+    InvalidLrpOffsets,
 }
 
 #[derive(Error, Debug, PartialEq, Clone, Copy)]

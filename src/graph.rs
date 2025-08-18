@@ -4,8 +4,8 @@ use std::hash::Hash;
 use crate::{Bearing, Coordinate, Fow, Frc, Length};
 
 /// Directed graph.
-/// Exposes the behavior of a Geospatial Index and a Road Network Graph.
-/// Should be implemented by the graph the represents the map the decoder is supposed to run on.
+/// Exposes the behavior of a Geospatial Index and of a Road Network Graph.
+/// Should be implemented by the graph the represents the map the decoder and encoder run on.
 pub trait DirectedGraph {
     /// Uniquely identify a vertex that belongs to the graph.
     type VertexId: Debug + Copy + Ord + Hash;
@@ -28,11 +28,11 @@ pub trait DirectedGraph {
     /// Returns None if the edge doesn't belong to the graph.
     fn get_edge_length(&self, edge: Self::EdgeId) -> Option<Length>;
 
-    /// Gets the Functional Road Class of the directed edge.
+    /// Gets the Functional Road Class (FRC) of the directed edge.
     /// Returns None if the edge doesn't belong to the graph.
     fn get_edge_frc(&self, edge: Self::EdgeId) -> Option<Frc>;
 
-    /// Gets the Form of Way of the directed edge.
+    /// Gets the Form of Way (FOW) of the directed edge.
     /// Returns None if the edge doesn't belong to the graph.
     fn get_edge_fow(&self, edge: Self::EdgeId) -> Option<Fow>;
 
@@ -79,18 +79,30 @@ pub trait DirectedGraph {
 
     /// Gets the distance of the projected coordinate to the start vertex of the edge when following
     /// the edge coordinates.
-    /// Returns None if the edge doesn't belong to the graph or if the coordinate cannot be projected.
-    fn get_distance_from_start_vertex(
-        &self,
-        edge: Self::EdgeId,
-        coordinate: Coordinate,
-    ) -> Option<Length>;
+    /// Returns None if the edge doesn't belong to the graph or if the coordinate cannot be
+    /// projected.
+    ///
+    /// The projection point shall be that coordinate on the line with the smallest distance between
+    /// the line and the given coordinate.
+    fn get_distance_along_edge(&self, edge: Self::EdgeId, coordinate: Coordinate)
+    -> Option<Length>;
+
+    /// Gets the coordinate along the edge geometry which is at the given distance from the edge
+    /// start vertex. Returns None if the edge doesn't belong to the graph or if the coordinate
+    /// cannot be found.
+    ///
+    /// The distance is clamped within the edge length, therefore for distances lower of equal to
+    /// zero the edge start vertex coordinate will be returned and for distances greater or equal to
+    /// the edge length the edge end vertex coordinate will be returned.
+    fn get_coordinate_along_edge(&self, edge: Self::EdgeId, distance: Length)
+    -> Option<Coordinate>;
 
     /// Gets the bearing of a subsection A-B of the edge that goes from the coordinate (A) at the
     /// given distance from the start vertex, and the coordinate (B) that is at the given distance
     /// from A. The segment length can be negative.
-    /// Returns None if the edge doesn't belong to the graph or if the segment cannot be constructed.
-    fn get_edge_bearing_between(
+    /// Returns None if the edge doesn't belong to the graph or if the segment cannot be
+    /// constructed.
+    fn get_edge_bearing(
         &self,
         edge: Self::EdgeId,
         distance_from_start: Length,
@@ -101,10 +113,10 @@ pub trait DirectedGraph {
     /// If any of the given edges doesn't belog to the path returns true.
     fn is_turn_restricted(&self, start: Self::EdgeId, end: Self::EdgeId) -> bool;
 
-    /// Returns the number of edges that are connected to the vertex, that is, the sum of the
-    /// number of outgoing directed edges plus the incoming ones.
+    /// Returns the total number of edges that are connected to the vertex, that is, the sum of the
+    /// number of entering edges and the exiting edges.
     fn vertex_degree(&self, vertex: Self::VertexId) -> usize {
-        self.vertex_entering_edges(vertex).count() + self.vertex_exiting_edges(vertex).count()
+        self.vertex_edges(vertex).count()
     }
 
     /// Gets an iterator over all the edges (entering and exiting) into/from the given vertex.
@@ -117,4 +129,14 @@ pub trait DirectedGraph {
         self.vertex_entering_edges(vertex)
             .chain(self.vertex_exiting_edges(vertex))
     }
+}
+
+pub mod path;
+
+#[cfg(test)]
+pub mod tests {
+    mod geojson;
+    mod network;
+
+    pub use network::{EdgeId, NETWORK_GRAPH, NetworkGraph, VertexId};
 }

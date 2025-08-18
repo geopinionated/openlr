@@ -49,6 +49,13 @@ impl Add for RatingScore {
     }
 }
 
+impl Sub for RatingScore {
+    type Output = Self;
+    fn sub(self, other: Self) -> Self {
+        Self(self.0 - other.0)
+    }
+}
+
 impl Mul<f64> for RatingScore {
     type Output = Self;
     fn mul(self, rhs: f64) -> Self::Output {
@@ -120,18 +127,18 @@ impl Frc {
     /// Variance is an estimate of how a FRC can differ from another FRC of different class.
     /// The higher the variance the more the two classes can differ and still be considered
     /// equal during the decoding process.
-    pub const fn variance(&self) -> i8 {
+    pub(crate) const fn variance(&self) -> i8 {
         match self {
             Self::Frc0 | Self::Frc1 | Self::Frc2 | Self::Frc3 => 2,
             Self::Frc4 | Self::Frc5 | Self::Frc6 | Self::Frc7 => 3,
         }
     }
 
-    pub const fn is_within_variance(&self, other: &Self) -> bool {
+    pub(crate) const fn is_within_variance(&self, other: &Self) -> bool {
         self.value() <= other.value() + other.variance()
     }
 
-    pub fn rating(&self, other: &Self) -> Rating {
+    pub(crate) fn rating(&self, other: &Self) -> Rating {
         let delta = (self.value() - other.value()).abs();
 
         let rating_interval = |rating| match rating {
@@ -146,7 +153,7 @@ impl Frc {
             .unwrap_or(Rating::Poor)
     }
 
-    pub fn rating_score(rating: Rating) -> RatingScore {
+    pub(crate) fn rating_score(rating: Rating) -> RatingScore {
         match rating {
             Rating::Excellent => RatingScore::from(100.0),
             Rating::Good => RatingScore::from(75.0),
@@ -202,7 +209,7 @@ impl Fow {
         Self::try_from_byte(value.try_into().ok()?).ok()
     }
 
-    pub const fn rating(&self, other: &Self) -> Rating {
+    pub(crate) const fn rating(&self, other: &Self) -> Rating {
         use Fow::*;
         match (self, other) {
             (Undefined, _) | (_, Undefined) => Rating::Average,
@@ -231,7 +238,7 @@ impl Fow {
         }
     }
 
-    pub fn rating_score(rating: Rating) -> RatingScore {
+    pub(crate) fn rating_score(rating: Rating) -> RatingScore {
         match rating {
             Rating::Excellent => RatingScore::from(100.0),
             Rating::Good | Rating::Average => RatingScore::from(50.0),
@@ -316,8 +323,16 @@ impl Length {
         Self(self.0.round().into())
     }
 
+    pub fn ceil(self) -> Self {
+        Self(self.0.ceil().into())
+    }
+
     pub fn reverse(self) -> Self {
         Self(self.0 * -1.0)
+    }
+
+    pub fn clamp(self, min: Self, max: Self) -> Self {
+        self.max(min).min(max)
     }
 }
 
@@ -377,7 +392,12 @@ impl Bearing {
     pub const NORTH: Self = Self(0);
 
     pub const fn from_degrees(degrees: u16) -> Self {
-        Self(degrees)
+        Self(degrees % 360)
+    }
+
+    pub fn from_radians(radians: f64) -> Self {
+        let degrees = radians.to_degrees().rem_euclid(360.0).round() as u16;
+        Self::from_degrees(degrees)
     }
 
     pub const fn degrees(&self) -> u16 {
@@ -390,7 +410,7 @@ impl Bearing {
         Self::from_degrees(degrees)
     }
 
-    pub fn rating(&self, other: &Self) -> Rating {
+    pub(crate) fn rating(&self, other: &Self) -> Rating {
         let difference = self.difference(other);
 
         let rating_interval = |rating| match rating {
@@ -405,7 +425,7 @@ impl Bearing {
             .unwrap_or(Rating::Poor)
     }
 
-    pub fn rating_score(rating: Rating) -> RatingScore {
+    pub(crate) fn rating_score(rating: Rating) -> RatingScore {
         match rating {
             Rating::Excellent => RatingScore::from(100.0),
             Rating::Good => RatingScore::from(50.0),
@@ -699,15 +719,15 @@ pub enum LocationType {
 /// an example for a location which is bound to the road network and a simple geo-coordinate
 /// is an example for a location which is not bound to the road network.
 /// The main idea for locations which are bound to the road network is covering the location with a
-/// concatenation of (several) shortest-paths. The concatenation of such shortest-paths shall cover the
-/// location completely. Each shortest-path is specified by information about its start line and its end line.
-/// This information is combined in the location reference points (LRPs). The LRPs are ordered from the
-/// start of the location to the end of the location and the shortest-path between two subsequent LRPs
-/// covers a part of the location. The concatenation of all these shortest-paths covers the location
-/// completely and this path is called the location reference path. The location reference path may be
-/// longer than the original location and offsets trim this path down to the size of the location path.
-/// Offsets are also used to define a location on a line more precisely (e.g. point locations along a line)
-/// than using the start and end node of that line.
+/// concatenation of (several) shortest-paths. The concatenation of such shortest-paths shall cover
+/// the location completely. Each shortest-path is specified by information about its start line and
+/// its end line. This information is combined in the location reference points (LRPs). The LRPs are
+/// ordered from the start of the location to the end of the location and the shortest-path between
+/// two subsequent LRPs covers a part of the location. The concatenation of all these shortest-paths
+/// covers the location completely and this path is called the location reference path. The location
+/// reference path may be longer than the original location and offsets trim this path down to the
+/// size of the location path. Offsets are also used to define a location on a line more precisely
+/// (e.g. point locations along a line) than using the start and end node of that line.
 #[derive(Debug, Clone, PartialEq)]
 pub enum LocationReference {
     // Line Locations
@@ -742,6 +762,8 @@ impl LocationReference {
 
 #[cfg(test)]
 mod tests {
+    use std::f64::consts::{FRAC_PI_2, PI};
+
     use strum::IntoEnumIterator;
     use test_log::test;
 
@@ -752,5 +774,26 @@ mod tests {
         for (fow1, fow2) in Fow::iter().zip(Fow::iter()) {
             assert_eq!(fow1.rating(&fow2), fow2.rating(&fow1));
         }
+    }
+
+    #[test]
+    fn bearing_degrees() {
+        assert_eq!(Bearing::from_degrees(0).degrees(), 0);
+        assert_eq!(Bearing::from_degrees(90).degrees(), 90);
+        assert_eq!(Bearing::from_degrees(180).degrees(), 180);
+        assert_eq!(Bearing::from_degrees(270).degrees(), 270);
+        assert_eq!(Bearing::from_degrees(360).degrees(), 0);
+        assert_eq!(Bearing::from_degrees(360 + 90).degrees(), 90);
+
+        assert_eq!(Bearing::from_radians(0.0).degrees(), 0);
+        assert_eq!(Bearing::from_radians(FRAC_PI_2).degrees(), 90);
+        assert_eq!(Bearing::from_radians(PI).degrees(), 180);
+        assert_eq!(Bearing::from_radians(PI + FRAC_PI_2).degrees(), 270);
+        assert_eq!(Bearing::from_radians(PI + PI).degrees(), 0);
+        assert_eq!(Bearing::from_radians(PI + PI + FRAC_PI_2).degrees(), 90);
+
+        assert_eq!(Bearing::from_radians(-PI).degrees(), 180);
+        assert_eq!(Bearing::from_radians(-FRAC_PI_2).degrees(), 270);
+        assert_eq!(Bearing::from_radians(-PI - FRAC_PI_2).degrees(), 90);
     }
 }

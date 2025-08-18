@@ -1,9 +1,8 @@
 use tracing::info;
 
-use crate::{
-    DecodeError, DecoderConfig, DirectedGraph, Line, LineLocation, find_candidate_lines,
-    find_candidate_nodes, resolve_routes,
-};
+use crate::decoder::candidates::{find_candidate_lines, find_candidate_nodes};
+use crate::decoder::resolver::resolve_routes;
+use crate::{DecodeError, DecoderConfig, DirectedGraph, Line, LineLocation};
 
 pub fn decode_line<G: DirectedGraph>(
     config: &DecoderConfig,
@@ -34,7 +33,59 @@ pub fn decode_line<G: DirectedGraph>(
         path: routes.to_path(),
         pos_offset,
         neg_offset,
-    };
+    }
+    .trim(graph)?;
 
-    Ok(location.trim(graph)?)
+    debug_assert!(!location.path.is_empty());
+    debug_assert!(location.path.windows(2).all(|w| w[0] != w[1]));
+
+    Ok(location)
+}
+
+#[cfg(test)]
+mod tests {
+    use test_log::test;
+
+    use super::*;
+    use crate::graph::tests::{EdgeId, NETWORK_GRAPH, NetworkGraph};
+    use crate::{DecoderConfig, Length, Location, decode_base64_openlr};
+
+    #[test]
+    fn decode_line_location_reference_001() {
+        let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+        let config = DecoderConfig::default();
+        let location = decode_base64_openlr(&config, graph, "CwmShiVYczPJBgCs/y0zAQ==").unwrap();
+
+        assert_eq!(
+            location,
+            Location::Line(LineLocation {
+                path: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
+                pos_offset: Length::ZERO,
+                neg_offset: Length::ZERO
+            })
+        );
+    }
+
+    #[test]
+    fn decode_line_location_reference_002() {
+        let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+        let config = DecoderConfig::default();
+        let location = decode_base64_openlr(&config, graph, "CwmTaSVYpTPZCP4a/5UjYQUH").unwrap();
+
+        assert_eq!(
+            location,
+            Location::Line(LineLocation {
+                path: vec![
+                    EdgeId(1653344),
+                    EdgeId(4997411),
+                    EdgeId(5359424),
+                    EdgeId(5359425)
+                ],
+                pos_offset: Length::from_meters(11.0),
+                neg_offset: Length::from_meters(14.0)
+            })
+        );
+    }
 }
