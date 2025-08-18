@@ -79,7 +79,7 @@ impl<EdgeId: Copy> LocRefPoint<EdgeId> {
             Some(LineAttributes {
                 frc: graph.get_edge_frc(edge)?,
                 fow: graph.get_edge_fow(edge)?,
-                bearing: graph.get_edge_bearing_between(edge, projection, bearing_distance)?,
+                bearing: graph.get_edge_bearing(edge, projection, bearing_distance)?,
             })
         };
 

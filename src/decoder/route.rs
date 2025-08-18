@@ -5,29 +5,31 @@ use crate::decoder::candidates::{CandidateLine, CandidateLinePair};
 use crate::path::Path;
 use crate::{DirectedGraph, Length, Offsets};
 
+/// The shortest route between two (consecutive) LRPs.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Route<EdgeId> {
+pub struct CandidateRoute<EdgeId> {
     pub path: Path<EdgeId>,
     pub candidates: CandidateLinePair<EdgeId>,
 }
 
+/// The sequence of all the shortest routes that connect each consecutive LRP pair.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Routes<EdgeId>(Vec<Route<EdgeId>>);
+pub struct CandidateRoutes<EdgeId>(Vec<CandidateRoute<EdgeId>>);
 
-impl<EdgeId> From<Vec<Route<EdgeId>>> for Routes<EdgeId> {
-    fn from(routes: Vec<Route<EdgeId>>) -> Self {
+impl<EdgeId> From<Vec<CandidateRoute<EdgeId>>> for CandidateRoutes<EdgeId> {
+    fn from(routes: Vec<CandidateRoute<EdgeId>>) -> Self {
         Self(routes)
     }
 }
 
-impl<EdgeId> Deref for Routes<EdgeId> {
-    type Target = Vec<Route<EdgeId>>;
+impl<EdgeId> Deref for CandidateRoutes<EdgeId> {
+    type Target = Vec<CandidateRoute<EdgeId>>;
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl<EdgeId: Debug + Copy + PartialEq> Routes<EdgeId> {
+impl<EdgeId: Debug + Copy + PartialEq> CandidateRoutes<EdgeId> {
     pub fn edges(&self) -> impl DoubleEndedIterator<Item = EdgeId> {
         self.0.iter().flat_map(|r| &r.path.edges).copied()
     }
@@ -76,7 +78,7 @@ impl<EdgeId: Debug + Copy + PartialEq> Routes<EdgeId> {
     }
 }
 
-impl<EdgeId: Copy> Route<EdgeId> {
+impl<EdgeId: Copy> CandidateRoute<EdgeId> {
     pub fn distance_from_start(&self) -> Length {
         self.first_candidate()
             .distance_to_projection
@@ -94,19 +96,19 @@ impl<EdgeId: Copy> Route<EdgeId> {
         } = self.last_candidate();
 
         if let Some(projection) = distance_to_projection {
-            let length = graph.get_edge_length(*edge).unwrap_or(Length::ZERO);
-            length - *projection
+            let length = graph.get_edge_length(edge).unwrap_or(Length::ZERO);
+            (length - projection).max(Length::ZERO)
         } else {
             Length::ZERO
         }
     }
 
-    pub const fn first_candidate(&self) -> &CandidateLine<EdgeId> {
-        &self.candidates.line_lrp1
+    pub const fn first_candidate(&self) -> CandidateLine<EdgeId> {
+        self.candidates.line_lrp1
     }
 
-    pub const fn last_candidate(&self) -> &CandidateLine<EdgeId> {
-        &self.candidates.line_lrp2
+    pub const fn last_candidate(&self) -> CandidateLine<EdgeId> {
+        self.candidates.line_lrp2
     }
 
     pub const fn first_candidate_edge(&self) -> EdgeId {
@@ -124,9 +126,8 @@ mod tests {
 
     use super::*;
     use crate::graph::tests::{EdgeId, NETWORK_GRAPH, NetworkGraph};
-    use crate::{
-        Bearing, Coordinate, Fow, Frc, LineAttributes, PathAttributes, Point, RatingScore,
-    };
+    use crate::model::RatingScore;
+    use crate::{Bearing, Coordinate, Fow, Frc, LineAttributes, PathAttributes, Point};
 
     #[test]
     fn decoder_calculate_offsets_001() {
@@ -175,7 +176,7 @@ mod tests {
             distance_to_projection: None,
         };
 
-        let routes = Routes::from(vec![Route {
+        let routes = CandidateRoutes::from(vec![CandidateRoute {
             path: Path {
                 edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
                 length: Length::from_meters(379.0),
@@ -240,7 +241,7 @@ mod tests {
             distance_to_projection: Some(Length::from_meters(92.0)),
         };
 
-        let routes: Routes<_> = vec![Route {
+        let routes: CandidateRoutes<_> = vec![CandidateRoute {
             path: Path {
                 edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
                 length: Length::from_meters(379.0),
@@ -306,7 +307,7 @@ mod tests {
             distance_to_projection: Some(Length::from_meters(36.0)),
         };
 
-        let routes: Routes<_> = vec![Route {
+        let routes: CandidateRoutes<_> = vec![CandidateRoute {
             path: Path {
                 edges: vec![EdgeId(8717174)],
                 length: Length::from_meters(136.0),
@@ -395,8 +396,8 @@ mod tests {
             distance_to_projection: None,
         };
 
-        let routes: Routes<_> = vec![
-            Route {
+        let routes: CandidateRoutes<_> = vec![
+            CandidateRoute {
                 path: Path {
                     edges: vec![], // first and second LRPs are on the same line
                     length: Length::ZERO,
@@ -406,7 +407,7 @@ mod tests {
                     line_lrp2: line_second_lrp,
                 },
             },
-            Route {
+            CandidateRoute {
                 path: Path {
                     edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
                     length: Length::from_meters(379.0),
@@ -496,8 +497,8 @@ mod tests {
             distance_to_projection: None,
         };
 
-        let routes: Routes<_> = vec![
-            Route {
+        let routes: CandidateRoutes<_> = vec![
+            CandidateRoute {
                 path: Path {
                     edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
                     length: Length::from_meters(379.0),
@@ -507,7 +508,7 @@ mod tests {
                     line_lrp2: line_second_lrp,
                 },
             },
-            Route {
+            CandidateRoute {
                 path: Path {
                     edges: vec![EdgeId(6770340), EdgeId(7531947)],
                     length: Length::from_meters(53.0),
@@ -597,8 +598,8 @@ mod tests {
             distance_to_projection: Some(Length::from_meters(27.0)),
         };
 
-        let routes: Routes<_> = vec![
-            Route {
+        let routes: CandidateRoutes<_> = vec![
+            CandidateRoute {
                 path: Path {
                     edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
                     length: Length::from_meters(379.0),
@@ -608,7 +609,7 @@ mod tests {
                     line_lrp2: line_second_lrp,
                 },
             },
-            Route {
+            CandidateRoute {
                 path: Path {
                     edges: vec![EdgeId(6770340), EdgeId(7531947)],
                     length: Length::from_meters(53.0),
