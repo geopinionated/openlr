@@ -211,7 +211,7 @@ impl Offset {
     /// 256 buckets so that every bucket covers 0.390625% of the LRP length.
     /// Returns the offset in [0, 1] range.
     pub(crate) fn from_byte(bucket: u8) -> Self {
-        Self::from_range((bucket as f64 + 0.5) / 256.0)
+        Self::from_bucket(bucket)
     }
 
     /// Returns the bucket index corresponding to the given offset.
@@ -224,7 +224,7 @@ impl Offset {
         let bucket = if range == 0.0 {
             0
         } else {
-            (range * 256.0 - 0.5).round() as u8
+            (range * Self::BUCKETS - 0.5).round() as u8
         };
 
         Ok(bucket)
@@ -328,6 +328,13 @@ mod tests {
             (-27.22775, 153.11216),
             (48.068831, 12.858026),
             (-33.22979, -60.32423),
+            (13.461116552352905, 52.51710534095764),
+            (13.461117, 52.517105),
+            (13.4611206, 52.5170944),
+            (13.465987, 52.518178),
+            (13.4659771, 52.5181688),
+            (13.461127, 52.517108),
+            (13.46112744392395, 52.5171082245636),
         ] {
             assert_degrees_relative_eq(lon);
             assert_degrees_relative_eq(lat);

@@ -1,9 +1,8 @@
 use tracing::info;
 
-use crate::model::LineLocation;
 use crate::{
-    DecodeError, DecoderConfig, DirectedGraph, Line, find_candidate_lines, find_candidate_nodes,
-    resolve_routes,
+    DecodeError, DecoderConfig, DirectedGraph, Line, LineLocation, find_candidate_lines,
+    find_candidate_nodes, resolve_routes,
 };
 
 pub fn decode_line<G: DirectedGraph>(
@@ -31,5 +30,11 @@ pub fn decode_line<G: DirectedGraph>(
     let offsets = routes.calculate_offsets(graph, line.offsets);
     let (pos_offset, neg_offset) = offsets.unwrap_or_default();
 
-    routes.into_line_location(graph, pos_offset, neg_offset)
+    let location = LineLocation {
+        path: routes.to_path(),
+        pos_offset,
+        neg_offset,
+    };
+
+    Ok(location.trim(graph)?)
 }

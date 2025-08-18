@@ -4,28 +4,7 @@ use std::fmt::Debug;
 
 use tracing::debug;
 
-use crate::{DirectedGraph, Frc, Length};
-
-#[derive(Debug, Clone, Copy)]
-pub struct ShortestPathConfig {
-    pub lowest_frc: Frc,
-    pub max_length: Length,
-}
-
-impl Default for ShortestPathConfig {
-    fn default() -> Self {
-        Self {
-            lowest_frc: Frc::Frc7,
-            max_length: Length::MAX,
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct ShortestPath<EdgeId> {
-    pub length: Length,
-    pub edges: Vec<EdgeId>,
-}
+use crate::{DirectedGraph, Frc, Length, Path};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct HeapElement<VertexId> {
@@ -54,18 +33,19 @@ impl<VertexId: Ord> PartialOrd for HeapElement<VertexId> {
 }
 
 pub fn shortest_path<G: DirectedGraph>(
-    config: &ShortestPathConfig,
     graph: &G,
     origin: G::VertexId,
     destination: G::VertexId,
-) -> Option<ShortestPath<G::EdgeId>> {
-    debug!("Computing shortest path {origin:?} -> {destination:?} with {config:?}");
+    lowest_frc: Frc,
+    max_length: Length,
+) -> Option<Path<G::EdgeId>> {
+    debug!("Computing shortest path {origin:?} -> {destination:?}");
 
     // (current) shortest distance from origin to this vertex
     let mut shortest_distances = HashMap::from([(origin, Length::ZERO)]);
 
     // previous vertex (value) on the current best known path from origin to this vertex (key)
-    let mut prev_vertex: HashMap<G::VertexId, (G::EdgeId, G::VertexId)> = HashMap::new();
+    let mut previous_map: HashMap<G::VertexId, (G::EdgeId, G::VertexId)> = HashMap::new();
 
     // priority queue of discovered nodes that may need to be visited
     let mut frontier = BinaryHeap::from([HeapElement {
@@ -78,13 +58,13 @@ pub fn shortest_path<G: DirectedGraph>(
             // Unpacking: the shortest path from destination back to origin
             let mut edges = vec![];
             let mut next = destination;
-            while let Some(&(edge, previous)) = prev_vertex.get(&next) {
+            while let Some(&(edge, previous)) = previous_map.get(&next) {
                 next = previous;
                 edges.push(edge);
             }
             edges.reverse();
 
-            return Some(ShortestPath {
+            return Some(Path {
                 length: element.distance,
                 edges,
             });
@@ -100,11 +80,11 @@ pub fn shortest_path<G: DirectedGraph>(
 
         for (edge, vertex_to) in graph.vertex_exiting_edges(element.vertex) {
             let distance = element.distance + graph.get_edge_length(edge)?;
-            if distance > config.max_length {
+            if distance > max_length {
                 continue;
             }
 
-            if graph.get_edge_frc(edge)? > config.lowest_frc {
+            if graph.get_edge_frc(edge)? > lowest_frc {
                 continue;
             }
 
@@ -118,7 +98,7 @@ pub fn shortest_path<G: DirectedGraph>(
 
                 // Relax: we have now found a better way that we are going to explore
                 shortest_distances.insert(neighbor.vertex, neighbor.distance);
-                prev_vertex.insert(neighbor.vertex, (edge, element.vertex));
+                previous_map.insert(neighbor.vertex, (edge, element.vertex));
                 frontier.push(neighbor);
             }
         }

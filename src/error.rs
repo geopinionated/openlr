@@ -54,13 +54,59 @@ pub enum DecodeError {
     RouteNotFound((Point, Point)),
     #[error("Cannot connect route to shortest path {0:?}")]
     AlternativeRouteNotFound((Point, Point)),
+    #[error("Cannot decode invalid location {0:?}")]
+    InvalidLocation(LocationError),
+}
+
+#[derive(Error, Debug, PartialEq, Clone, Copy)]
+pub enum EncoderError {
+    #[error("Cannot encode invalid location: {0:?}")]
+    InvalidLocation(LocationError),
+    #[error("Cannot serialize location: {0:?}")]
+    InvalidLocationReference(SerializeError),
+    #[error("Cannot compute intermediate at location index {0}")]
+    IntermediateError(usize),
+    #[error("Cannot find route between LRPs")]
+    RouteNotFound,
+    #[error("Cannot construct LRP for location")]
+    LrpConstructionFailed,
+    #[error("Maximum distance between consecutive LRPs exceeded")]
+    MaxDistanceExceeded,
+    #[error("Cannot construct LRPs for location after trimming")]
+    LrpOffsetTrimmingFailed,
+}
+
+#[derive(Error, Debug, PartialEq, Clone, Copy)]
+pub enum LocationError {
     #[error("Invalid offsets {0:?}")]
     InvalidOffsets((Length, Length)),
+    #[error("Location is empty")]
+    Empty,
+    #[error("Location is not connected")]
+    NotConnected,
+}
+
+impl From<LocationError> for DecodeError {
+    fn from(error: LocationError) -> Self {
+        Self::InvalidLocation(error)
+    }
+}
+
+impl From<LocationError> for EncoderError {
+    fn from(error: LocationError) -> Self {
+        Self::InvalidLocation(error)
+    }
 }
 
 impl From<DeserializeError> for DecodeError {
     fn from(error: DeserializeError) -> Self {
         Self::InvalidData(error)
+    }
+}
+
+impl From<SerializeError> for EncoderError {
+    fn from(error: SerializeError) -> Self {
+        Self::InvalidLocationReference(error)
     }
 }
 

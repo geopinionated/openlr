@@ -1,198 +1,13 @@
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap};
 use std::fmt::Debug;
-use std::ops::Deref;
 
 use tracing::debug;
 
 use crate::{
     CandidateLine, CandidateLinePair, CandidateLines, DecodeError, DecoderConfig, DirectedGraph,
-    Frc, Length, LineLocation, Offsets, RatingScore, ShortestPathConfig, shortest_path,
+    Frc, Length, Path, RatingScore, Route, Routes, is_path_connected, shortest_path,
 };
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct Routes<EdgeId>(Vec<Route<EdgeId>>);
-
-impl<EdgeId> From<Vec<Route<EdgeId>>> for Routes<EdgeId> {
-    fn from(routes: Vec<Route<EdgeId>>) -> Self {
-        Self(routes)
-    }
-}
-
-impl<EdgeId> Deref for Routes<EdgeId> {
-    type Target = Vec<Route<EdgeId>>;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl<EdgeId: Debug + Copy + PartialEq> Routes<EdgeId> {
-    pub fn edges(&self) -> impl DoubleEndedIterator<Item = EdgeId> {
-        self.0.iter().flat_map(|r| &r.edges).copied()
-    }
-
-    /// Gets the positive and negative offsets calculated from the projections of the LRPs
-    /// into the first and last route (sub-path) respectively.
-    pub fn calculate_offsets<G>(&self, graph: &G, offsets: Offsets) -> Option<(Length, Length)>
-    where
-        G: DirectedGraph<EdgeId = EdgeId>,
-    {
-        let first_route = self.first()?; // LRP1 -> LRP2
-        let last_route = self.last()?; // Last LRP - 1 -> Last LRP
-
-        let distance_from_start = first_route.distance_from_start();
-        let distance_to_end = last_route.distance_to_end(graph);
-
-        let mut head_length = first_route.length - distance_from_start;
-        let mut tail_length = last_route.length - distance_to_end;
-
-        if self.len() == 1 {
-            // cut other opposite if start and end are in the same and only route
-            head_length -= distance_to_end;
-            tail_length -= distance_from_start;
-        } else {
-            if let Some(distance) = first_route.last_candidate().distance_to_projection {
-                // the second route (sub-path) doesn't start at the beginning of the line
-                // add this distance to the length of the first route
-                head_length += distance;
-            }
-
-            if let Some(distance) = last_route.first_candidate().distance_to_projection {
-                // the last route (sub-path) doesn't start at the beginning of the line
-                // subtract this distance to the length of the last route
-                tail_length -= distance;
-            }
-        }
-
-        let pos_offset = offsets.distance_from_start(head_length) + distance_from_start;
-        let neg_offset = offsets.distance_to_end(tail_length) + distance_to_end;
-
-        Some((pos_offset, neg_offset))
-    }
-
-    /// Concatenates all the routes into a single Line location trimed by the given offsets.
-    pub fn into_line_location<G>(
-        self,
-        graph: &G,
-        mut pos_offset: Length,
-        mut neg_offset: Length,
-    ) -> Result<LineLocation<G::EdgeId>, DecodeError>
-    where
-        G: DirectedGraph<EdgeId = EdgeId>,
-    {
-        let path_length: Length = self.iter().map(|r| r.length).sum();
-        let edges_count = self.edges().count();
-
-        if pos_offset + neg_offset > path_length {
-            return Err(DecodeError::InvalidOffsets((pos_offset, neg_offset)));
-        }
-
-        /// Returns the cut index and the total cut length.
-        fn get_cut_index<G: DirectedGraph>(
-            graph: &G,
-            edges: impl IntoIterator<Item = G::EdgeId>,
-            offset: Length,
-        ) -> Option<(usize, Length)> {
-            edges
-                .into_iter()
-                .enumerate()
-                .scan(Length::ZERO, |length, (i, edge)| {
-                    let current_length = *length;
-                    if current_length <= offset {
-                        *length += graph.get_edge_length(edge).unwrap_or(Length::ZERO);
-                        Some((i, current_length))
-                    } else {
-                        None
-                    }
-                })
-                .last()
-        }
-
-        let start_cut = get_cut_index(graph, self.edges(), pos_offset);
-        let (start, cut_length) = start_cut.unwrap_or((0, Length::ZERO));
-        pos_offset -= cut_length;
-
-        let end_cut = get_cut_index(graph, self.edges().rev(), neg_offset);
-        let (end, cut_length) = end_cut
-            .map(|(i, length)| (edges_count - i, length))
-            .unwrap_or((edges_count, Length::ZERO));
-        neg_offset -= cut_length;
-
-        Ok(LineLocation {
-            edges: self.edges().skip(start).take(end - start).collect(),
-            pos_offset,
-            neg_offset,
-        })
-    }
-
-    fn is_connected<G>(&self, graph: &G) -> bool
-    where
-        G: DirectedGraph<EdgeId = EdgeId>,
-    {
-        let edges: Vec<_> = self.edges().collect();
-
-        for window in edges.windows(2) {
-            let [e1, e2] = [window[0], window[1]];
-            match graph.get_edge_end_vertex(e1) {
-                Some(v) if !graph.vertex_exiting_edges(v).any(|(e, _)| e == e2) => return false,
-                None => return false,
-                Some(_) => (),
-            };
-        }
-
-        true
-    }
-}
-
-/// Shortest path from the LRP to the next one.
-#[derive(Debug, Clone, PartialEq)]
-pub struct Route<EdgeId> {
-    pub edges: Vec<EdgeId>,
-    pub length: Length,
-    pub candidates: CandidateLinePair<EdgeId>,
-}
-
-impl<EdgeId: Copy> Route<EdgeId> {
-    pub fn distance_from_start(&self) -> Length {
-        self.first_candidate()
-            .distance_to_projection
-            .unwrap_or(Length::ZERO)
-    }
-
-    pub fn distance_to_end<G>(&self, graph: &G) -> Length
-    where
-        G: DirectedGraph<EdgeId = EdgeId>,
-    {
-        let CandidateLine {
-            edge,
-            distance_to_projection,
-            ..
-        } = self.last_candidate();
-
-        if let Some(projection) = distance_to_projection {
-            let length = graph.get_edge_length(*edge).unwrap_or(Length::ZERO);
-            length - *projection
-        } else {
-            Length::ZERO
-        }
-    }
-
-    pub fn first_candidate(&self) -> &CandidateLine<EdgeId> {
-        &self.candidates.line_lrp1
-    }
-
-    pub fn last_candidate(&self) -> &CandidateLine<EdgeId> {
-        &self.candidates.line_lrp2
-    }
-
-    fn first_candidate_edge(&self) -> EdgeId {
-        self.first_candidate().edge
-    }
-
-    fn last_candidate_edge(&self) -> EdgeId {
-        self.last_candidate().edge
-    }
-}
 
 /// The decoder needs to compute a shortest-path between each pair of subsequent location reference
 /// points. For each pair of location reference points suitable candidate lines must be chosen. The
@@ -227,7 +42,7 @@ pub fn resolve_routes<G: DirectedGraph>(
     debug!("Resolving routes for {} candidates", candidate_lines.len());
 
     if let Some(routes) = resolve_single_line_routes(graph, candidate_lines) {
-        debug_assert!(routes.is_connected(graph));
+        debug_assert!(is_path_connected(graph, &routes.to_path()));
         return Ok(routes);
     }
 
@@ -258,8 +73,8 @@ pub fn resolve_routes<G: DirectedGraph>(
         }
     }
 
-    let routes = Routes(routes);
-    debug_assert!(routes.is_connected(graph));
+    let routes = Routes::from(routes);
+    debug_assert!(is_path_connected(graph, &routes.to_path()));
     Ok(routes)
 }
 
@@ -281,7 +96,7 @@ fn resolve_single_line_routes<G: DirectedGraph>(
             })
         });
 
-        let routes = pairs
+        let routes: Vec<_> = pairs
             .enumerate()
             .map(|(i, candidates)| {
                 let edges = if i == 0 {
@@ -290,15 +105,16 @@ fn resolve_single_line_routes<G: DirectedGraph>(
                     vec![]
                 };
 
-                Route {
+                let path = Path {
                     length: edges.iter().filter_map(|&e| graph.get_edge_length(e)).sum(),
                     edges,
-                    candidates,
-                }
+                };
+
+                Route { path, candidates }
             })
             .collect();
 
-        Some(Routes(routes))
+        Some(Routes::from(routes))
     } else {
         None
     }
@@ -329,11 +145,12 @@ where
                 vec![]
             };
 
-            return Some(Route {
+            let path = Path {
                 length: edges.iter().filter_map(|&e| graph.get_edge_length(e)).sum(),
                 edges,
-                candidates,
-            });
+            };
+
+            return Some(Route { path, candidates });
         }
 
         let origin = graph.get_edge_start_vertex(line_lrp1.edge)?;
@@ -343,21 +160,14 @@ where
             graph.get_edge_start_vertex(line_lrp2.edge)?
         };
 
-        let path_config = ShortestPathConfig {
-            lowest_frc,
-            max_length: max_route_length(config, graph, &line_lrp1, &line_lrp2),
-        };
+        let max_length = max_route_length(config, graph, &line_lrp1, &line_lrp2);
 
-        if let Some(path) = shortest_path(&path_config, graph, origin, destination) {
-            debug_assert!(path.length <= path_config.max_length);
+        if let Some(path) = shortest_path(graph, origin, destination, lowest_frc, max_length) {
+            debug_assert!(path.length <= max_length);
             let min_length = line_lrp1.lrp.dnp() - config.next_point_variance;
 
             if path.length >= min_length {
-                return Some(Route {
-                    edges: path.edges,
-                    length: path.length,
-                    candidates,
-                });
+                return Some(Route { path, candidates });
             }
         }
     }
