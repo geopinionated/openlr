@@ -1,23 +1,21 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::LazyLock;
 
-use geo::{BoundingRect, Distance, HaversineClosestPoint, InterpolatableLine};
+use geo::{
+    BoundingRect, Closest, Distance, Haversine, HaversineClosestPoint, InterpolatableLine,
+    LineString, Point, coord,
+};
 use graph::prelude::{DirectedCsrGraph, DirectedNeighborsWithValues};
-use openlr::{Bearing, Coordinate, DirectedGraph, Fow, Frc, Length};
+use rstar::{AABB, PointDistance, RTree, RTreeObject};
 
-use crate::graph::{GEOJSON_GRAPH, GeojsonGraph};
+use crate::graph::tests::geojson::{GEOJSON_GRAPH, GeojsonGraph};
+use crate::{Bearing, Coordinate, DirectedGraph, Fow, Frc, Length};
 
 pub static NETWORK_GRAPH: LazyLock<NetworkGraph> =
     LazyLock::new(|| NetworkGraph::from_geojson_graph(&GEOJSON_GRAPH));
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct VertexId(pub i64);
-
-impl VertexId {
-    const fn index(&self) -> usize {
-        self.0 as usize
-    }
-}
+pub struct VertexId(pub u64);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct EdgeId(pub i64);
@@ -32,67 +30,65 @@ impl EdgeId {
     }
 }
 
+pub struct NetworkGraph {
+    network: DirectedCsrGraph<u64, (), EdgeId>,
+    geospatial_nodes: RTree<GeospatialNode>,
+    geospatial_edges: RTree<GeospatialEdge>,
+    edge_properties: HashMap<EdgeId, EdgeProperties>,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 struct EdgeProperties {
     length: Length,
     frc: Frc,
     fow: Fow,
-    geometry: geo::LineString,
+    geometry: LineString,
     vertices: [VertexId; 2],
-}
-
-pub struct NetworkGraph {
-    network: DirectedCsrGraph<usize, (), EdgeId>,
-    geospatial_nodes: rstar::RTree<GeospatialNode>,
-    geospatial_edges: rstar::RTree<GeospatialEdge>,
-    edge_properties: HashMap<EdgeId, EdgeProperties>,
 }
 
 #[derive(Debug)]
 struct GeospatialNode {
     vertex: VertexId,
-    location: Coordinate,
+    coordinate: Coordinate,
 }
 
-impl rstar::RTreeObject for GeospatialNode {
-    type Envelope = rstar::AABB<geo::Point>;
+impl RTreeObject for GeospatialNode {
+    type Envelope = AABB<Point>;
     fn envelope(&self) -> Self::Envelope {
-        geo::Point::new(self.location.lon, self.location.lat).envelope()
+        Point::new(self.coordinate.lon, self.coordinate.lat).envelope()
     }
 }
 
-impl rstar::PointDistance for GeospatialNode {
-    fn distance_2(&self, point: &geo::Point) -> f64 {
-        let location = geo::Point::new(self.location.lon, self.location.lat);
-        geo::Haversine.distance(location, *point).powf(2.0)
+impl PointDistance for GeospatialNode {
+    fn distance_2(&self, destination: &Point) -> f64 {
+        let origin = Point::new(self.coordinate.lon, self.coordinate.lat);
+        Haversine.distance(origin, *destination).powf(2.0)
     }
 }
 
 #[derive(Debug)]
 struct GeospatialEdge {
     edge: EdgeId,
-    geometry: geo::LineString,
+    geometry: LineString,
 }
 
-impl rstar::RTreeObject for GeospatialEdge {
-    type Envelope = rstar::AABB<geo::Point>;
-
+impl RTreeObject for GeospatialEdge {
+    type Envelope = AABB<Point>;
     fn envelope(&self) -> Self::Envelope {
         let bbox = self.geometry.bounding_rect().unwrap();
-        rstar::AABB::from_corners(
-            geo::Point::new(bbox.min().x, bbox.min().y),
-            geo::Point::new(bbox.max().x, bbox.max().y),
+        AABB::from_corners(
+            Point::new(bbox.min().x, bbox.min().y),
+            Point::new(bbox.max().x, bbox.max().y),
         )
     }
 }
 
-impl rstar::PointDistance for GeospatialEdge {
-    fn distance_2(&self, point: &geo::Point) -> f64 {
+impl PointDistance for GeospatialEdge {
+    fn distance_2(&self, point: &Point) -> f64 {
+        use Closest::*;
         match self.geometry.haversine_closest_point(point) {
-            geo::Closest::SinglePoint(p) | geo::Closest::Intersection(p) => {
-                geo::Haversine.distance(p, *point).powf(2.0)
-            }
-            geo::Closest::Indeterminate => f64::INFINITY,
+            SinglePoint(p) | Intersection(p) => Haversine.distance(p, *point).powf(2.0),
+            Indeterminate => f64::INFINITY,
         }
     }
 }
@@ -176,10 +172,11 @@ impl DirectedGraph for NetworkGraph {
     ) -> impl Iterator<Item = (Self::EdgeId, Self::VertexId)> {
         let mut edges: Vec<_> = self
             .network
-            .out_neighbors_with_values(vertex.index())
-            .map(|item| (item.value, VertexId(item.target as i64)))
+            .out_neighbors_with_values(vertex.0)
+            .map(|item| (item.value, VertexId(item.target)))
             .collect();
 
+        // edges returned in a deterministic order
         edges.sort();
         edges.into_iter()
     }
@@ -190,10 +187,11 @@ impl DirectedGraph for NetworkGraph {
     ) -> impl Iterator<Item = (Self::EdgeId, Self::VertexId)> {
         let mut edges: Vec<_> = self
             .network
-            .in_neighbors_with_values(vertex.index())
-            .map(|item| (item.value, VertexId(item.target as i64)))
+            .in_neighbors_with_values(vertex.0)
+            .map(|item| (item.value, VertexId(item.target)))
             .collect();
 
+        // edges returned in a deterministic order
         edges.sort();
         edges.into_iter()
     }
@@ -204,7 +202,7 @@ impl DirectedGraph for NetworkGraph {
         max_distance: Length,
     ) -> impl Iterator<Item = (Self::VertexId, Length)> {
         let max_distance_2 = max_distance.meters() * max_distance.meters();
-        let point = geo::Point::new(coordinate.lon, coordinate.lat);
+        let point = Point::new(coordinate.lon, coordinate.lat);
 
         self.geospatial_nodes
             .nearest_neighbor_iter_with_distance_2(&point)
@@ -221,7 +219,7 @@ impl DirectedGraph for NetworkGraph {
         max_distance: Length,
     ) -> impl Iterator<Item = (Self::EdgeId, Length)> {
         let max_distance_2 = max_distance.meters() * max_distance.meters();
-        let point = geo::Point::new(coordinate.lon, coordinate.lat);
+        let point = Point::new(coordinate.lon, coordinate.lat);
 
         self.geospatial_edges
             .nearest_neighbor_iter_with_distance_2(&point)
@@ -241,24 +239,24 @@ impl DirectedGraph for NetworkGraph {
         let mut distance_from_start = 0.0;
         let mut distance_acc = 0.0;
 
-        let point = geo::Point::new(coordinate.lon, coordinate.lat);
+        let point = Point::new(coordinate.lon, coordinate.lat);
 
         for line in self.edge_line_string(edge).lines() {
             match line.haversine_closest_point(&point) {
-                geo::Closest::SinglePoint(p) | geo::Closest::Intersection(p) => {
-                    let distance_to_line = geo::Haversine.distance(point, p);
+                Closest::SinglePoint(p) | Closest::Intersection(p) => {
+                    let distance_to_line = Haversine.distance(point, p);
 
                     if distance_to_line < closest_distance {
                         // this is the closest line segment of the whole geometry (so far)
                         closest_distance = distance_to_line;
-                        let distance = geo::Haversine.distance(line.start_point(), p);
+                        let distance = Haversine.distance(line.start_point(), p);
                         distance_from_start = distance_acc + distance;
                     }
 
                     use geo::Length;
-                    distance_acc += geo::Haversine.length(&line);
+                    distance_acc += Haversine.length(&line);
                 }
-                geo::Closest::Indeterminate => return None,
+                Closest::Indeterminate => return None,
             }
         }
 
@@ -282,12 +280,12 @@ impl DirectedGraph for NetworkGraph {
         let ratio_p2 = distance_end.meters() / edge_length.meters();
 
         let geometry = self.edge_line_string(edge);
-        let p1 = geometry.point_at_ratio_from_start(&geo::Haversine, ratio_p1)?;
-        let p2 = geometry.point_at_ratio_from_start(&geo::Haversine, ratio_p2)?;
+        let p1 = geometry.point_at_ratio_from_start(&Haversine, ratio_p1)?;
+        let p2 = geometry.point_at_ratio_from_start(&Haversine, ratio_p2)?;
 
         let degrees = {
             use geo::Bearing;
-            geo::Haversine.bearing(p1, p2).round() as u16
+            Haversine.bearing(p1, p2).round() as u16
         };
 
         Some(Bearing::from_degrees(degrees))
@@ -299,10 +297,10 @@ impl DirectedGraph for NetworkGraph {
 }
 
 impl NetworkGraph {
-    fn edge_line_string(&self, edge: EdgeId) -> geo::LineString {
-        geo::LineString::from_iter(
+    fn edge_line_string(&self, edge: EdgeId) -> LineString {
+        LineString::from_iter(
             self.get_edge_coordinates(edge)
-                .map(|coordinate| geo::coord! { x: coordinate.lon, y: coordinate.lat }),
+                .map(|coordinate| coord! { x: coordinate.lon, y: coordinate.lat }),
         )
     }
 
@@ -316,31 +314,25 @@ impl NetworkGraph {
                     frc: line.frc,
                     fow: line.fow,
                     geometry: line.geometry.clone(),
-                    vertices: [VertexId(line.start_id), VertexId(line.end_id)],
+                    vertices: [VertexId(line.start_node_id), VertexId(line.end_node_id)],
                 };
 
                 (EdgeId(line_id), property)
             })
             .collect();
 
-        let network_edges: Vec<(usize, usize, EdgeId)> = graph
-            .nodes
-            .iter()
-            .flat_map(|(&from_id, node)| {
-                let from_id: usize = from_id.try_into().unwrap();
-                node.outgoing_lines.iter().map(move |&(line_id, to_id)| {
-                    let to_id: usize = to_id.try_into().unwrap();
-                    (from_id, to_id, EdgeId(line_id))
-                })
-            })
-            .collect();
+        let network_edges = graph.nodes.iter().flat_map(|(&from_id, node)| {
+            node.exiting_lines
+                .iter()
+                .map(move |&(line_id, to_id)| (from_id, to_id, EdgeId(line_id)))
+        });
 
         let geospatial_nodes: Vec<GeospatialNode> = graph
             .nodes
             .iter()
             .map(|(&from_id, node)| GeospatialNode {
                 vertex: VertexId(from_id),
-                location: node.location,
+                coordinate: node.coordinate,
             })
             .collect();
 
@@ -348,7 +340,7 @@ impl NetworkGraph {
             .nodes
             .iter()
             .flat_map(|(_, node)| {
-                node.outgoing_lines
+                node.exiting_lines
                     .iter()
                     .map(|&(line_id, _)| EdgeId(line_id))
             })
@@ -369,8 +361,8 @@ impl NetworkGraph {
             network: graph::prelude::GraphBuilder::new()
                 .edges_with_values(network_edges)
                 .build(),
-            geospatial_nodes: rstar::RTree::bulk_load(geospatial_nodes),
-            geospatial_edges: rstar::RTree::bulk_load(geospatial_edges),
+            geospatial_nodes: RTree::bulk_load(geospatial_nodes),
+            geospatial_edges: RTree::bulk_load(geospatial_edges),
             edge_properties,
         }
     }

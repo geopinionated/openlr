@@ -9,19 +9,20 @@
 //! 6. Check validity of the calculated shortest-path(s).
 //! 7. Concatenate shortest-path(s) to form the location and trim path according to the offsets.
 
-pub mod candidates;
-pub mod line;
-pub mod resolver;
-pub mod route;
-pub mod shortest_path;
+mod candidates;
+mod line;
+mod resolver;
+mod route;
+mod shortest_path;
 
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 
+use crate::decoder::line::decode_line;
 use crate::error::DecodeError;
 use crate::model::RatingScore;
 use crate::{
-    Bearing, DeserializeError, DirectedGraph, Length, Location, LocationReference, decode_line,
+    Bearing, DeserializeError, DirectedGraph, Length, Location, LocationReference,
     deserialize_binary_openlr,
 };
 

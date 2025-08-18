@@ -3,7 +3,7 @@ use std::io::{Cursor, Write};
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 
-use crate::binary::encoding::EncodedAttributes;
+use crate::format::binary::encoding::EncodedAttributes;
 use crate::model::Offsets;
 use crate::{
     Circle, ClosedLine, Coordinate, Grid, GridSize, Length, Line, LocationReference, LocationType,
