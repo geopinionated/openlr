@@ -266,7 +266,7 @@ fn append_projected_candidate_lines<G: DirectedGraph>(
                 .get_distance_along_edge(edge, lrp.coordinate)
                 // if distance is 0 or equal to the edge length it would essentially reprensent a
                 // line based on a node, instead of the outcome of the LRP projection
-                .filter(|&distance| distance > Length::ZERO && distance < edge_length)?;
+                .filter(|&d| d.floor() > Length::ZERO && d.ceil() < edge_length)?;
 
             let bearing = if lrp.is_last() {
                 graph.get_edge_bearing(
@@ -641,13 +641,7 @@ mod tests {
 
         assert_eq!(
             lines,
-            [
-                vec![
-                    (EdgeId(8717174), None),
-                    (EdgeId(4925291), Some(Length::from_meters(142.0))) // projected line
-                ],
-                vec![(EdgeId(109783), None)]
-            ]
+            [vec![(EdgeId(8717174), None)], vec![(EdgeId(109783), None)]]
         );
     }
 
@@ -835,10 +829,7 @@ mod tests {
         assert_eq!(
             lines,
             [
-                vec![
-                    (EdgeId(8717174), None),
-                    (EdgeId(4925291), Some(Length::from_meters(142.0))) // projected line
-                ],
+                vec![(EdgeId(8717174), None)],
                 vec![
                     (EdgeId(6770340), None),
                     (EdgeId(109783), Some(Length::from_meters(191.0))), // projected line

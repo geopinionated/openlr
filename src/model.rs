@@ -327,6 +327,10 @@ impl Length {
         Self(self.0.ceil().into())
     }
 
+    pub fn floor(self) -> Self {
+        Self(self.0.floor().into())
+    }
+
     pub fn reverse(self) -> Self {
         Self(self.0 * -1.0)
     }
