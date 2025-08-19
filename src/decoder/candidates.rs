@@ -57,9 +57,15 @@ pub struct CandidateLinePair<EdgeId> {
     pub line_lrp2: CandidateLine<EdgeId>,
 }
 
-impl<EdgeId> CandidateLinePair<EdgeId> {
-    pub fn rating(&self) -> RatingScore {
-        self.line_lrp1.rating * self.line_lrp2.rating
+impl<EdgeId: PartialEq> CandidateLinePair<EdgeId> {
+    pub fn rating(&self, same_line_degradation: f64) -> RatingScore {
+        let mut rating = self.line_lrp1.rating * self.line_lrp2.rating;
+
+        if self.line_lrp1.edge == self.line_lrp2.edge {
+            rating *= same_line_degradation;
+        }
+
+        rating
     }
 }
 
