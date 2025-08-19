@@ -841,7 +841,8 @@ mod tests {
                 ],
                 vec![
                     (EdgeId(6770340), None),
-                    (EdgeId(109783), Some(Length::from_meters(191.0)))
+                    (EdgeId(109783), Some(Length::from_meters(191.0))), // projected line
+                    (EdgeId(-6828301), Some(Length::from_meters(58.0)))  // projected line
                 ],
                 vec![(EdgeId(7531947), None)]
             ]

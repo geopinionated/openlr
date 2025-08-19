@@ -414,10 +414,10 @@ impl Bearing {
         let difference = self.difference(other);
 
         let rating_interval = |rating| match rating {
-            Rating::Excellent => 6,
-            Rating::Good => 12,
-            Rating::Average => 18,
-            Rating::Poor => 24,
+            Rating::Excellent => 10,
+            Rating::Good => 20,
+            Rating::Average => 30,
+            Rating::Poor => 45,
         };
 
         Rating::iter()
