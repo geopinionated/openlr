@@ -131,6 +131,7 @@ pub trait DirectedGraph {
     }
 }
 
+pub mod dijkstra;
 pub mod path;
 
 #[cfg(test)]

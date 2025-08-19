@@ -139,13 +139,23 @@ fn resolve_candidate_route<G: DirectedGraph>(
     candidates: CandidateLinePair<G::EdgeId>,
 ) -> Option<CandidateRoute<G::EdgeId>> {
     let CandidateLinePair {
-        line_lrp1,
-        line_lrp2,
+        line_lrp1:
+            CandidateLine {
+                lrp: lrp1,
+                edge: edge_lrp1,
+                ..
+            },
+        line_lrp2:
+            CandidateLine {
+                lrp: lrp2,
+                edge: edge_lrp2,
+                ..
+            },
     } = candidates;
 
-    if line_lrp1.edge == line_lrp2.edge {
-        let edges = if line_lrp2.lrp.is_last() {
-            vec![line_lrp1.edge]
+    if edge_lrp1 == edge_lrp2 {
+        let edges = if lrp2.is_last() {
+            vec![edge_lrp1]
         } else {
             vec![]
         };
@@ -158,23 +168,20 @@ fn resolve_candidate_route<G: DirectedGraph>(
         return Some(CandidateRoute { path, candidates });
     }
 
-    let lowest_frc_value = line_lrp1.lrp.lfrcnp().value() + Frc::variance(&line_lrp1.lrp.lfrcnp());
+    let lowest_frc_value = lrp1.lfrcnp().value() + Frc::variance(&lrp1.lfrcnp());
     let lowest_frc = Frc::from_value(lowest_frc_value).unwrap_or(Frc::Frc7);
-
-    let origin = graph.get_edge_start_vertex(line_lrp1.edge)?;
-    let destination = if line_lrp2.lrp.is_last() {
-        graph.get_edge_end_vertex(line_lrp2.edge)?
-    } else {
-        graph.get_edge_start_vertex(line_lrp2.edge)?
-    };
-
     let max_length = max_route_length(config, graph, &candidates);
 
-    if let Some(path) = shortest_path(graph, origin, destination, lowest_frc, max_length) {
+    if let Some(mut path) = shortest_path(graph, edge_lrp1, edge_lrp2, lowest_frc, max_length) {
+        if !lrp2.is_last() {
+            let last_edge = path.edges.pop()?;
+            path.length -= graph.get_edge_length(last_edge)?;
+        }
+
         debug_assert!(!path.edges.is_empty());
         debug_assert!(path.length <= max_length);
 
-        let min_length = line_lrp1.lrp.dnp() - config.next_point_variance;
+        let min_length = lrp1.dnp() - config.next_point_variance;
 
         if path.length >= min_length {
             return Some(CandidateRoute { path, candidates });
@@ -203,7 +210,8 @@ fn max_route_length<G: DirectedGraph>(
             .get_edge_length(line_lrp1.edge)
             .unwrap_or(Length::ZERO);
     }
-    if line_lrp2.is_projected() {
+
+    if line_lrp2.is_projected() || !line_lrp2.lrp.is_last() {
         max_distance += graph
             .get_edge_length(line_lrp2.edge)
             .unwrap_or(Length::ZERO);
