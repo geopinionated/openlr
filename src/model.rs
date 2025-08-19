@@ -129,8 +129,8 @@ impl Frc {
     /// equal during the decoding process.
     pub(crate) const fn variance(&self) -> i8 {
         match self {
-            Self::Frc0 | Self::Frc1 | Self::Frc2 | Self::Frc3 => 2,
-            Self::Frc4 | Self::Frc5 | Self::Frc6 | Self::Frc7 => 3,
+            Self::Frc0 | Self::Frc1 | Self::Frc2 => 3,
+            Self::Frc3 | Self::Frc4 | Self::Frc5 | Self::Frc6 | Self::Frc7 => 4,
         }
     }
 
