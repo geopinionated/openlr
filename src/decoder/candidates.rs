@@ -166,6 +166,21 @@ where
         lrp_lines
             .lines
             .sort_unstable_by_key(|line| Reverse(line.rating));
+
+        // keep at least 1 candidate line, otherwise remove everything below min acceptable rating
+        if let Some(best_rating) = lrp_lines.lines.first().map(|l| l.rating) {
+            let position = if best_rating < config.min_line_rating {
+                1
+            } else {
+                lrp_lines
+                    .lines
+                    .binary_search_by(|l| config.min_line_rating.cmp(&l.rating))
+                    .unwrap_or_else(|i| i)
+            };
+
+            lrp_lines.lines.truncate(position);
+        }
+
         candidate_lines.push(lrp_lines);
     }
 
@@ -218,7 +233,7 @@ fn find_candidate_lines_from_nodes<G: DirectedGraph>(
                 bearing,
             };
 
-            rate_line(config, lrp, line).inspect(|line| debug!("Accepted candidate: {line:?}"))
+            rate_line(config, lrp, line)
         });
 
         candidate_lines.lines.extend(candidates);
@@ -318,7 +333,7 @@ fn append_projected_candidate_lines<G: DirectedGraph>(
 /// function.
 ///
 /// The candidate lines should be ordered in a way that the best matching line comes first.
-fn rate_line<EdgeId: Debug>(
+fn rate_line<EdgeId: Debug + Copy>(
     config: &DecoderConfig,
     lrp: Point,
     line: ProvisionalCandidateLine<EdgeId>,
@@ -360,16 +375,14 @@ fn rate_line<EdgeId: Debug>(
 
     if rating < config.min_line_rating {
         trace!("Rating {:?} too low = {rating:?} {ratings:?}", line.edge);
-        None
-    } else {
-        trace!("Rating {:?} accepted = {rating:?} {ratings:?}", line.edge);
-        Some(CandidateLine {
-            lrp: line.lrp,
-            edge: line.edge,
-            distance_to_projection: line.distance_to_projection,
-            rating,
-        })
     }
+
+    Some(CandidateLine {
+        lrp: line.lrp,
+        edge: line.edge,
+        distance_to_projection: line.distance_to_projection,
+        rating,
+    })
 }
 
 #[cfg(test)]
