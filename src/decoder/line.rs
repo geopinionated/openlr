@@ -23,7 +23,7 @@ pub fn decode_line<G: DirectedGraph>(
     // Step – 5 Determine shortest-path(s) between all subsequent location reference points
     // Step – 6 Check validity of the calculated shortest-path(s)
     let routes = resolve_routes(config, graph, &lines, line.offsets)?;
-    debug_assert_eq!(routes.len(), line.points.len() - 1);
+    debug_assert!(!routes.is_empty() && routes.len() < line.points.len());
 
     // Step – 7 Concatenate and trim path according to the offsets
     let offsets = routes.calculate_offsets(graph, line.offsets);

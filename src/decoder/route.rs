@@ -78,7 +78,7 @@ impl<EdgeId: Debug + Copy + PartialEq> CandidateRoutes<EdgeId> {
         let pos_offset = offsets.distance_from_start(head_length) + distance_from_start;
         let neg_offset = offsets.distance_to_end(tail_length) + distance_to_end;
 
-        Some((pos_offset, neg_offset))
+        Some((pos_offset.round(), neg_offset.round()))
     }
 }
 
