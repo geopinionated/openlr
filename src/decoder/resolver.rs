@@ -58,32 +58,28 @@ pub fn resolve_routes<G: DirectedGraph>(
 
     for window in candidate_lines.windows(2) {
         let [candidates_lrp1, candidates_lrp2] = [&window[0], &window[1]];
+        let routes_count = routes.len();
+
         let pairs = resolve_top_k_candidate_pairs(config, candidates_lrp1, candidates_lrp2)?;
 
-        let CandidateLines { lrp: lrp1, .. } = *candidates_lrp1;
-        let CandidateLines { lrp: lrp2, .. } = *candidates_lrp2;
+        // Find the first candidates pair that can be used to construct a valid route between the
+        // two consecutive LRPs, also try to find an alternative route if consecutive best pairs are
+        // not connected to each other.
+        for candidates in pairs {
+            let route = resolve_candidate_route(config, graph, candidates)
+                .and_then(|route| resolve_alternative_route(config, graph, &mut routes, route));
 
-        if let Some(route) = resolve_candidates_route(config, graph, pairs) {
-            if let Some(last_route) = routes.last_mut() {
-                // if the previous route ends on a line that is not the start of this new route
-                // then the previous route needs to be re-computed
-                if last_route.last_candidate_edge() != route.first_candidate_edge() {
-                    let candidates = CandidateLinePair {
-                        line_lrp1: last_route.first_candidate(),
-                        line_lrp2: route.first_candidate(),
-                    };
-
-                    if let Some(route) = resolve_candidate_route(config, graph, candidates) {
-                        *last_route = route;
-                    } else {
-                        return Err(DecodeError::AlternativeRouteNotFound((lrp1, lrp2)));
-                    }
-                }
+            if let Some(route) = route {
+                routes.push(route);
+                break;
             }
+        }
 
-            routes.push(route);
-        } else {
-            return Err(DecodeError::RouteNotFound((lrp1, lrp2)));
+        if routes.len() == routes_count {
+            return Err(DecodeError::RouteNotFound((
+                candidates_lrp1.lrp,
+                candidates_lrp2.lrp,
+            )));
         }
     }
 
@@ -130,20 +126,6 @@ fn resolve_single_line_routes<G: DirectedGraph>(
     }
 
     Some(routes)
-}
-
-fn resolve_candidates_route<G, I>(
-    config: &DecoderConfig,
-    graph: &G,
-    pairs: I,
-) -> Option<CandidateRoute<G::EdgeId>>
-where
-    G: DirectedGraph,
-    I: IntoIterator<Item = CandidateLinePair<G::EdgeId>>,
-{
-    pairs
-        .into_iter()
-        .find_map(|candidates| resolve_candidate_route(config, graph, candidates))
 }
 
 fn resolve_candidate_route<G: DirectedGraph>(
@@ -205,6 +187,30 @@ fn resolve_candidate_route<G: DirectedGraph>(
     }
 
     None
+}
+
+/// Updates the last route with an alternative if this cannot be connected to the given new route.
+/// Returns the new given route or None if the altenative is needed but cannot be computed.
+fn resolve_alternative_route<G: DirectedGraph>(
+    config: &DecoderConfig,
+    graph: &G,
+    routes: &mut [CandidateRoute<G::EdgeId>],
+    new_route: CandidateRoute<G::EdgeId>,
+) -> Option<CandidateRoute<G::EdgeId>> {
+    if let Some(last_route) = routes.last_mut() {
+        // if the previous route ends on a line that is not the start of this new route
+        // then the previous route needs to be re-computed
+        if last_route.last_candidate_edge() != new_route.first_candidate_edge() {
+            let candidates = CandidateLinePair {
+                line_lrp1: last_route.first_candidate(),
+                line_lrp2: new_route.first_candidate(),
+            };
+
+            *last_route = resolve_candidate_route(config, graph, candidates)?;
+        }
+    }
+
+    Some(new_route)
 }
 
 fn max_route_length<G: DirectedGraph>(
