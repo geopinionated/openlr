@@ -219,14 +219,12 @@ impl Fow {
             (MultipleCarriageway, MultipleCarriageway) => Rating::Excellent,
             (MultipleCarriageway, Motorway) => Rating::Good,
             (MultipleCarriageway, _) => Rating::Poor,
-            (SingleCarriageway, SingleCarriageway) => Rating::Excellent,
+            (SingleCarriageway, SingleCarriageway | Roundabout) => Rating::Excellent,
             (SingleCarriageway, MultipleCarriageway) => Rating::Good,
-            (SingleCarriageway, Roundabout | TrafficSquare) => Rating::Average,
+            (SingleCarriageway, TrafficSquare) => Rating::Average,
             (SingleCarriageway, _) => Rating::Poor,
-            (Roundabout, Roundabout) => Rating::Excellent,
-            (Roundabout, MultipleCarriageway | SingleCarriageway | TrafficSquare) => {
-                Rating::Average
-            }
+            (Roundabout, Roundabout | SingleCarriageway) => Rating::Excellent,
+            (Roundabout, MultipleCarriageway | TrafficSquare) => Rating::Average,
             (Roundabout, _) => Rating::Poor,
             (TrafficSquare, TrafficSquare) => Rating::Excellent,
             (TrafficSquare, SingleCarriageway | Roundabout) => Rating::Average,
