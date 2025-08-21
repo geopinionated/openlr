@@ -129,8 +129,8 @@ impl Frc {
     /// equal during the decoding process.
     pub(crate) const fn variance(&self) -> i8 {
         match self {
-            Self::Frc0 | Self::Frc1 | Self::Frc2 | Self::Frc3 => 2,
-            Self::Frc4 | Self::Frc5 | Self::Frc6 | Self::Frc7 => 3,
+            Self::Frc0 | Self::Frc1 | Self::Frc2 => 3,
+            Self::Frc3 | Self::Frc4 | Self::Frc5 | Self::Frc6 | Self::Frc7 => 4,
         }
     }
 
@@ -139,6 +139,10 @@ impl Frc {
     }
 
     pub(crate) fn rating(&self, other: &Self) -> Rating {
+        if *self >= Frc::Frc6 && *other >= Frc::Frc6 {
+            return Rating::Excellent;
+        }
+
         let delta = (self.value() - other.value()).abs();
 
         let rating_interval = |rating| match rating {
@@ -219,14 +223,12 @@ impl Fow {
             (MultipleCarriageway, MultipleCarriageway) => Rating::Excellent,
             (MultipleCarriageway, Motorway) => Rating::Good,
             (MultipleCarriageway, _) => Rating::Poor,
-            (SingleCarriageway, SingleCarriageway) => Rating::Excellent,
+            (SingleCarriageway, SingleCarriageway | Roundabout) => Rating::Excellent,
             (SingleCarriageway, MultipleCarriageway) => Rating::Good,
-            (SingleCarriageway, Roundabout | TrafficSquare) => Rating::Average,
+            (SingleCarriageway, TrafficSquare) => Rating::Average,
             (SingleCarriageway, _) => Rating::Poor,
-            (Roundabout, Roundabout) => Rating::Excellent,
-            (Roundabout, MultipleCarriageway | SingleCarriageway | TrafficSquare) => {
-                Rating::Average
-            }
+            (Roundabout, Roundabout | SingleCarriageway) => Rating::Excellent,
+            (Roundabout, MultipleCarriageway | TrafficSquare) => Rating::Average,
             (Roundabout, _) => Rating::Poor,
             (TrafficSquare, TrafficSquare) => Rating::Excellent,
             (TrafficSquare, SingleCarriageway | Roundabout) => Rating::Average,
@@ -327,6 +329,10 @@ impl Length {
         Self(self.0.ceil().into())
     }
 
+    pub fn floor(self) -> Self {
+        Self(self.0.floor().into())
+    }
+
     pub fn reverse(self) -> Self {
         Self(self.0 * -1.0)
     }
@@ -388,6 +394,12 @@ impl Mul<Length> for f64 {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct Bearing(u16);
 
+impl fmt::Display for Bearing {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}°", self.degrees())
+    }
+}
+
 impl Bearing {
     pub const NORTH: Self = Self(0);
 
@@ -414,10 +426,10 @@ impl Bearing {
         let difference = self.difference(other);
 
         let rating_interval = |rating| match rating {
-            Rating::Excellent => 6,
-            Rating::Good => 12,
-            Rating::Average => 18,
-            Rating::Poor => 24,
+            Rating::Excellent => 10,
+            Rating::Good => 20,
+            Rating::Average => 30,
+            Rating::Poor => 45,
         };
 
         Rating::iter()

@@ -1,69 +1,38 @@
-use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap};
-use std::fmt::Debug;
 
-use tracing::debug;
+use tracing::trace;
 
-use crate::graph::path::Path;
+use crate::graph::dijkstra::{HeapElement, unpack_path};
+use crate::graph::path::{Path, is_path_connected};
 use crate::{DirectedGraph, Frc, Length};
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct HeapElement<VertexId> {
-    /// Current shortest distance from origin to this vertex.
-    distance: Length,
-    vertex: VertexId,
-}
-
-// The priority queue depends on the implementation of the Ord trait.
-// By default std::BinaryHeap is a max heap.
-// Explicitly implement the trait so the queue becomes a min heap.
-impl<VertexId: Ord> Ord for HeapElement<VertexId> {
-    fn cmp(&self, other: &Self) -> Ordering {
-        other
-            .distance
-            .cmp(&self.distance)
-            // breaking ties in a deterministic way
-            .then_with(|| other.vertex.cmp(&self.vertex))
-    }
-}
-
-impl<VertexId: Ord> PartialOrd for HeapElement<VertexId> {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
 
 pub fn shortest_path<G: DirectedGraph>(
     graph: &G,
-    origin: G::VertexId,
-    destination: G::VertexId,
+    origin: G::EdgeId,
+    destination: G::EdgeId,
     lowest_frc: Frc,
     max_length: Length,
 ) -> Option<Path<G::EdgeId>> {
-    debug!("Computing shortest path {origin:?} -> {destination:?}");
+    trace!(
+        "Computing shortest path {origin:?} {:?} -> {destination:?} {:?}",
+        graph.get_edge_start_vertex(origin)?,
+        graph.get_edge_end_vertex(destination)?
+    );
 
-    // (current) shortest distance from origin to this vertex
-    let mut shortest_distances = HashMap::from([(origin, Length::ZERO)]);
+    let origin_length = graph.get_edge_length(origin)?;
+    let mut shortest_distances = HashMap::from([(origin, origin_length)]);
+    let mut previous_map: HashMap<G::EdgeId, G::EdgeId> = HashMap::new();
 
-    // previous vertex (value) on the current best known path from origin to this vertex (key)
-    let mut previous_map: HashMap<G::VertexId, (G::EdgeId, G::VertexId)> = HashMap::new();
-
-    // priority queue of discovered nodes that may need to be visited
     let mut frontier = BinaryHeap::from([HeapElement {
-        vertex: origin,
-        distance: Length::ZERO,
+        distance: origin_length,
+        edge: origin,
     }]);
 
     while let Some(element) = frontier.pop() {
-        if element.vertex == destination {
+        if element.edge == destination {
             // Unpacking: the shortest path from destination back to origin
-            let mut edges = vec![];
-            let mut next = destination;
-            while let Some(&(edge, previous)) = previous_map.get(&next) {
-                next = previous;
-                edges.push(edge);
-            }
-            edges.reverse();
+            let edges = unpack_path(&previous_map, destination);
+            debug_assert!(is_path_connected(graph, &edges), "{edges:?}");
 
             return Some(Path {
                 length: element.distance,
@@ -73,33 +42,41 @@ pub fn shortest_path<G: DirectedGraph>(
 
         // check if we already know a cheaper way to get to the end of this path from the origin
         let shortest_distance = *shortest_distances
-            .get(&element.vertex)
+            .get(&element.edge)
             .unwrap_or(&Length::MAX);
         if element.distance > shortest_distance {
             continue;
         }
 
-        for (edge, vertex_to) in graph.vertex_exiting_edges(element.vertex) {
+        let exiting_edges = graph
+            .get_edge_end_vertex(element.edge)
+            .into_iter()
+            .flat_map(|v| graph.vertex_exiting_edges(v))
+            .filter(|&(e, _)| !graph.is_turn_restricted(element.edge, e));
+
+        for (edge, _) in exiting_edges {
             let distance = element.distance + graph.get_edge_length(edge)?;
+            let frc = graph.get_edge_frc(edge)?;
+
             if distance > max_length {
+                trace!("Element distance too far: {edge:?} {distance} > {max_length}");
                 continue;
             }
 
-            if graph.get_edge_frc(edge)? > lowest_frc {
+            if frc > lowest_frc {
+                trace!("Element FRC too low: {edge:?} {frc:?} > {lowest_frc:?}",);
                 continue;
             }
 
-            let shortest_distance = *shortest_distances.get(&vertex_to).unwrap_or(&Length::MAX);
+            let shortest_distance = *shortest_distances.get(&edge).unwrap_or(&Length::MAX);
+
             // check if we can follow the current path to reach the neighbor in a cheaper way
             if distance < shortest_distance {
-                let neighbor = HeapElement {
-                    vertex: vertex_to,
-                    distance,
-                };
+                let neighbor = HeapElement { distance, edge };
 
                 // Relax: we have now found a better way that we are going to explore
-                shortest_distances.insert(neighbor.vertex, neighbor.distance);
-                previous_map.insert(neighbor.vertex, (edge, element.vertex));
+                shortest_distances.insert(neighbor.edge, neighbor.distance);
+                previous_map.insert(neighbor.edge, element.edge);
                 frontier.push(neighbor);
             }
         }
@@ -113,17 +90,24 @@ mod tests {
     use test_log::test;
 
     use super::*;
-    use crate::graph::tests::{EdgeId, NETWORK_GRAPH, NetworkGraph, VertexId};
+    use crate::graph::tests::{EdgeId, NETWORK_GRAPH, NetworkGraph};
 
     #[test]
     fn decoder_shortest_path_001() {
         let graph: &NetworkGraph = &NETWORK_GRAPH;
 
         assert_eq!(
-            shortest_path(graph, VertexId(68), VertexId(68), Frc::Frc7, Length::MAX).unwrap(),
+            shortest_path(
+                graph,
+                EdgeId(8717174),
+                EdgeId(8717174),
+                Frc::Frc7,
+                Length::MAX
+            )
+            .unwrap(),
             Path {
-                length: Length::ZERO,
-                edges: vec![],
+                length: Length::from_meters(136.0),
+                edges: vec![EdgeId(8717174)]
             }
         );
     }
@@ -133,11 +117,8 @@ mod tests {
         let graph: &NetworkGraph = &NETWORK_GRAPH;
 
         assert_eq!(
-            shortest_path(graph, VertexId(1), VertexId(2), Frc::Frc7, Length::MAX).unwrap(),
-            Path {
-                length: Length::from_meters(217.0),
-                edges: vec![EdgeId(16218)],
-            }
+            shortest_path(graph, EdgeId(0), EdgeId(i64::MAX), Frc::Frc7, Length::MAX),
+            None
         );
     }
 
@@ -146,17 +127,14 @@ mod tests {
         let graph: &NetworkGraph = &NETWORK_GRAPH;
 
         assert_eq!(
-            shortest_path(graph, VertexId(2), VertexId(1), Frc::Frc7, Length::MAX),
-            None
-        );
-    }
-
-    #[test]
-    fn decoder_shortest_path_004() {
-        let graph: &NetworkGraph = &NETWORK_GRAPH;
-
-        assert_eq!(
-            shortest_path(graph, VertexId(68), VertexId(20), Frc::Frc7, Length::MAX).unwrap(),
+            shortest_path(
+                graph,
+                EdgeId(8717174),
+                EdgeId(109783),
+                Frc::Frc7,
+                Length::MAX
+            )
+            .unwrap(),
             Path {
                 length: Length::from_meters(379.0),
                 edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
@@ -165,11 +143,11 @@ mod tests {
     }
 
     #[test]
-    fn decoder_shortest_path_005() {
+    fn decoder_shortest_path_004() {
         let graph: &NetworkGraph = &NETWORK_GRAPH;
 
         assert_eq!(
-            shortest_path(graph, VertexId(1), VertexId(37), Frc::Frc7, Length::MAX).unwrap(),
+            shortest_path(graph, EdgeId(16218), EdgeId(961826), Frc::Frc7, Length::MAX).unwrap(),
             Path {
                 length: Length::from_meters(753.0),
                 edges: vec![
@@ -184,14 +162,14 @@ mod tests {
     }
 
     #[test]
-    fn decoder_shortest_path_006() {
+    fn decoder_shortest_path_005() {
         let graph: &NetworkGraph = &NETWORK_GRAPH;
 
         assert_eq!(
             shortest_path(
                 graph,
-                VertexId(1),
-                VertexId(37),
+                EdgeId(16218),
+                EdgeId(961826),
                 Frc::Frc7,
                 Length::from_meters(752.0)
             ),
@@ -200,11 +178,18 @@ mod tests {
     }
 
     #[test]
-    fn decoder_shortest_path_007() {
+    fn decoder_shortest_path_006() {
         let graph: &NetworkGraph = &NETWORK_GRAPH;
 
         assert_eq!(
-            shortest_path(graph, VertexId(36), VertexId(34), Frc::Frc7, Length::MAX).unwrap(),
+            shortest_path(
+                graph,
+                EdgeId(-4232179),
+                EdgeId(-4232179),
+                Frc::Frc7,
+                Length::MAX
+            )
+            .unwrap(),
             Path {
                 length: Length::from_meters(16.0),
                 edges: vec![EdgeId(-4232179)],
@@ -213,11 +198,18 @@ mod tests {
     }
 
     #[test]
-    fn decoder_shortest_path_008() {
+    fn decoder_shortest_path_007() {
         let graph: &NetworkGraph = &NETWORK_GRAPH;
 
         assert_eq!(
-            shortest_path(graph, VertexId(1), VertexId(57), Frc::Frc7, Length::MAX).unwrap(),
+            shortest_path(
+                graph,
+                EdgeId(16218),
+                EdgeId(3227046),
+                Frc::Frc7,
+                Length::MAX
+            )
+            .unwrap(),
             Path {
                 length: Length::from_meters(1462.0),
                 edges: vec![
@@ -242,11 +234,18 @@ mod tests {
     }
 
     #[test]
-    fn decoder_shortest_path_009() {
+    fn decoder_shortest_path_008() {
         let graph: &NetworkGraph = &NETWORK_GRAPH;
 
         assert_eq!(
-            shortest_path(graph, VertexId(42), VertexId(68), Frc::Frc7, Length::MAX).unwrap(),
+            shortest_path(
+                graph,
+                EdgeId(1653344),
+                EdgeId(5359425),
+                Frc::Frc7,
+                Length::MAX
+            )
+            .unwrap(),
             Path {
                 length: Length::from_meters(489.0),
                 edges: vec![

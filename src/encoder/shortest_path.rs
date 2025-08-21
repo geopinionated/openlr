@@ -1,10 +1,10 @@
-use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap};
 use std::fmt::Debug;
 use std::hash::Hash;
 
 use tracing::{debug, warn};
 
+use crate::graph::dijkstra::{HeapElement, unpack_path};
 use crate::graph::path::is_node_valid;
 use crate::{DirectedGraph, EncoderError, Length, LocationError};
 
@@ -28,33 +28,6 @@ pub struct Intermediate {
     /// actual shortest path). The intermediate edge will act as the new starting line for the
     /// location subset that comes next.
     pub location_index: usize,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct HeapElement<EdgeId> {
-    /// Current shortest distance from origin to this edge.
-    distance: Length,
-    /// The edge entering into the vertex, None for the origin.
-    edge: EdgeId,
-}
-
-// The priority queue depends on the implementation of the Ord trait.
-// By default std::BinaryHeap is a max heap.
-// Explicitly implement the trait so the queue becomes a min heap.
-impl<EdgeId: Ord> Ord for HeapElement<EdgeId> {
-    fn cmp(&self, other: &Self) -> Ordering {
-        other
-            .distance
-            .cmp(&self.distance)
-            // breaking ties in a deterministic way
-            .then_with(|| other.edge.cmp(&self.edge))
-    }
-}
-
-impl<EdgeId: Ord> PartialOrd for HeapElement<EdgeId> {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
 }
 
 /// Returns the shortest route that follow the given location up until the location path diverges
@@ -168,7 +141,8 @@ pub fn shortest_path_location<G: DirectedGraph>(
         let exiting_edges = graph
             .get_edge_end_vertex(element.edge)
             .into_iter()
-            .flat_map(|v| graph.vertex_exiting_edges(v));
+            .flat_map(|v| graph.vertex_exiting_edges(v))
+            .filter(|&(e, _)| !graph.is_turn_restricted(element.edge, e));
 
         for (edge, _) in exiting_edges {
             let edge_length = graph.get_edge_length(edge).unwrap_or(Length::MAX);
@@ -356,23 +330,6 @@ fn find_common_edge<EdgeId: Copy + Eq + Hash>(
         edge = previous_edge;
     }
     None
-}
-
-/// Unpacks the shortest path from destination back to origin.
-fn unpack_path<EdgeId: Copy + Eq + Hash>(
-    previous_map: &HashMap<EdgeId, EdgeId>,
-    destination: EdgeId,
-) -> Vec<EdgeId> {
-    let mut edges = vec![destination];
-    let mut next = destination;
-
-    while let Some(&e) = previous_map.get(&next) {
-        next = e;
-        edges.push(e);
-    }
-
-    edges.reverse();
-    edges
 }
 
 #[cfg(test)]

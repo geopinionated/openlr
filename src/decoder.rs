@@ -48,6 +48,8 @@ pub struct DecoderConfig {
     pub max_number_retries: usize,
     /// Variance allowed to the resolver when computing distance between LRPs.
     pub next_point_variance: Length,
+    /// Factor applied to reduce the rating of the top K best candidate LRP lines on the same line.
+    pub same_line_degradation: f64,
 }
 
 impl Default for DecoderConfig {
@@ -59,9 +61,10 @@ impl Default for DecoderConfig {
             node_factor: 3.0,
             line_factor: 3.0,
             projected_line_factor: 0.95,
-            min_line_rating: RatingScore::from(800.0),
-            max_number_retries: 3,
+            min_line_rating: RatingScore::from(700.0),
+            max_number_retries: 8,
             next_point_variance: Length::from_meters(150.0),
+            same_line_degradation: 0.85,
         }
     }
 }

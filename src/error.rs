@@ -52,8 +52,6 @@ pub enum DecodeError {
     CandidatesNotFound(Point),
     #[error("Cannot find route between LRPs {0:?}")]
     RouteNotFound((Point, Point)),
-    #[error("Cannot connect route to shortest path {0:?}")]
-    AlternativeRouteNotFound((Point, Point)),
     #[error("Cannot decode invalid location {0:?}")]
     InvalidLocation(LocationError),
 }

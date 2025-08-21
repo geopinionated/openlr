@@ -4,12 +4,12 @@ use std::fmt::Debug;
 
 use tracing::debug;
 
-use crate::decoder::candidates::{CandidateLinePair, CandidateLines};
+use crate::decoder::candidates::{CandidateLine, CandidateLinePair, CandidateLines};
 use crate::decoder::route::{CandidateRoute, CandidateRoutes};
 use crate::decoder::shortest_path::shortest_path;
 use crate::graph::path::{Path, is_path_connected};
 use crate::model::RatingScore;
-use crate::{DecodeError, DecoderConfig, DirectedGraph, Frc, Length};
+use crate::{DecodeError, DecoderConfig, DirectedGraph, Frc, Length, Offsets};
 
 /// The decoder needs to compute a shortest-path between each pair of subsequent location reference
 /// points. For each pair of location reference points suitable candidate lines must be chosen. The
@@ -45,10 +45,11 @@ pub fn resolve_routes<G: DirectedGraph>(
     config: &DecoderConfig,
     graph: &G,
     candidate_lines: &[CandidateLines<G::EdgeId>],
+    offsets: Offsets,
 ) -> Result<CandidateRoutes<G::EdgeId>, DecodeError> {
-    debug!("Resolving routes for {} candidates", candidate_lines.len());
+    debug!("Resolving routes for {} LRPs", candidate_lines.len());
 
-    if let Some(routes) = resolve_single_line_routes(graph, candidate_lines) {
+    if let Some(routes) = resolve_single_line_routes(graph, candidate_lines, offsets) {
         debug_assert!(is_path_connected(graph, &routes.to_path()));
         return Ok(routes);
     }
@@ -57,32 +58,28 @@ pub fn resolve_routes<G: DirectedGraph>(
 
     for window in candidate_lines.windows(2) {
         let [candidates_lrp1, candidates_lrp2] = [&window[0], &window[1]];
+        let routes_count = routes.len();
+
         let pairs = resolve_top_k_candidate_pairs(config, candidates_lrp1, candidates_lrp2)?;
 
-        let CandidateLines { lrp: lrp1, .. } = *candidates_lrp1;
-        let CandidateLines { lrp: lrp2, .. } = *candidates_lrp2;
+        // Find the first candidates pair that can be used to construct a valid route between the
+        // two consecutive LRPs, also try to find an alternative route if consecutive best pairs are
+        // not connected to each other.
+        for candidates in pairs {
+            let route = resolve_candidate_route(config, graph, candidates)
+                .and_then(|route| resolve_alternative_route(config, graph, &mut routes, route));
 
-        if let Some(route) = resolve_candidates_route(config, graph, pairs) {
-            if let Some(last_route) = routes.last_mut() {
-                // if the previous route ends on a line that is not the start of this new route
-                // then the previous route needs to be re-computed
-                if last_route.last_candidate_edge() != route.first_candidate_edge() {
-                    let candidates = CandidateLinePair {
-                        line_lrp1: last_route.first_candidate(),
-                        line_lrp2: route.first_candidate(),
-                    };
-
-                    if let Some(route) = resolve_candidate_route(config, graph, candidates) {
-                        *last_route = route;
-                    } else {
-                        return Err(DecodeError::AlternativeRouteNotFound((lrp1, lrp2)));
-                    }
-                }
+            if let Some(route) = route {
+                routes.push(route);
+                break;
             }
+        }
 
-            routes.push(route);
-        } else {
-            return Err(DecodeError::RouteNotFound((lrp1, lrp2)));
+        if routes.len() == routes_count {
+            return Err(DecodeError::RouteNotFound((
+                candidates_lrp1.lrp,
+                candidates_lrp2.lrp,
+            )));
         }
     }
 
@@ -96,17 +93,21 @@ pub fn resolve_routes<G: DirectedGraph>(
 fn resolve_single_line_routes<G: DirectedGraph>(
     graph: &G,
     candidate_lines: &[CandidateLines<G::EdgeId>],
+    offsets: Offsets,
 ) -> Option<CandidateRoutes<G::EdgeId>> {
-    let best_candidate = candidate_lines.first().and_then(|c| c.best_candidate())?;
+    let CandidateLine {
+        edge: best_edge, ..
+    } = candidate_lines.first().and_then(|c| c.best_candidate())?;
+
     let mut best_candidates = candidate_lines.iter().skip(1).map(|c| c.best_candidate());
 
-    if best_candidates.any(|c| c.map(|line| line.edge) != Some(best_candidate.edge)) {
+    if best_candidates.any(|c| c.map(|line| line.edge) != Some(best_edge)) {
         return None;
     }
 
     let path = Path {
-        length: graph.get_edge_length(best_candidate.edge)?,
-        edges: vec![best_candidate.edge],
+        length: graph.get_edge_length(best_edge)?,
+        edges: vec![best_edge],
     };
 
     let candidates = CandidateLinePair {
@@ -114,23 +115,18 @@ fn resolve_single_line_routes<G: DirectedGraph>(
         line_lrp2: candidate_lines.last().and_then(|c| c.best_candidate())?,
     };
 
-    let route = CandidateRoute { path, candidates };
+    let routes = CandidateRoutes::from(vec![CandidateRoute { path, candidates }]);
 
-    Some(CandidateRoutes::from(vec![route]))
-}
+    let offsets = routes.calculate_offsets(graph, offsets);
+    let (pos_offset, neg_offset) = offsets.unwrap_or_default();
 
-fn resolve_candidates_route<G, I>(
-    config: &DecoderConfig,
-    graph: &G,
-    pairs: I,
-) -> Option<CandidateRoute<G::EdgeId>>
-where
-    G: DirectedGraph,
-    I: IntoIterator<Item = CandidateLinePair<G::EdgeId>>,
-{
-    pairs
-        .into_iter()
-        .find_map(|candidates| resolve_candidate_route(config, graph, candidates))
+    if pos_offset + neg_offset >= routes.path_length() {
+        debug!("Same line route on {best_edge:?} has invalid offsets");
+        return None;
+    }
+
+    debug!("Route resolved on single best edge: {best_edge:?}");
+    Some(routes)
 }
 
 fn resolve_candidate_route<G: DirectedGraph>(
@@ -139,13 +135,23 @@ fn resolve_candidate_route<G: DirectedGraph>(
     candidates: CandidateLinePair<G::EdgeId>,
 ) -> Option<CandidateRoute<G::EdgeId>> {
     let CandidateLinePair {
-        line_lrp1,
-        line_lrp2,
+        line_lrp1:
+            CandidateLine {
+                lrp: lrp1,
+                edge: edge_lrp1,
+                ..
+            },
+        line_lrp2:
+            CandidateLine {
+                lrp: lrp2,
+                edge: edge_lrp2,
+                ..
+            },
     } = candidates;
 
-    if line_lrp1.edge == line_lrp2.edge {
-        let edges = if line_lrp2.lrp.is_last() {
-            vec![line_lrp1.edge]
+    if edge_lrp1 == edge_lrp2 {
+        let edges = if lrp2.is_last() {
+            vec![edge_lrp1]
         } else {
             vec![]
         };
@@ -158,30 +164,58 @@ fn resolve_candidate_route<G: DirectedGraph>(
         return Some(CandidateRoute { path, candidates });
     }
 
-    let lowest_frc_value = line_lrp1.lrp.lfrcnp().value() + Frc::variance(&line_lrp1.lrp.lfrcnp());
+    let lowest_frc_value = lrp1.lfrcnp().value() + Frc::variance(&lrp1.lfrcnp());
     let lowest_frc = Frc::from_value(lowest_frc_value).unwrap_or(Frc::Frc7);
-
-    let origin = graph.get_edge_start_vertex(line_lrp1.edge)?;
-    let destination = if line_lrp2.lrp.is_last() {
-        graph.get_edge_end_vertex(line_lrp2.edge)?
-    } else {
-        graph.get_edge_start_vertex(line_lrp2.edge)?
-    };
-
     let max_length = max_route_length(config, graph, &candidates);
 
-    if let Some(path) = shortest_path(graph, origin, destination, lowest_frc, max_length) {
+    debug!("Finding route: {edge_lrp1:?} -> {edge_lrp2:?} (max={max_length} low={lowest_frc:?})");
+
+    if let Some(mut path) = shortest_path(graph, edge_lrp1, edge_lrp2, lowest_frc, max_length) {
+        let min_length = lrp1.dnp() - config.next_point_variance;
+
+        if path.length < min_length {
+            debug!("{path:?} length is shorter than expected: {min_length}");
+            return None;
+        }
+
+        if !lrp2.is_last() {
+            let last_edge = path.edges.pop()?;
+            path.length -= graph.get_edge_length(last_edge)?;
+        }
+
         debug_assert!(!path.edges.is_empty());
         debug_assert!(path.length <= max_length);
 
-        let min_length = line_lrp1.lrp.dnp() - config.next_point_variance;
+        debug!("Route found: {edge_lrp1:?} -> {edge_lrp2:?}: {path:?}");
+        return Some(CandidateRoute { path, candidates });
+    }
 
-        if path.length >= min_length {
-            return Some(CandidateRoute { path, candidates });
+    debug!("Route not found: {edge_lrp1:?} -> {edge_lrp2:?}");
+    None
+}
+
+/// Updates the last route with an alternative if this cannot be connected to the given new route.
+/// Returns the new given route or None if the altenative is needed but cannot be computed.
+fn resolve_alternative_route<G: DirectedGraph>(
+    config: &DecoderConfig,
+    graph: &G,
+    routes: &mut [CandidateRoute<G::EdgeId>],
+    new_route: CandidateRoute<G::EdgeId>,
+) -> Option<CandidateRoute<G::EdgeId>> {
+    if let Some(last_route) = routes.last_mut() {
+        // if the previous route ends on a line that is not the start of this new route
+        // then the previous route needs to be re-computed
+        if last_route.last_candidate_edge() != new_route.first_candidate_edge() {
+            let candidates = CandidateLinePair {
+                line_lrp1: last_route.first_candidate(),
+                line_lrp2: new_route.first_candidate(),
+            };
+
+            *last_route = resolve_candidate_route(config, graph, candidates)?;
         }
     }
 
-    None
+    Some(new_route)
 }
 
 fn max_route_length<G: DirectedGraph>(
@@ -203,7 +237,8 @@ fn max_route_length<G: DirectedGraph>(
             .get_edge_length(line_lrp1.edge)
             .unwrap_or(Length::ZERO);
     }
-    if line_lrp2.is_projected() {
+
+    if line_lrp2.is_projected() || !line_lrp2.lrp.is_last() {
         max_distance += graph
             .get_edge_length(line_lrp2.edge)
             .unwrap_or(Length::ZERO);
@@ -212,31 +247,33 @@ fn max_route_length<G: DirectedGraph>(
     Length::from_meters(max_distance.meters().ceil())
 }
 
-fn resolve_top_k_candidate_pairs<EdgeId: Debug + Copy>(
+fn resolve_top_k_candidate_pairs<EdgeId: Debug + Copy + PartialEq>(
     config: &DecoderConfig,
     lines_lrp1: &CandidateLines<EdgeId>,
     lines_lrp2: &CandidateLines<EdgeId>,
 ) -> Result<Vec<CandidateLinePair<EdgeId>>, DecodeError> {
     let max_size = lines_lrp1.lines.len() * lines_lrp2.lines.len();
     let k_size = max_size.min(config.max_number_retries + 1);
-    debug!("Resolving candidate pair ratings with size={k_size}");
+    debug!("Resolving candidate pair ratings with K size: {k_size}");
 
     let mut pair_ratings: BinaryHeap<Reverse<RatingScore>> = BinaryHeap::with_capacity(k_size + 1);
     let mut rating_pairs: HashMap<RatingScore, Vec<_>> = HashMap::with_capacity(k_size + 1);
 
     for &line_lrp1 in &lines_lrp1.lines {
         for &line_lrp2 in &lines_lrp2.lines {
-            let pair_rating = line_lrp1.rating * line_lrp2.rating;
+            let candidate_pair = CandidateLinePair {
+                line_lrp1,
+                line_lrp2,
+            };
+
+            let pair_rating = candidate_pair.rating(config.same_line_degradation);
             pair_ratings.push(Reverse(pair_rating));
 
             if pair_ratings.len() <= k_size {
                 rating_pairs
                     .entry(pair_rating)
                     .or_default()
-                    .push(CandidateLinePair {
-                        line_lrp1,
-                        line_lrp2,
-                    });
+                    .push(candidate_pair);
 
                 continue;
             }
@@ -250,10 +287,7 @@ fn resolve_top_k_candidate_pairs<EdgeId: Debug + Copy>(
             rating_pairs
                 .entry(pair_rating)
                 .or_default()
-                .push(CandidateLinePair {
-                    line_lrp1,
-                    line_lrp2,
-                });
+                .push(candidate_pair);
 
             if let Some(pairs) = rating_pairs.get_mut(&worst_rating)
                 && pairs.len() > 1
@@ -271,9 +305,23 @@ fn resolve_top_k_candidate_pairs<EdgeId: Debug + Copy>(
     }
     candidates.reverse();
 
+    debug!(
+        "Top K candidates: {:?}",
+        candidates
+            .iter()
+            .map(|pair| (
+                pair.line_lrp1.edge,
+                pair.line_lrp2.edge,
+                pair.rating(config.same_line_degradation)
+            ))
+            .collect::<Vec<_>>()
+    );
+
     debug_assert!(rating_pairs.is_empty());
     debug_assert_eq!(candidates.len(), k_size);
-    debug_assert!(candidates.is_sorted_by_key(|pair| Reverse(pair.rating())));
+    debug_assert!(
+        candidates.is_sorted_by_key(|pair| Reverse(pair.rating(config.same_line_degradation)))
+    );
 
     Ok(candidates)
 }
@@ -437,7 +485,7 @@ mod tests {
             },
         ];
 
-        let routes = resolve_routes(&config, graph, &candidate_lines).unwrap();
+        let routes = resolve_routes(&config, graph, &candidate_lines, Offsets::default()).unwrap();
 
         assert_eq!(
             routes,
@@ -521,7 +569,7 @@ mod tests {
             },
         ];
 
-        let routes = resolve_routes(&config, graph, &candidate_lines).unwrap();
+        let routes = resolve_routes(&config, graph, &candidate_lines, Offsets::default()).unwrap();
 
         assert_eq!(
             routes,
@@ -625,7 +673,7 @@ mod tests {
             },
         ];
 
-        let routes = resolve_routes(&config, graph, &candidate_lines).unwrap();
+        let routes = resolve_routes(&config, graph, &candidate_lines, Offsets::default()).unwrap();
 
         assert_eq!(
             routes,
@@ -755,7 +803,7 @@ mod tests {
             },
         ];
 
-        let routes = resolve_routes(&config, graph, &candidate_lines).unwrap();
+        let routes = resolve_routes(&config, graph, &candidate_lines, Offsets::default()).unwrap();
 
         assert_eq!(
             routes,
@@ -884,7 +932,7 @@ mod tests {
             },
         ];
 
-        let routes = resolve_routes(&config, graph, &candidate_lines).unwrap();
+        let routes = resolve_routes(&config, graph, &candidate_lines, Offsets::default()).unwrap();
 
         assert_eq!(
             routes,
@@ -1011,7 +1059,7 @@ mod tests {
             },
         ];
 
-        let routes = resolve_routes(&config, graph, &candidate_lines).unwrap();
+        let routes = resolve_routes(&config, graph, &candidate_lines, Offsets::default()).unwrap();
 
         assert_eq!(
             routes,
