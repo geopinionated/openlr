@@ -47,7 +47,7 @@ pub fn resolve_routes<G: DirectedGraph>(
     candidate_lines: &[CandidateLines<G::EdgeId>],
     offsets: Offsets,
 ) -> Result<CandidateRoutes<G::EdgeId>, DecodeError> {
-    debug!("Resolving routes for {} candidates", candidate_lines.len());
+    debug!("Resolving routes for {} LRPs", candidate_lines.len());
 
     if let Some(routes) = resolve_single_line_routes(graph, candidate_lines, offsets) {
         debug_assert!(is_path_connected(graph, &routes.to_path()));
@@ -125,6 +125,7 @@ fn resolve_single_line_routes<G: DirectedGraph>(
         return None;
     }
 
+    debug!("Route resolved on single best edge: {best_edge:?}");
     Some(routes)
 }
 
@@ -167,6 +168,8 @@ fn resolve_candidate_route<G: DirectedGraph>(
     let lowest_frc = Frc::from_value(lowest_frc_value).unwrap_or(Frc::Frc7);
     let max_length = max_route_length(config, graph, &candidates);
 
+    debug!("Finding route: {edge_lrp1:?} -> {edge_lrp2:?} (max={max_length} low={lowest_frc:?})");
+
     if let Some(mut path) = shortest_path(graph, edge_lrp1, edge_lrp2, lowest_frc, max_length) {
         let min_length = lrp1.dnp() - config.next_point_variance;
 
@@ -183,9 +186,11 @@ fn resolve_candidate_route<G: DirectedGraph>(
         debug_assert!(!path.edges.is_empty());
         debug_assert!(path.length <= max_length);
 
+        debug!("Route found: {edge_lrp1:?} -> {edge_lrp2:?}: {path:?}");
         return Some(CandidateRoute { path, candidates });
     }
 
+    debug!("Route not found: {edge_lrp1:?} -> {edge_lrp2:?}");
     None
 }
 
@@ -249,7 +254,7 @@ fn resolve_top_k_candidate_pairs<EdgeId: Debug + Copy + PartialEq>(
 ) -> Result<Vec<CandidateLinePair<EdgeId>>, DecodeError> {
     let max_size = lines_lrp1.lines.len() * lines_lrp2.lines.len();
     let k_size = max_size.min(config.max_number_retries + 1);
-    debug!("Resolving candidate pair ratings with size={k_size}");
+    debug!("Resolving candidate pair ratings with K size: {k_size}");
 
     let mut pair_ratings: BinaryHeap<Reverse<RatingScore>> = BinaryHeap::with_capacity(k_size + 1);
     let mut rating_pairs: HashMap<RatingScore, Vec<_>> = HashMap::with_capacity(k_size + 1);
@@ -299,6 +304,18 @@ fn resolve_top_k_candidate_pairs<EdgeId: Debug + Copy + PartialEq>(
         candidates.extend(rating_pairs.remove(&rating).into_iter().flatten());
     }
     candidates.reverse();
+
+    debug!(
+        "Top K candidates: {:?}",
+        candidates
+            .iter()
+            .map(|pair| (
+                pair.line_lrp1.edge,
+                pair.line_lrp2.edge,
+                pair.rating(config.same_line_degradation)
+            ))
+            .collect::<Vec<_>>()
+    );
 
     debug_assert!(rating_pairs.is_empty());
     debug_assert_eq!(candidates.len(), k_size);

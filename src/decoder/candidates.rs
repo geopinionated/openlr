@@ -1,5 +1,5 @@
 use std::cmp::Reverse;
-use std::fmt::Debug;
+use std::fmt::{self, Debug};
 
 use tracing::{debug, trace};
 
@@ -92,6 +92,26 @@ struct ProvisionalCandidateLine<EdgeId> {
     bearing: Bearing,
 }
 
+impl<EdgeId: Debug> fmt::Display for ProvisionalCandidateLine<EdgeId> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "Line {{ {:?} | {:?} | {:?} | {} | {}",
+            self.edge,
+            self.frc,
+            self.fow,
+            self.bearing,
+            self.distance_to_lrp.round()
+        )?;
+
+        if let Some(distance_to_projection) = self.distance_to_projection {
+            write!(f, " | {}", &distance_to_projection.round())?;
+        }
+
+        write!(f, " }}")
+    }
+}
+
 /// Each location reference point contains coordinates specifying a node in the encoder map. The
 /// decoder should try to find so called candidate nodes in the decoder map whereby the coordinates
 /// of the candidate nodes are close to the coordinates of the location reference point coordinates.
@@ -161,31 +181,45 @@ where
     let candidate_nodes = candidate_nodes.into_iter();
     let mut candidate_lines = Vec::with_capacity(candidate_nodes.len());
 
-    for lrp_nodes in candidate_nodes {
+    for (i, lrp_nodes) in candidate_nodes.enumerate() {
+        let CandidateNodes { lrp, .. } = &lrp_nodes;
+        debug!("Finding lines for LRP {i} (last={})", lrp.is_last());
+
         let mut lrp_lines = find_candidate_lines_from_nodes(config, graph, lrp_nodes);
         append_projected_candidate_lines(config, graph, &mut lrp_lines);
 
-        if lrp_lines.lines.is_empty() {
-            return Err(DecodeError::CandidatesNotFound(lrp_lines.lrp));
+        let CandidateLines { lines, lrp } = &mut lrp_lines;
+        debug!(
+            "Found {} lines for LRP {i} (last={})",
+            lines.len(),
+            lrp.is_last()
+        );
+
+        if lines.is_empty() {
+            return Err(DecodeError::CandidatesNotFound(*lrp));
         }
 
-        lrp_lines
-            .lines
-            .sort_unstable_by_key(|line| Reverse(line.rating));
+        lines.sort_unstable_by_key(|line| Reverse(line.rating));
 
         // keep at least 1 candidate line, otherwise remove everything below min acceptable rating
-        if let Some(best_rating) = lrp_lines.lines.first().map(|l| l.rating) {
+        if let Some(best_rating) = lines.first().map(|l| l.rating) {
             let position = if best_rating < config.min_line_rating {
                 1
             } else {
-                lrp_lines
-                    .lines
+                lines
                     .binary_search_by(|l| config.min_line_rating.cmp(&l.rating))
                     .unwrap_or_else(|i| i)
             };
 
-            lrp_lines.lines.truncate(position);
+            lines.truncate(position);
         }
+
+        debug!(
+            "Accepted {} lines for LRP {i} (last={}): {:?}",
+            lines.len(),
+            lrp.is_last(),
+            lines.iter().map(|l| (l.edge, l.rating)).collect::<Vec<_>>(),
+        );
 
         candidate_lines.push(lrp_lines);
     }
@@ -199,7 +233,7 @@ fn find_candidate_lines_from_nodes<G: DirectedGraph>(
     candidate_nodes: CandidateNodes<G::VertexId>,
 ) -> CandidateLines<G::EdgeId> {
     let CandidateNodes { lrp, nodes } = candidate_nodes;
-    debug!("Finding lines from {} nodes of {lrp:?}", nodes.len());
+    debug!("Finding lines from {} nodes", nodes.len());
 
     let mut candidate_lines = CandidateLines { lrp, lines: vec![] };
 
@@ -211,10 +245,8 @@ fn find_candidate_lines_from_nodes<G: DirectedGraph>(
         // only outgoing lines are accepted for the LRPs
         // except for the last LRP where only incoming lines are accepted
         let edges: Box<dyn Iterator<Item = _>> = if lrp.is_last() {
-            trace!("Finding entering edges to {vertex:?}");
             Box::new(graph.vertex_entering_edges(vertex))
         } else {
-            trace!("Finding exiting edges from {vertex:?}");
             Box::new(graph.vertex_exiting_edges(vertex))
         };
 
@@ -254,7 +286,7 @@ fn append_projected_candidate_lines<G: DirectedGraph>(
     candidate_lines: &mut CandidateLines<G::EdgeId>,
 ) {
     let lrp = candidate_lines.lrp;
-    debug!("Finding candidates from projected lines of {lrp:?}");
+    debug!("Finding candidates from projected lines");
 
     let projected_lines = graph
         .nearest_edges_within_distance(lrp.coordinate, config.max_node_distance)
@@ -298,7 +330,7 @@ fn append_projected_candidate_lines<G: DirectedGraph>(
             // to encode LRPs at "valid" node coordinates.
             projected_line.rating *= config.projected_line_factor;
             if projected_line.rating < config.min_line_rating {
-                debug!("Discarding {projected_line:?} because rating became too low");
+                trace!("Discarding {projected_line:?} because rating became too low");
                 continue;
             }
         }
@@ -311,14 +343,14 @@ fn append_projected_candidate_lines<G: DirectedGraph>(
             debug_assert_eq!(candidate.lrp, projected_line.lrp);
 
             if candidate.rating < projected_line.rating {
-                debug!("Overriding candidate line with {projected_line:?}");
+                trace!("Overriding candidate line with {projected_line:?}");
                 candidate.rating = projected_line.rating;
                 candidate.distance_to_projection = projected_line.distance_to_projection;
             } else {
-                debug!("Discarding {projected_line:?}: already exists with better rating");
+                trace!("Discarding {projected_line:?}: already exists with better rating");
             }
         } else {
-            debug!("Accepted projected candidate: {projected_line:?}");
+            trace!("Accepted projected candidate: {projected_line:?}");
             candidate_lines.lines.push(projected_line);
         }
     }
@@ -344,17 +376,15 @@ fn rate_line<EdgeId: Debug + Copy>(
     lrp: Point,
     line: ProvisionalCandidateLine<EdgeId>,
 ) -> Option<CandidateLine<EdgeId>> {
-    trace!("Rating: {line:?}");
-
     if let Some(path) = &lrp.path
         && !line.frc.is_within_variance(&path.lfrcnp)
     {
-        trace!("Candidate FRC variance out of bounds: {line:?}");
+        trace!("Candidate FRC variance out of bounds: {line}");
         return None;
     }
 
     if line.bearing.difference(&lrp.line.bearing) > config.max_bearing_difference {
-        trace!("Candidate bearing out of bounds: {line:?}");
+        trace!("Candidate bearing out of bounds: {line}");
         return None;
     }
 
@@ -379,9 +409,10 @@ fn rate_line<EdgeId: Debug + Copy>(
     let line_rating = config.line_factor * (ratings.bearing + ratings.frc + ratings.fow);
     let rating = node_rating + line_rating;
 
-    if rating < config.min_line_rating {
-        trace!("Rating {:?} too low = {rating:?} {ratings:?}", line.edge);
-    }
+    let DecoderConfig {
+        min_line_rating, ..
+    } = config;
+    trace!("Rated {line} = {rating:?} (min={min_line_rating:?}) {ratings:?}");
 
     Some(CandidateLine {
         lrp: line.lrp,

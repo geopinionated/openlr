@@ -392,6 +392,12 @@ impl Mul<Length> for f64 {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct Bearing(u16);
 
+impl fmt::Display for Bearing {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}°", self.degrees())
+    }
+}
+
 impl Bearing {
     pub const NORTH: Self = Self(0);
 

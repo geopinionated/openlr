@@ -1,6 +1,6 @@
 use std::collections::{BinaryHeap, HashMap};
 
-use tracing::debug;
+use tracing::trace;
 
 use crate::graph::dijkstra::{HeapElement, unpack_path};
 use crate::graph::path::{Path, is_path_connected};
@@ -13,7 +13,11 @@ pub fn shortest_path<G: DirectedGraph>(
     lowest_frc: Frc,
     max_length: Length,
 ) -> Option<Path<G::EdgeId>> {
-    debug!("Computing shortest path {origin:?} -> {destination:?}");
+    trace!(
+        "Computing shortest path {origin:?} {:?} -> {destination:?} {:?}",
+        graph.get_edge_start_vertex(origin)?,
+        graph.get_edge_end_vertex(destination)?
+    );
 
     let origin_length = graph.get_edge_length(origin)?;
     let mut shortest_distances = HashMap::from([(origin, origin_length)]);
@@ -52,11 +56,15 @@ pub fn shortest_path<G: DirectedGraph>(
 
         for (edge, _) in exiting_edges {
             let distance = element.distance + graph.get_edge_length(edge)?;
+            let frc = graph.get_edge_frc(edge)?;
+
             if distance > max_length {
+                trace!("Element distance too far: {edge:?} {distance} > {max_length}");
                 continue;
             }
 
-            if graph.get_edge_frc(edge)? > lowest_frc {
+            if frc > lowest_frc {
+                trace!("Element FRC too low: {edge:?} {frc:?} > {lowest_frc:?}",);
                 continue;
             }
 
