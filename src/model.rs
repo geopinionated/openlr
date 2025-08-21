@@ -139,6 +139,10 @@ impl Frc {
     }
 
     pub(crate) fn rating(&self, other: &Self) -> Rating {
+        if *self >= Frc::Frc6 && *other >= Frc::Frc6 {
+            return Rating::Excellent;
+        }
+
         let delta = (self.value() - other.value()).abs();
 
         let rating_interval = |rating| match rating {
