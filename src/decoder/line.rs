@@ -1,4 +1,4 @@
-use tracing::info;
+use tracing::debug;
 
 use crate::decoder::candidates::{find_candidate_lines, find_candidate_nodes};
 use crate::decoder::resolver::resolve_routes;
@@ -9,7 +9,7 @@ pub fn decode_line<G: DirectedGraph>(
     graph: &G,
     line: Line,
 ) -> Result<LineLocation<G::EdgeId>, DecodeError> {
-    info!("Decoding {line:?} with {config:?}");
+    debug!("Decoding {line:?} with {config:?}");
 
     // Step – 2 For each location reference point find candidate nodes
     let nodes = find_candidate_nodes(config, graph, &line.points);

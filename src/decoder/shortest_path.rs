@@ -1,5 +1,6 @@
-use std::collections::{BinaryHeap, HashMap};
+use std::collections::BinaryHeap;
 
+use rustc_hash::FxHashMap;
 use tracing::trace;
 
 use crate::graph::dijkstra::{HeapElement, unpack_path};
@@ -20,8 +21,8 @@ pub fn shortest_path<G: DirectedGraph>(
     );
 
     let origin_length = graph.get_edge_length(origin)?;
-    let mut shortest_distances = HashMap::from([(origin, origin_length)]);
-    let mut previous_map: HashMap<G::EdgeId, G::EdgeId> = HashMap::new();
+    let mut shortest_distances = FxHashMap::from_iter([(origin, origin_length)]);
+    let mut previous_map: FxHashMap<G::EdgeId, G::EdgeId> = FxHashMap::default();
 
     let mut frontier = BinaryHeap::from([HeapElement {
         distance: origin_length,

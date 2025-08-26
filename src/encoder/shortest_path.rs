@@ -1,7 +1,8 @@
-use std::collections::{BinaryHeap, HashMap};
+use std::collections::BinaryHeap;
 use std::fmt::Debug;
 use std::hash::Hash;
 
+use rustc_hash::FxHashMap;
 use tracing::{debug, warn};
 
 use crate::graph::dijkstra::{HeapElement, unpack_path};
@@ -93,8 +94,8 @@ pub fn shortest_path_location<G: DirectedGraph>(
 
     let origin_length = graph.get_edge_length(origin).unwrap_or(Length::MAX);
 
-    let mut shortest_distances = HashMap::from([(origin, origin_length)]);
-    let mut previous_map: HashMap<G::EdgeId, G::EdgeId> = HashMap::new();
+    let mut shortest_distances = FxHashMap::from_iter([(origin, origin_length)]);
+    let mut previous_map: FxHashMap<G::EdgeId, G::EdgeId> = FxHashMap::default();
     let mut intermediator = Intermediator::new(graph, location, max_lrp_distance)?;
 
     let mut frontier = BinaryHeap::from([HeapElement {
@@ -211,7 +212,7 @@ impl<'a, G: DirectedGraph> Intermediator<'a, G> {
     fn get_intermediate(
         &mut self,
         element: HeapElement<G::EdgeId>,
-        previous_map: &HashMap<G::EdgeId, G::EdgeId>,
+        previous_map: &FxHashMap<G::EdgeId, G::EdgeId>,
     ) -> Result<Option<Intermediate>, EncoderError> {
         if element.edge == self.location[0] {
             // the first line is always found because all paths start from the origin
@@ -279,7 +280,7 @@ impl<'a, G: DirectedGraph> Intermediator<'a, G> {
     /// path. Otherwise returns None.
     fn get_location_successor(
         &mut self,
-        previous_map: &HashMap<G::EdgeId, G::EdgeId>,
+        previous_map: &FxHashMap<G::EdgeId, G::EdgeId>,
         element: &HeapElement<G::EdgeId>,
     ) -> Option<G::EdgeId> {
         let previous_element_edge = previous_map.get(&element.edge).copied()?;
@@ -298,7 +299,7 @@ impl<'a, G: DirectedGraph> Intermediator<'a, G> {
     /// and searches for a line having a valid start node.
     fn rfind_intermediate_index(
         &self,
-        previous_map: &HashMap<G::EdgeId, G::EdgeId>,
+        previous_map: &FxHashMap<G::EdgeId, G::EdgeId>,
     ) -> Option<usize> {
         let mut edge = self.last_edge;
 
@@ -320,7 +321,7 @@ impl<'a, G: DirectedGraph> Intermediator<'a, G> {
 /// Returns the first element that is part of both the location and the provided given edge path.
 fn find_common_edge<EdgeId: Copy + Eq + Hash>(
     location: &[EdgeId],
-    previous_map: &HashMap<EdgeId, EdgeId>,
+    previous_map: &FxHashMap<EdgeId, EdgeId>,
     mut edge: EdgeId,
 ) -> Option<EdgeId> {
     while let Some(&previous_edge) = previous_map.get(&edge) {

@@ -1,6 +1,7 @@
 use std::cmp::Ordering;
-use std::collections::HashMap;
 use std::hash::Hash;
+
+use rustc_hash::FxHashMap;
 
 use crate::Length;
 
@@ -33,7 +34,7 @@ impl<EdgeId: Ord> PartialOrd for HeapElement<EdgeId> {
 
 /// Unpacks the shortest path from destination back to origin.
 pub fn unpack_path<EdgeId: Copy + Eq + Hash>(
-    previous_edges: &HashMap<EdgeId, EdgeId>,
+    previous_edges: &FxHashMap<EdgeId, EdgeId>,
     destination: EdgeId,
 ) -> Vec<EdgeId> {
     let mut edges = vec![destination];

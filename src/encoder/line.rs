@@ -1,4 +1,4 @@
-use tracing::info;
+use tracing::debug;
 
 use crate::encoder::expansion::line_location_with_expansion;
 use crate::encoder::resolver::resolve_lrps;
@@ -9,7 +9,7 @@ pub fn encode_line<G: DirectedGraph>(
     graph: &G,
     line: LineLocation<G::EdgeId>,
 ) -> Result<LocationReference, EncoderError> {
-    info!("Encoding {line:?} with {config:?}");
+    debug!("Encoding {line:?} with {config:?}");
 
     // Step – 1 Check validity of the location and offsets to be encoded
     let line = line.trim(graph)?;
