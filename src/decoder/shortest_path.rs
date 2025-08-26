@@ -1,9 +1,10 @@
-use std::collections::BinaryHeap;
+use std::cmp::Reverse;
 
+use radix_heap::RadixHeapMap;
 use rustc_hash::FxHashMap;
 use tracing::trace;
 
-use crate::graph::dijkstra::{HeapElement, unpack_path};
+use crate::graph::dijkstra::unpack_path;
 use crate::graph::path::{Path, is_path_connected};
 use crate::{DirectedGraph, Frc, Length};
 
@@ -23,40 +24,34 @@ pub fn shortest_path<G: DirectedGraph>(
     let origin_length = graph.get_edge_length(origin)?;
     let mut shortest_distances = FxHashMap::from_iter([(origin, origin_length)]);
     let mut previous_map: FxHashMap<G::EdgeId, G::EdgeId> = FxHashMap::default();
+    let mut heap = RadixHeapMap::from_iter([(Reverse(origin_length), origin)]);
 
-    let mut frontier = BinaryHeap::from([HeapElement {
-        distance: origin_length,
-        edge: origin,
-    }]);
-
-    while let Some(element) = frontier.pop() {
-        if element.edge == destination {
+    while let Some((Reverse(h_distance), h_edge)) = heap.pop() {
+        if h_edge == destination {
             // Unpacking: the shortest path from destination back to origin
             let edges = unpack_path(&previous_map, destination);
             debug_assert!(is_path_connected(graph, &edges), "{edges:?}");
 
             return Some(Path {
-                length: element.distance,
+                length: h_distance,
                 edges,
             });
         }
 
         // check if we already know a cheaper way to get to the end of this path from the origin
-        let shortest_distance = *shortest_distances
-            .get(&element.edge)
-            .unwrap_or(&Length::MAX);
-        if element.distance > shortest_distance {
+        let shortest_distance = *shortest_distances.get(&h_edge).unwrap_or(&Length::MAX);
+        if h_distance > shortest_distance {
             continue;
         }
 
         let exiting_edges = graph
-            .get_edge_end_vertex(element.edge)
+            .get_edge_end_vertex(h_edge)
             .into_iter()
             .flat_map(|v| graph.vertex_exiting_edges(v))
-            .filter(|&(e, _)| !graph.is_turn_restricted(element.edge, e));
+            .filter(|&(e, _)| !graph.is_turn_restricted(h_edge, e));
 
         for (edge, _) in exiting_edges {
-            let distance = element.distance + graph.get_edge_length(edge)?;
+            let distance = h_distance + graph.get_edge_length(edge)?;
             let frc = graph.get_edge_frc(edge)?;
 
             if distance > max_length {
@@ -73,12 +68,10 @@ pub fn shortest_path<G: DirectedGraph>(
 
             // check if we can follow the current path to reach the neighbor in a cheaper way
             if distance < shortest_distance {
-                let neighbor = HeapElement { distance, edge };
-
                 // Relax: we have now found a better way that we are going to explore
-                shortest_distances.insert(neighbor.edge, neighbor.distance);
-                previous_map.insert(neighbor.edge, element.edge);
-                frontier.push(neighbor);
+                shortest_distances.insert(edge, distance);
+                previous_map.insert(edge, h_edge);
+                heap.push(Reverse(distance), edge);
             }
         }
     }

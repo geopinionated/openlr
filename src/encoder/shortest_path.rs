@@ -1,11 +1,12 @@
-use std::collections::BinaryHeap;
+use std::cmp::Reverse;
 use std::fmt::Debug;
 use std::hash::Hash;
 
+use radix_heap::RadixHeapMap;
 use rustc_hash::FxHashMap;
 use tracing::{debug, warn};
 
-use crate::graph::dijkstra::{HeapElement, unpack_path};
+use crate::graph::dijkstra::unpack_path;
 use crate::graph::path::is_node_valid;
 use crate::{DirectedGraph, EncoderError, Length, LocationError};
 
@@ -96,22 +97,20 @@ pub fn shortest_path_location<G: DirectedGraph>(
 
     let mut shortest_distances = FxHashMap::from_iter([(origin, origin_length)]);
     let mut previous_map: FxHashMap<G::EdgeId, G::EdgeId> = FxHashMap::default();
+    let mut heap = RadixHeapMap::from_iter([(Reverse(origin_length), origin)]);
     let mut intermediator = Intermediator::new(graph, location, max_lrp_distance)?;
 
-    let mut frontier = BinaryHeap::from([HeapElement {
-        distance: origin_length,
-        edge: origin,
-    }]);
-
-    while let Some(element) = frontier.pop() {
-        if location.contains(&element.edge) {
+    while let Some((Reverse(h_distance), h_edge)) = heap.pop() {
+        if location.contains(&h_edge) {
             // Step – 5 Determine the position of a new intermediate location reference point
-            if let Some(intermediate) = intermediator.get_intermediate(element, &previous_map)? {
+            if let Some(intermediate) =
+                intermediator.get_intermediate(h_edge, h_distance, &previous_map)?
+            {
                 return Ok(ShortestPath::Intermediate(intermediate));
             }
         }
 
-        if element.edge == destination {
+        if h_edge == destination {
             if let Some(location_index) = destination_loop_index {
                 // route found until the destination loop ends
                 debug_assert_eq!(location[location_index], destination);
@@ -132,22 +131,20 @@ pub fn shortest_path_location<G: DirectedGraph>(
         }
 
         // check if we already know a cheaper way to get to the end of this path from the origin
-        let shortest_distance = *shortest_distances
-            .get(&element.edge)
-            .unwrap_or(&Length::MAX);
-        if element.distance > shortest_distance {
+        let shortest_distance = *shortest_distances.get(&h_edge).unwrap_or(&Length::MAX);
+        if h_distance > shortest_distance {
             continue;
         }
 
         let exiting_edges = graph
-            .get_edge_end_vertex(element.edge)
+            .get_edge_end_vertex(h_edge)
             .into_iter()
             .flat_map(|v| graph.vertex_exiting_edges(v))
-            .filter(|&(e, _)| !graph.is_turn_restricted(element.edge, e));
+            .filter(|&(e, _)| !graph.is_turn_restricted(h_edge, e));
 
         for (edge, _) in exiting_edges {
             let edge_length = graph.get_edge_length(edge).unwrap_or(Length::MAX);
-            let distance = element.distance + edge_length;
+            let distance = h_distance + edge_length;
 
             if distance > max_length {
                 continue;
@@ -157,12 +154,10 @@ pub fn shortest_path_location<G: DirectedGraph>(
 
             // check if we can follow the current path to reach the neighbor in a cheaper way
             if distance < shortest_distance {
-                let neighbor = HeapElement { distance, edge };
-
                 // Relax: we have now found a better way that we are going to explore
-                shortest_distances.insert(neighbor.edge, neighbor.distance);
-                previous_map.insert(neighbor.edge, element.edge);
-                frontier.push(neighbor);
+                shortest_distances.insert(edge, distance);
+                previous_map.insert(edge, h_edge);
+                heap.push(Reverse(distance), edge);
             }
         }
     }
@@ -211,19 +206,20 @@ impl<'a, G: DirectedGraph> Intermediator<'a, G> {
     ///   chosen).
     fn get_intermediate(
         &mut self,
-        element: HeapElement<G::EdgeId>,
+        h_edge: G::EdgeId,
+        h_distance: Length,
         previous_map: &FxHashMap<G::EdgeId, G::EdgeId>,
     ) -> Result<Option<Intermediate>, EncoderError> {
-        if element.edge == self.location[0] {
+        if h_edge == self.location[0] {
             // the first line is always found because all paths start from the origin
             return Ok(None);
         }
 
-        if let Some(next_edge) = self.get_location_successor(previous_map, &element) {
+        if let Some(next_edge) = self.get_location_successor(previous_map, h_edge) {
             self.last_edge = next_edge;
             self.last_edge_index += 1;
 
-            let intermediate = if element.distance > self.max_lrp_distance {
+            let intermediate = if h_distance > self.max_lrp_distance {
                 let location_index =
                     self.rfind_intermediate_index(previous_map).ok_or_else(|| {
                         warn!("Cannot rfind valid intermediate to split max LRP distance");
@@ -242,8 +238,8 @@ impl<'a, G: DirectedGraph> Intermediator<'a, G> {
         // Find the start of this deviation along the current path, at least the start line should
         // be found because all the paths go back to the origin.
         let common_edge =
-            find_common_edge(self.location, previous_map, element.edge).ok_or_else(|| {
-                warn!("Cannot find common edge of {element:?}");
+            find_common_edge(self.location, previous_map, h_edge).ok_or_else(|| {
+                warn!("Cannot find common edge of {h_edge:?}");
                 EncoderError::IntermediateError(self.last_edge_index)
             })?;
 
@@ -281,13 +277,13 @@ impl<'a, G: DirectedGraph> Intermediator<'a, G> {
     fn get_location_successor(
         &mut self,
         previous_map: &FxHashMap<G::EdgeId, G::EdgeId>,
-        element: &HeapElement<G::EdgeId>,
+        h_edge: G::EdgeId,
     ) -> Option<G::EdgeId> {
-        let previous_element_edge = previous_map.get(&element.edge).copied()?;
-        let element_edge = Some(element.edge);
+        let previous_element_edge = previous_map.get(&h_edge).copied()?;
+        let h_edge = Some(h_edge);
         let next_edge = self.location.get(self.last_edge_index + 1).copied();
 
-        if self.last_edge == previous_element_edge && next_edge == element_edge {
+        if self.last_edge == previous_element_edge && next_edge == h_edge {
             next_edge
         } else {
             None

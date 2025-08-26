@@ -13,6 +13,7 @@ categories = ["encoding"]
 approx = "0.5"
 base64 = "0.22"
 ordered-float = "5.0"
+radix-heap = "0.4"
 rustc-hash = "2.1"
 strum = { version = "0.27", features = ["derive"] }
 thiserror = "2.0"
