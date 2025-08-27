@@ -1,7 +1,8 @@
 use std::cmp::Reverse;
-use std::collections::{BinaryHeap, HashMap};
+use std::collections::BinaryHeap;
 use std::fmt::Debug;
 
+use rustc_hash::FxHashMap;
 use tracing::debug;
 
 use crate::decoder::candidates::{CandidateLine, CandidateLinePair, CandidateLines};
@@ -257,7 +258,8 @@ fn resolve_top_k_candidate_pairs<EdgeId: Debug + Copy + PartialEq>(
     debug!("Resolving candidate pair ratings with K size: {k_size}");
 
     let mut pair_ratings: BinaryHeap<Reverse<RatingScore>> = BinaryHeap::with_capacity(k_size + 1);
-    let mut rating_pairs: HashMap<RatingScore, Vec<_>> = HashMap::with_capacity(k_size + 1);
+    let mut rating_pairs: FxHashMap<RatingScore, Vec<_>> =
+        FxHashMap::with_capacity_and_hasher(k_size + 1, Default::default());
 
     for &line_lrp1 in &lines_lrp1.lines {
         for &line_lrp2 in &lines_lrp2.lines {

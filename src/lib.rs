@@ -1,4 +1,8 @@
 #![doc = include_str!("../README.md")]
+#![forbid(unsafe_code)]
+#![deny(clippy::unwrap_used)]
+#![deny(clippy::panic)]
+#![deny(clippy::wildcard_enum_match_arm)]
 
 mod decoder;
 mod encoder;

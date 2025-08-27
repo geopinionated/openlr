@@ -136,6 +136,8 @@ pub mod path;
 
 #[cfg(test)]
 pub mod tests {
+    #![allow(clippy::disallowed_types)]
+
     mod geojson;
     mod network;
 

@@ -1,0 +1,20 @@
+allow-unwrap-in-tests = true
+
+# https://rust-lang.github.io/rust-clippy/master/index.html#disallowed_method
+disallowed-methods = [
+]
+
+# https://rust-lang.github.io/rust-clippy/master/index.html#disallowed_macros
+disallowed-macros = [
+  { path = "log::trace", reason = "tracing::trace" },
+  { path = "log::debug", reason = "tracing::debug" },
+  { path = "log::info", reason = "tracing::info" },
+  { path = "log::warn", reason = "tracing::warn" },
+  { path = "log::error", reason = "tracing::error" },
+]
+
+# https://rust-lang.github.io/rust-clippy/master/index.html#/disallowed_types
+disallowed-types = [
+  { path = "std::collections::HashMap", reason = "rustc_hash::FxHashMap" },
+  { path = "std::collections::HashSet", reason = "rustc_hash::FxHashSet" },
+]
