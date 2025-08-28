@@ -7,6 +7,13 @@ Binary (and Base64) ser/deserialization of OpenLR Location References (version 3
 [Reference Implementation (Java)](https://github.com/tomtom-international/openlr)
 
 
+### License
+
+Licensed under either of
+- MIT license (LICENSE-MIT or https://opensource.org/licenses/MIT)
+- Apache License, Version 2.0 (LICENSE-APACHE or https://www.apache.org/licenses/LICENSE-2.0)
+
+
 ### Examples
 
 #### Serialization

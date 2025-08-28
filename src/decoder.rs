@@ -90,9 +90,11 @@ pub fn decode_binary_openlr<G: DirectedGraph>(
     // Step – 1 Decode physical data and check its validity
     let location = deserialize_binary_openlr(data)?;
 
+    use LocationReference::*;
     match location {
-        LocationReference::Line(line) => decode_line(config, graph, line).map(Location::Line),
-        _ => Err(DecodeError::LocationTypeNotSupported(
+        Line(line) => decode_line(config, graph, line).map(Location::Line),
+        GeoCoordinate(_) | PointAlongLine(_) | Poi(_) | Circle(_) | Rectangle(_) | Grid(_)
+        | Polygon(_) | ClosedLine(_) => Err(DecodeError::LocationTypeNotSupported(
             location.location_type(),
         )),
     }
