@@ -8,7 +8,7 @@ use tracing::debug;
 use crate::decoder::candidates::{CandidateLine, CandidateLinePair, CandidateLines};
 use crate::decoder::route::{CandidateRoute, CandidateRoutes};
 use crate::decoder::shortest_path::shortest_path;
-use crate::graph::path::{Path, is_path_connected};
+use crate::graph::path::{Path, is_path_connected, is_path_loop};
 use crate::model::RatingScore;
 use crate::{DecodeError, DecoderConfig, DirectedGraph, Frc, Length, Offsets};
 
@@ -55,7 +55,7 @@ pub fn resolve_routes<G: DirectedGraph>(
         return Ok(routes);
     }
 
-    let mut routes: Vec<CandidateRoute<G::EdgeId>> = Vec::with_capacity(candidate_lines.len() - 1);
+    let mut routes: CandidateRoutes<_> = Vec::with_capacity(candidate_lines.len() - 1).into();
 
     for window in candidate_lines.windows(2) {
         let [candidates_lrp1, candidates_lrp2] = [&window[0], &window[1]];
@@ -68,7 +68,11 @@ pub fn resolve_routes<G: DirectedGraph>(
         // not connected to each other.
         for candidates in pairs {
             let route = resolve_candidate_route(config, graph, candidates)
-                .and_then(|route| resolve_alternative_route(config, graph, &mut routes, route));
+                .and_then(|route| resolve_alternative_route(config, graph, &mut routes, route))
+                .filter(|route| {
+                    let (pos_offset, neg_offset) = route.calculate_offsets(graph, offsets);
+                    !is_path_loop(graph, &route.path.edges, pos_offset, neg_offset)
+                });
 
             if let Some(route) = route {
                 routes.push(route);
@@ -84,7 +88,6 @@ pub fn resolve_routes<G: DirectedGraph>(
         }
     }
 
-    let routes = CandidateRoutes::from(routes);
     debug_assert!(is_path_connected(graph, &routes.to_path()));
     Ok(routes)
 }
