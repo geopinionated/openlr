@@ -20,8 +20,9 @@ thiserror = "2.0"
 tracing = "0.1"
 
 [dev-dependencies]
-geo = "0.30"
+geo = "0.31"
 geojson = "0.24"
 graph = "0.3"
+rayon = "=1.10.0" # https://github.com/neo4j-labs/graph/issues/138
 rstar = "0.12"
 test-log = { version = "0.2", features = ["trace"] }
