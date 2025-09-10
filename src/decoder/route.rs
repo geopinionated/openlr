@@ -1,5 +1,5 @@
 use std::fmt::Debug;
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 
 use crate::decoder::candidates::{CandidateLine, CandidateLinePair};
 use crate::graph::path::Path;
@@ -13,7 +13,7 @@ pub struct CandidateRoute<EdgeId> {
 }
 
 /// The sequence of all the shortest routes that connect each consecutive LRP pair.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct CandidateRoutes<EdgeId>(Vec<CandidateRoute<EdgeId>>);
 
 impl<EdgeId> From<Vec<CandidateRoute<EdgeId>>> for CandidateRoutes<EdgeId> {
@@ -26,6 +26,12 @@ impl<EdgeId> Deref for CandidateRoutes<EdgeId> {
     type Target = Vec<CandidateRoute<EdgeId>>;
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl<EdgeId> DerefMut for CandidateRoutes<EdgeId> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
 
@@ -78,7 +84,7 @@ impl<EdgeId: Debug + Copy + PartialEq> CandidateRoutes<EdgeId> {
         let pos_offset = offsets.distance_from_start(head_length) + distance_from_start;
         let neg_offset = offsets.distance_to_end(tail_length) + distance_to_end;
 
-        Some((pos_offset.round(), neg_offset.round()))
+        Some((pos_offset, neg_offset))
     }
 }
 
@@ -105,6 +111,21 @@ impl<EdgeId: Copy> CandidateRoute<EdgeId> {
         } else {
             Length::ZERO
         }
+    }
+
+    /// Gets the positive and negative offsets calculated from the projections of the LRPs.
+    pub fn calculate_offsets<G>(&self, graph: &G, offsets: Offsets) -> (Length, Length)
+    where
+        G: DirectedGraph<EdgeId = EdgeId>,
+    {
+        let distance_from_start = self.distance_from_start();
+        let distance_to_end = self.distance_to_end(graph);
+        let length = self.path.length - distance_from_start - distance_to_end;
+
+        let pos_offset = offsets.distance_from_start(length) + distance_from_start;
+        let neg_offset = offsets.distance_to_end(length) + distance_to_end;
+
+        (pos_offset, neg_offset)
     }
 
     pub const fn first_candidate(&self) -> CandidateLine<EdgeId> {

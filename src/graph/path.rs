@@ -1,3 +1,5 @@
+use rustc_hash::FxHashSet;
+
 use crate::{DirectedGraph, Length};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -13,6 +15,42 @@ impl<EdgeId> Default for Path<EdgeId> {
             edges: vec![],
         }
     }
+}
+
+/// Returns true only if the path contains a loop when considering positive and negative offsets.
+pub fn is_path_loop<G: DirectedGraph>(
+    graph: &G,
+    path: &[G::EdgeId],
+    pos_offset: Length,
+    neg_offset: Length,
+) -> bool {
+    let vertices = {
+        let first = path
+            .first()
+            .filter(|_| pos_offset.is_zero())
+            .and_then(|&e| graph.get_edge_start_vertex(e));
+
+        let middle = path
+            .iter()
+            .skip(1)
+            .flat_map(|&e| graph.get_edge_start_vertex(e));
+
+        let last = path
+            .last()
+            .filter(|_| neg_offset.is_zero())
+            .and_then(|&e| graph.get_edge_end_vertex(e));
+
+        first.into_iter().chain(middle).chain(last)
+    };
+
+    let mut seen = FxHashSet::default();
+    for v in vertices {
+        if !seen.insert(v) {
+            return true;
+        }
+    }
+
+    false
 }
 
 /// Returns true only if all the edges of the path are sequentially connected in the given graph.
