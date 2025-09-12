@@ -400,7 +400,7 @@ fn rate_line<EdgeId: Debug + Copy>(
 
     let ratings = Ratings {
         distance: RatingScore::from(distance),
-        bearing: Bearing::rating_score(line.bearing.rating(&lrp.line.bearing)),
+        bearing: line.bearing.rating_score(&lrp.line.bearing),
         frc: Frc::rating_score(line.frc.rating(&lrp.line.frc)),
         fow: Fow::rating_score(line.fow.rating(&lrp.line.fow)),
     };
