@@ -420,12 +420,7 @@ mod tests {
             lrps,
             [
                 LocRefPoint {
-                    edges: vec![
-                        EdgeId(-7516884),
-                        EdgeId(-7292029),
-                        EdgeId(7516886),
-                        EdgeId(7516883)
-                    ],
+                    edges: vec![EdgeId(-7516884), EdgeId(-7292029), EdgeId(7516886)],
                     point: Point {
                         coordinate: Coordinate {
                             lon: 13.4579134,
@@ -438,25 +433,25 @@ mod tests {
                         },
                         path: Some(PathAttributes {
                             lfrcnp: Frc::Frc6,
-                            dnp: Length::from_meters(101.0)
+                            dnp: Length::from_meters(67.0)
                         })
                     }
                 },
                 LocRefPoint {
-                    edges: vec![EdgeId(-7516884), EdgeId(7292030)],
+                    edges: vec![EdgeId(7516883), EdgeId(-7516884), EdgeId(7292030)],
                     point: Point {
                         coordinate: Coordinate {
-                            lon: 13.4579134,
-                            lat: 52.5186781
+                            lon: 13.4580688,
+                            lat: 52.5189743
                         },
                         line: LineAttributes {
                             frc: Frc::Frc6,
                             fow: Fow::SingleCarriageway,
-                            bearing: Bearing::from_degrees(285),
+                            bearing: Bearing::from_degrees(198),
                         },
                         path: Some(PathAttributes {
                             lfrcnp: Frc::Frc6,
-                            dnp: Length::from_meters(125.0)
+                            dnp: Length::from_meters(159.0)
                         })
                     }
                 },
@@ -540,12 +535,7 @@ mod tests {
                     }
                 },
                 LocRefPoint {
-                    edges: vec![
-                        EdgeId(-7292029),
-                        EdgeId(7516886),
-                        EdgeId(7516883),
-                        EdgeId(-7516884)
-                    ],
+                    edges: vec![EdgeId(-7292029), EdgeId(7516886), EdgeId(7516883)],
                     point: Point {
                         coordinate: Coordinate {
                             lon: 13.4576677,
@@ -558,7 +548,25 @@ mod tests {
                         },
                         path: Some(PathAttributes {
                             lfrcnp: Frc::Frc6,
-                            dnp: Length::from_meters(101.0)
+                            dnp: Length::from_meters(84.0)
+                        })
+                    }
+                },
+                LocRefPoint {
+                    edges: vec![EdgeId(-7516884)],
+                    point: Point {
+                        coordinate: Coordinate {
+                            lon: 13.4579134,
+                            lat: 52.5186781
+                        },
+                        line: LineAttributes {
+                            frc: Frc::Frc6,
+                            fow: Fow::SingleCarriageway,
+                            bearing: Bearing::from_degrees(285),
+                        },
+                        path: Some(PathAttributes {
+                            lfrcnp: Frc::Frc6,
+                            dnp: Length::from_meters(17.0)
                         })
                     }
                 },
