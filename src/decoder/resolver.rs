@@ -49,8 +49,11 @@ pub fn resolve_routes<G: DirectedGraph>(
     offsets: Offsets,
 ) -> Result<CandidateRoutes<G::EdgeId>, DecodeError> {
     debug!("Resolving routes for {} LRPs", candidate_lines.len());
+    let best_edge = find_best_candidate_edge(candidate_lines);
 
-    if let Some(routes) = resolve_single_line_routes(graph, candidate_lines, offsets) {
+    if let Some(routes) = best_edge.and_then(|best_edge| {
+        resolve_single_line_routes(graph, candidate_lines, best_edge, offsets)
+    }) {
         debug_assert!(is_path_connected(graph, &routes.to_path()));
         return Ok(routes);
     }
@@ -92,35 +95,55 @@ pub fn resolve_routes<G: DirectedGraph>(
     Ok(routes)
 }
 
+/// Returns Some edge only if all the candidate lines have the same edge as best candidate.
+/// Otherwise returns None.
+fn find_best_candidate_edge<EdgeId: Copy + PartialEq>(
+    candidate_lines: &[CandidateLines<EdgeId>],
+) -> Option<EdgeId> {
+    debug_assert!(candidate_lines.iter().all(|c| !c.lines.is_empty()));
+    let mut best_candidates = candidate_lines.iter().filter_map(|c| c.best_candidate());
+
+    let CandidateLine {
+        edge: best_edge, ..
+    } = best_candidates.next()?;
+
+    if best_candidates.any(|candidate| candidate.edge != best_edge) {
+        return None;
+    }
+
+    Some(best_edge)
+}
+
 /// If all the best candidate lines are equal there is no need to compute top K candidates and
 /// their shortest paths, we can just return the best candidate line for each LRP.
 fn resolve_single_line_routes<G: DirectedGraph>(
     graph: &G,
     candidate_lines: &[CandidateLines<G::EdgeId>],
+    best_edge: G::EdgeId,
     offsets: Offsets,
 ) -> Option<CandidateRoutes<G::EdgeId>> {
-    let CandidateLine {
-        edge: best_edge, ..
-    } = candidate_lines.first().and_then(|c| c.best_candidate())?;
+    let pairs = candidate_lines.windows(2).filter_map(|window| {
+        Some(CandidateLinePair {
+            line_lrp1: window[0].best_candidate()?,
+            line_lrp2: window[1].best_candidate()?,
+        })
+    });
 
-    let mut best_candidates = candidate_lines.iter().skip(1).map(|c| c.best_candidate());
+    let routes: Vec<_> = pairs
+        .enumerate()
+        .map(|(i, candidates)| {
+            let edges = if i == 0 { vec![best_edge] } else { vec![] };
 
-    if best_candidates.any(|c| c.map(|line| line.edge) != Some(best_edge)) {
-        return None;
-    }
+            let path = Path {
+                length: edges.iter().filter_map(|&e| graph.get_edge_length(e)).sum(),
+                edges,
+            };
 
-    let path = Path {
-        length: graph.get_edge_length(best_edge)?,
-        edges: vec![best_edge],
-    };
+            CandidateRoute { path, candidates }
+        })
+        .collect();
 
-    let candidates = CandidateLinePair {
-        line_lrp1: candidate_lines.first().and_then(|c| c.best_candidate())?,
-        line_lrp2: candidate_lines.last().and_then(|c| c.best_candidate())?,
-    };
-
-    let routes = CandidateRoutes::from(vec![CandidateRoute { path, candidates }]);
-
+    let routes: CandidateRoutes<_> = routes.into();
     let offsets = routes.calculate_offsets(graph, offsets);
     let (pos_offset, neg_offset) = offsets.unwrap_or_default();
 
@@ -1068,16 +1091,149 @@ mod tests {
 
         assert_eq!(
             routes,
-            CandidateRoutes::from(vec![CandidateRoute {
-                path: Path {
-                    edges: vec![EdgeId(16218)],
-                    length: Length::from_meters(217.0),
+            CandidateRoutes::from(vec![
+                CandidateRoute {
+                    path: Path {
+                        length: Length::from_meters(217.0),
+                        edges: vec![EdgeId(16218)]
+                    },
+                    candidates: CandidateLinePair {
+                        line_lrp1: CandidateLine {
+                            lrp: Point {
+                                coordinate: Coordinate {
+                                    lon: 13.454214,
+                                    lat: 52.5157088
+                                },
+                                line: LineAttributes {
+                                    frc: Frc::Frc2,
+                                    fow: Fow::SingleCarriageway,
+                                    bearing: Bearing::from_degrees(99)
+                                },
+                                path: Some(PathAttributes {
+                                    lfrcnp: Frc::Frc2,
+                                    dnp: Length::from_meters(100.0)
+                                })
+                            },
+                            edge: EdgeId(16218),
+                            rating: RatingScore::from(1000.0),
+                            distance_to_projection: None
+                        },
+                        line_lrp2: CandidateLine {
+                            lrp: Point {
+                                coordinate: Coordinate {
+                                    lon: 13.455676,
+                                    lat: 52.515561
+                                },
+                                line: LineAttributes {
+                                    frc: Frc::Frc2,
+                                    fow: Fow::SingleCarriageway,
+                                    bearing: Bearing::from_degrees(100)
+                                },
+                                path: Some(PathAttributes {
+                                    lfrcnp: Frc::Frc2,
+                                    dnp: Length::from_meters(100.0)
+                                })
+                            },
+                            edge: EdgeId(16218),
+                            rating: RatingScore::from(1000.0),
+                            distance_to_projection: None
+                        }
+                    }
                 },
-                candidates: CandidateLinePair {
-                    line_lrp1: line_first_lrp,
-                    line_lrp2: line_last_lrp
+                CandidateRoute {
+                    path: Path {
+                        length: Length::ZERO,
+                        edges: vec![]
+                    },
+                    candidates: CandidateLinePair {
+                        line_lrp1: CandidateLine {
+                            lrp: Point {
+                                coordinate: Coordinate {
+                                    lon: 13.455676,
+                                    lat: 52.515561
+                                },
+                                line: LineAttributes {
+                                    frc: Frc::Frc2,
+                                    fow: Fow::SingleCarriageway,
+                                    bearing: Bearing::from_degrees(100)
+                                },
+                                path: Some(PathAttributes {
+                                    lfrcnp: Frc::Frc2,
+                                    dnp: Length::from_meters(100.0)
+                                })
+                            },
+                            edge: EdgeId(16218),
+                            rating: RatingScore::from(1000.0),
+                            distance_to_projection: None
+                        },
+                        line_lrp2: CandidateLine {
+                            lrp: Point {
+                                coordinate: Coordinate {
+                                    lon: 13.457137,
+                                    lat: 52.515407
+                                },
+                                line: LineAttributes {
+                                    frc: Frc::Frc2,
+                                    fow: Fow::SingleCarriageway,
+                                    bearing: Bearing::from_degrees(100)
+                                },
+                                path: Some(PathAttributes {
+                                    lfrcnp: Frc::Frc2,
+                                    dnp: Length::from_meters(17.0)
+                                })
+                            },
+                            edge: EdgeId(16218),
+                            rating: RatingScore::from(1000.0),
+                            distance_to_projection: None
+                        }
+                    }
+                },
+                CandidateRoute {
+                    path: Path {
+                        length: Length::ZERO,
+                        edges: vec![]
+                    },
+                    candidates: CandidateLinePair {
+                        line_lrp1: CandidateLine {
+                            lrp: Point {
+                                coordinate: Coordinate {
+                                    lon: 13.457137,
+                                    lat: 52.515407
+                                },
+                                line: LineAttributes {
+                                    frc: Frc::Frc2,
+                                    fow: Fow::SingleCarriageway,
+                                    bearing: Bearing::from_degrees(100)
+                                },
+                                path: Some(PathAttributes {
+                                    lfrcnp: Frc::Frc2,
+                                    dnp: Length::from_meters(17.0)
+                                })
+                            },
+                            edge: EdgeId(16218),
+                            rating: RatingScore::from(1000.0),
+                            distance_to_projection: None
+                        },
+                        line_lrp2: CandidateLine {
+                            lrp: Point {
+                                coordinate: Coordinate {
+                                    lon: 13.457386,
+                                    lat: 52.5153814
+                                },
+                                line: LineAttributes {
+                                    frc: Frc::Frc2,
+                                    fow: Fow::SingleCarriageway,
+                                    bearing: Bearing::from_degrees(280)
+                                },
+                                path: None
+                            },
+                            edge: EdgeId(16218),
+                            rating: RatingScore::from(1000.0),
+                            distance_to_projection: None
+                        }
+                    }
                 }
-            }])
+            ])
         );
     }
 }
