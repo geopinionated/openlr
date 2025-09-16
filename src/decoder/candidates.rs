@@ -61,7 +61,7 @@ impl<EdgeId: PartialEq> CandidateLinePair<EdgeId> {
     pub fn rating(&self, same_line_degradation: f64) -> RatingScore {
         let mut rating = self.line_lrp1.rating * self.line_lrp2.rating;
 
-        if self.line_lrp1.edge == self.line_lrp2.edge {
+        if self.line_lrp1.edge == self.line_lrp2.edge && !self.line_lrp2.lrp.is_last() {
             rating *= same_line_degradation;
         }
 
