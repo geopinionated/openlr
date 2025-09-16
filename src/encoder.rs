@@ -43,8 +43,15 @@ pub struct EncoderConfig {
 
 impl Default for EncoderConfig {
     fn default() -> Self {
+        // The smaller the max LRP distance the higher the offsets precision, however a small
+        // distance can also negatively affect the decoding step, since having multiple LRPs
+        // on the same line will incur in the same line degradation when rating any possible
+        // route where 2 LRPs are on the same edge.
+        const DEFAULT_MAX_LRP_DISTANCE: Length = Length::from_meters(4000.0);
+        debug_assert!(DEFAULT_MAX_LRP_DISTANCE <= Length::MAX_BINARY_LRP_DISTANCE);
+
         Self {
-            max_lrp_distance: Length::MAX_BINARY_LRP_DISTANCE,
+            max_lrp_distance: DEFAULT_MAX_LRP_DISTANCE,
             bearing_distance: Length::from_meters(20.0),
         }
     }
