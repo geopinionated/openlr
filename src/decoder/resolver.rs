@@ -64,7 +64,8 @@ pub fn resolve_routes<G: DirectedGraph>(
         let [candidates_lrp1, candidates_lrp2] = [&window[0], &window[1]];
         let routes_count = routes.len();
 
-        let pairs = resolve_top_k_candidate_pairs(config, candidates_lrp1, candidates_lrp2)?;
+        let pairs =
+            resolve_top_k_candidate_pairs(config, candidates_lrp1, candidates_lrp2, best_edge)?;
 
         // Find the first candidates pair that can be used to construct a valid route between the
         // two consecutive LRPs, also try to find an alternative route if consecutive best pairs are
@@ -278,6 +279,7 @@ fn resolve_top_k_candidate_pairs<EdgeId: Debug + Copy + PartialEq>(
     config: &DecoderConfig,
     lines_lrp1: &CandidateLines<EdgeId>,
     lines_lrp2: &CandidateLines<EdgeId>,
+    best_single_line_edge: Option<EdgeId>,
 ) -> Result<Vec<CandidateLinePair<EdgeId>>, DecodeError> {
     let max_size = lines_lrp1.lines.len() * lines_lrp2.lines.len();
     let k_size = max_size.min(config.max_number_retries + 1);
@@ -289,6 +291,17 @@ fn resolve_top_k_candidate_pairs<EdgeId: Debug + Copy + PartialEq>(
 
     for &line_lrp1 in &lines_lrp1.lines {
         for &line_lrp2 in &lines_lrp2.lines {
+            // discard the candidate line pair when there are multiple top K candidates and the best
+            // single line edge exists but was previously not considered valid to form the route
+            if let Some(best_edge) = best_single_line_edge
+                && k_size > 1
+                && line_lrp1.edge == line_lrp2.edge
+                && line_lrp1.edge == best_edge
+            {
+                debug!("Discarding best single line edge {best_edge:?} from top K candidates");
+                continue;
+            }
+
             let candidate_pair = CandidateLinePair {
                 line_lrp1,
                 line_lrp2,
@@ -346,7 +359,7 @@ fn resolve_top_k_candidate_pairs<EdgeId: Debug + Copy + PartialEq>(
     );
 
     debug_assert!(rating_pairs.is_empty());
-    debug_assert_eq!(candidates.len(), k_size);
+    debug_assert!(candidates.len() <= k_size);
     debug_assert!(
         candidates.is_sorted_by_key(|pair| Reverse(pair.rating(config.same_line_degradation)))
     );
@@ -415,6 +428,7 @@ mod tests {
                 lrp: Point::default(),
                 lines: vec![line3, line4, line5],
             },
+            None,
         )
         .unwrap();
 
