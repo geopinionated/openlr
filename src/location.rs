@@ -1,3 +1,7 @@
+use std::fmt::Debug;
+
+use tracing::debug;
+
 use crate::graph::path::is_path_connected;
 use crate::{DirectedGraph, Length, LocationError};
 
@@ -19,7 +23,7 @@ pub struct LineLocation<EdgeId> {
     pub neg_offset: Length,
 }
 
-impl<EdgeId: Copy> LineLocation<EdgeId> {
+impl<EdgeId: Copy + Debug> LineLocation<EdgeId> {
     pub fn path_length<G>(&self, graph: &G) -> Length
     where
         G: DirectedGraph<EdgeId = EdgeId>,
@@ -47,6 +51,7 @@ impl<EdgeId: Copy> LineLocation<EdgeId> {
     where
         G: DirectedGraph<EdgeId = EdgeId>,
     {
+        debug!("Trimming {self:?}");
         let path_length = self.path_length(graph);
 
         let Self {

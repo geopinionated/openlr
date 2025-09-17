@@ -1,6 +1,8 @@
 use std::fmt::Debug;
 use std::ops::Deref;
 
+use tracing::{debug, trace};
+
 use crate::{
     Coordinate, DirectedGraph, EncoderConfig, EncoderError, Frc, Length, Line, LineAttributes,
     Offset, Offsets, PathAttributes, Point,
@@ -39,6 +41,9 @@ pub struct LocRefPoint<EdgeId> {
     pub edges: Vec<EdgeId>,
     /// The Location Reference Point.
     pub point: Point,
+    /// If the LRP was built from a line (instead of direclty from a node), this coordinate
+    /// represents the location of where the LRP was projected onto the line.
+    pub projection_coordinate: Option<Coordinate>,
 }
 
 impl<EdgeId: Copy> LocRefPoint<EdgeId> {
@@ -63,7 +68,7 @@ impl<EdgeId: Copy> LocRefPoint<EdgeId> {
 
         let path = PathAttributes {
             lfrcnp: lfrcnp.unwrap_or(Frc::Frc7),
-            dnp: dnp.ceil(),
+            dnp,
         };
 
         Some(Self {
@@ -73,6 +78,7 @@ impl<EdgeId: Copy> LocRefPoint<EdgeId> {
                 line,
                 path: Some(path),
             },
+            projection_coordinate: None,
         })
     }
 
@@ -98,6 +104,7 @@ impl<EdgeId: Copy> LocRefPoint<EdgeId> {
                 line,
                 path: None,
             },
+            projection_coordinate: None,
         })
     }
 
@@ -114,7 +121,7 @@ impl<EdgeId: Copy> LocRefPoint<EdgeId> {
         let projection = graph.get_distance_along_edge(edge, coordinate)?;
         let bearing_distance = config.bearing_distance;
         let lfrcnp = graph.get_edge_frc(edge)?;
-        let dnp = (graph.get_edge_length(edge)? - projection).ceil();
+        let dnp = graph.get_edge_length(edge)? - projection;
 
         let line = LineAttributes {
             frc: graph.get_edge_frc(edge)?,
@@ -129,6 +136,37 @@ impl<EdgeId: Copy> LocRefPoint<EdgeId> {
                 line,
                 path: Some(PathAttributes { lfrcnp, dnp }),
             },
+            projection_coordinate: Some(coordinate),
+        })
+    }
+
+    /// Constructs a new LRP based on the last line.
+    pub fn last_line<G>(
+        config: &EncoderConfig,
+        graph: &G,
+        edge: EdgeId,
+        coordinate: Coordinate,
+    ) -> Option<Self>
+    where
+        G: DirectedGraph<EdgeId = EdgeId>,
+    {
+        let projection = graph.get_distance_along_edge(edge, coordinate)?;
+        let bearing_distance = config.bearing_distance.reverse();
+
+        let line = LineAttributes {
+            frc: graph.get_edge_frc(edge)?,
+            fow: graph.get_edge_fow(edge)?,
+            bearing: graph.get_edge_bearing(edge, projection, bearing_distance)?,
+        };
+
+        Some(Self {
+            edges: vec![],
+            point: Point {
+                coordinate,
+                line,
+                path: None,
+            },
+            projection_coordinate: Some(coordinate),
         })
     }
 }
@@ -139,10 +177,13 @@ impl<EdgeId: Copy + Debug> LocRefPoints<EdgeId> {
     where
         G: DirectedGraph<EdgeId = EdgeId>,
     {
+        debug!("Trimming {} LRPs", self.lrps.len());
+
         self.lrps.reverse();
         while let Some(lrp) = self.lrps.last()
             && self.pos_offset >= lrp.point.dnp()
         {
+            trace!("Trimming front {} {}", self.pos_offset, lrp.point.dnp());
             self.pos_offset -= lrp.point.dnp();
             self.lrps.pop();
         }
@@ -151,6 +192,7 @@ impl<EdgeId: Copy + Debug> LocRefPoints<EdgeId> {
         while let Some(lrp) = self.lrps.iter().rev().nth(1)
             && self.neg_offset >= lrp.point.dnp()
         {
+            trace!("Trimming back {} {}", self.neg_offset, lrp.point.dnp());
             self.neg_offset -= lrp.point.dnp();
             self.lrps.pop();
         }
@@ -165,8 +207,12 @@ impl<EdgeId: Copy + Debug> LocRefPoints<EdgeId> {
             && let Some(&last_edge) = lrps_rev.next().and_then(|lrp| lrp.edges.last())
         {
             // the last LRP was trimmed: update the remaining one to become the last LRP
-            *last_lrp = LocRefPoint::last_node(config, graph, last_edge)
-                .ok_or(EncoderError::InvalidLrpOffsets)?;
+            *last_lrp = if let Some(coordinate) = last_lrp.projection_coordinate {
+                LocRefPoint::last_line(config, graph, last_edge, coordinate)
+            } else {
+                LocRefPoint::last_node(config, graph, last_edge)
+            }
+            .ok_or(EncoderError::InvalidLrpOffsets)?;
         }
 
         Ok(self)
@@ -224,6 +270,7 @@ mod tests {
                         dnp: Length::from_meters(14.0),
                     }),
                 },
+                projection_coordinate: None,
             },
             LocRefPoint {
                 edges: vec![],
@@ -239,6 +286,7 @@ mod tests {
                     },
                     path: None,
                 },
+                projection_coordinate: None,
             },
         ];
 
@@ -282,6 +330,7 @@ mod tests {
                         dnp: Length::from_meters(108.0),
                     }),
                 },
+                projection_coordinate: None,
             },
             LocRefPoint {
                 edges: vec![
@@ -305,6 +354,7 @@ mod tests {
                         dnp: Length::from_meters(94.0),
                     }),
                 },
+                projection_coordinate: None,
             },
             LocRefPoint {
                 edges: vec![],
@@ -320,6 +370,7 @@ mod tests {
                     },
                     path: None,
                 },
+                projection_coordinate: None,
             },
         ];
 
@@ -409,7 +460,8 @@ mod tests {
                                 bearing: Bearing::from_degrees(200),
                             },
                             path: None
-                        }
+                        },
+                        projection_coordinate: None,
                     }
                 ]
             }

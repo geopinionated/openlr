@@ -1,6 +1,6 @@
 use std::fmt;
 use std::iter::Sum;
-use std::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
+use std::ops::{Add, AddAssign, Mul, MulAssign, Range, Sub, SubAssign};
 
 use approx::abs_diff_eq;
 use ordered_float::OrderedFloat;
@@ -422,7 +422,7 @@ impl Bearing {
         Self::from_degrees(degrees)
     }
 
-    pub(crate) fn rating(&self, other: &Self) -> Rating {
+    pub(crate) fn rating_score(&self, other: &Self) -> RatingScore {
         let difference = self.difference(other);
 
         let rating_interval = |rating| match rating {
@@ -432,16 +432,22 @@ impl Bearing {
             Rating::Poor => 45,
         };
 
-        Rating::iter()
+        let rating = Rating::iter()
             .find(|&rating| difference.degrees() <= rating_interval(rating))
-            .unwrap_or(Rating::Poor)
-    }
+            .unwrap_or(Rating::Poor);
 
-    pub(crate) fn rating_score(rating: Rating) -> RatingScore {
+        let linear_interpolate = |delta: Bearing, range: Range<f64>| {
+            let delta = delta.degrees() as f64;
+            let score = range.start + (1.0 - delta / 360.0) * (range.end - range.start);
+            RatingScore::from(score)
+        };
+
+        // keep a significative distance between scores of different ratings while assigning
+        // better scores to smaller differences between degrees
         match rating {
-            Rating::Excellent => RatingScore::from(100.0),
-            Rating::Good => RatingScore::from(50.0),
-            Rating::Average => RatingScore::from(25.0),
+            Rating::Excellent => linear_interpolate(difference, 90.0..100.0),
+            Rating::Good => linear_interpolate(difference, 40.0..60.0),
+            Rating::Average => linear_interpolate(difference, 20.0..30.0),
             Rating::Poor => RatingScore::from(0.0),
         }
     }

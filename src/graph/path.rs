@@ -1,4 +1,5 @@
 use rustc_hash::FxHashSet;
+use tracing::debug;
 
 use crate::{DirectedGraph, Length};
 
@@ -46,6 +47,7 @@ pub fn is_path_loop<G: DirectedGraph>(
     let mut seen = FxHashSet::default();
     for v in vertices {
         if !seen.insert(v) {
+            debug!("Found loop at {v:?}: {path:?}");
             return true;
         }
     }

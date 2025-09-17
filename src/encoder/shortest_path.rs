@@ -7,7 +7,7 @@ use rustc_hash::FxHashMap;
 use tracing::{debug, warn};
 
 use crate::graph::dijkstra::unpack_path;
-use crate::graph::path::is_node_valid;
+use crate::graph::path::{is_node_valid, is_path_loop};
 use crate::{DirectedGraph, EncoderError, Length, LocationError};
 
 /// Represents a subset, or the totality, of the location that is a shortest path.
@@ -101,12 +101,18 @@ pub fn shortest_path_location<G: DirectedGraph>(
     let mut intermediator = Intermediator::new(graph, location, max_lrp_distance)?;
 
     while let Some((Reverse(h_distance), h_edge)) = heap.pop() {
-        if location.contains(&h_edge) {
+        if let Some(location_index) = location.iter().position(|&e| e == h_edge) {
             // Step – 5 Determine the position of a new intermediate location reference point
             if let Some(intermediate) =
                 intermediator.get_intermediate(h_edge, h_distance, &previous_map)?
             {
                 return Ok(ShortestPath::Intermediate(intermediate));
+            }
+
+            let path = &location[..=location_index];
+            debug_assert_eq!(path, unpack_path(&previous_map, h_edge));
+            if is_path_loop(graph, path, Length::ZERO, Length::ZERO) {
+                return Ok(ShortestPath::Intermediate(Intermediate { location_index }));
             }
         }
 
@@ -503,7 +509,7 @@ mod tests {
 
         assert_eq!(
             route,
-            ShortestPath::Intermediate(Intermediate { location_index: 4 })
+            ShortestPath::Intermediate(Intermediate { location_index: 3 })
         );
     }
 
@@ -559,7 +565,7 @@ mod tests {
 
         assert_eq!(
             route,
-            ShortestPath::Intermediate(Intermediate { location_index: 7 })
+            ShortestPath::Intermediate(Intermediate { location_index: 6 })
         );
     }
 
