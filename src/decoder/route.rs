@@ -106,8 +106,7 @@ impl<EdgeId: Copy> CandidateRoute<EdgeId> {
         } = self.last_candidate();
 
         if let Some(projection) = distance_to_projection {
-            let length = graph.get_edge_length(edge).unwrap_or(Length::ZERO);
-            (length - projection).max(Length::ZERO)
+            (graph.get_edge_length(edge) - projection).max(Length::ZERO)
         } else {
             Length::ZERO
         }

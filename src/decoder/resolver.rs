@@ -136,7 +136,7 @@ fn resolve_single_line_routes<G: DirectedGraph>(
             let edges = if i == 0 { vec![best_edge] } else { vec![] };
 
             let path = Path {
-                length: edges.iter().filter_map(|&e| graph.get_edge_length(e)).sum(),
+                length: edges.iter().map(|&e| graph.get_edge_length(e)).sum(),
                 edges,
             };
 
@@ -185,7 +185,7 @@ fn resolve_candidate_route<G: DirectedGraph>(
         };
 
         let path = Path {
-            length: edges.iter().filter_map(|&e| graph.get_edge_length(e)).sum(),
+            length: edges.iter().map(|&e| graph.get_edge_length(e)).sum(),
             edges,
         };
 
@@ -208,7 +208,7 @@ fn resolve_candidate_route<G: DirectedGraph>(
 
         if !lrp2.is_last() {
             let last_edge = path.edges.pop()?;
-            path.length -= graph.get_edge_length(last_edge)?;
+            path.length -= graph.get_edge_length(last_edge);
         }
 
         debug_assert!(!path.edges.is_empty());
@@ -261,15 +261,11 @@ fn max_route_length<G: DirectedGraph>(
     // shortest path can only stop at distances between real vertices, therefore we need to
     // add the complete length when computing max distance upper bound if the lines were projected
     if line_lrp1.is_projected() {
-        max_distance += graph
-            .get_edge_length(line_lrp1.edge)
-            .unwrap_or(Length::ZERO);
+        max_distance += graph.get_edge_length(line_lrp1.edge);
     }
 
     if line_lrp2.is_projected() || !line_lrp2.lrp.is_last() {
-        max_distance += graph
-            .get_edge_length(line_lrp2.edge)
-            .unwrap_or(Length::ZERO);
+        max_distance += graph.get_edge_length(line_lrp2.edge);
     }
 
     Length::from_meters(max_distance.meters().ceil())

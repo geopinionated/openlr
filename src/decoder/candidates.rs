@@ -254,11 +254,11 @@ fn find_candidate_lines_from_nodes<G: DirectedGraph>(
             let bearing = if lrp.is_last() {
                 graph.get_edge_bearing(
                     edge,
-                    graph.get_edge_length(edge)?,
+                    graph.get_edge_length(edge),
                     config.bearing_distance.reverse(),
-                )?
+                )
             } else {
-                graph.get_edge_bearing(edge, Length::ZERO, config.bearing_distance)?
+                graph.get_edge_bearing(edge, Length::ZERO, config.bearing_distance)
             };
 
             let line = ProvisionalCandidateLine {
@@ -266,8 +266,8 @@ fn find_candidate_lines_from_nodes<G: DirectedGraph>(
                 edge,
                 distance_to_lrp,
                 distance_to_projection: None,
-                frc: graph.get_edge_frc(edge)?,
-                fow: graph.get_edge_fow(edge)?,
+                frc: graph.get_edge_frc(edge),
+                fow: graph.get_edge_fow(edge),
                 bearing,
             };
 
@@ -292,22 +292,24 @@ fn append_projected_candidate_lines<G: DirectedGraph>(
         .nearest_edges_within_distance(lrp.coordinate, config.max_node_distance)
         .filter_map(|(edge, distance_to_lrp)| {
             debug_assert!(distance_to_lrp <= config.max_node_distance);
-            let edge_length = graph.get_edge_length(edge)?;
+            let distance_to_projection = graph.get_distance_along_edge(edge, lrp.coordinate);
 
-            let distance_to_projection = graph
-                .get_distance_along_edge(edge, lrp.coordinate)
-                // if distance is 0 or equal to the edge length it would essentially reprensent a
-                // line based on a node, instead of the outcome of the LRP projection
-                .filter(|&d| d.floor() > Length::ZERO && d.ceil() < edge_length)?;
+            // if distance is 0 or equal to the edge length it would essentially reprensent a
+            // line based on a node, instead of the outcome of the LRP projection
+            if distance_to_projection.floor() <= Length::ZERO
+                || distance_to_projection.ceil() >= graph.get_edge_length(edge)
+            {
+                return None;
+            }
 
             let bearing = if lrp.is_last() {
                 graph.get_edge_bearing(
                     edge,
                     distance_to_projection,
                     config.bearing_distance.reverse(),
-                )?
+                )
             } else {
-                graph.get_edge_bearing(edge, distance_to_projection, config.bearing_distance)?
+                graph.get_edge_bearing(edge, distance_to_projection, config.bearing_distance)
             };
 
             let line = ProvisionalCandidateLine {
@@ -315,8 +317,8 @@ fn append_projected_candidate_lines<G: DirectedGraph>(
                 edge,
                 distance_to_lrp,
                 distance_to_projection: Some(distance_to_projection),
-                frc: graph.get_edge_frc(edge)?,
-                fow: graph.get_edge_fow(edge)?,
+                frc: graph.get_edge_frc(edge),
+                fow: graph.get_edge_fow(edge),
                 bearing,
             };
 
