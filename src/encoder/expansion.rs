@@ -47,10 +47,8 @@ fn edge_forward_expansion<G: DirectedGraph>(
     let mut edge = line.path[line.path.len() - 1];
     let mut offset = line.neg_offset;
 
-    while let Some(vertex) = graph
-        .get_edge_end_vertex(edge)
-        .filter(|&v| !is_node_valid(graph, v))
-    {
+    while !is_node_valid(graph, graph.get_edge_end_vertex(edge)) {
+        let vertex = graph.get_edge_end_vertex(edge);
         let candidates = graph.vertex_exiting_edges(vertex).map(|(e, _)| e);
 
         match resolve_edge_expansion(config, graph, line, offset, &expansion, edge, candidates) {
@@ -90,10 +88,8 @@ fn edge_backward_expansion<G: DirectedGraph>(
     let mut edge = line.path[0];
     let mut offset = line.pos_offset;
 
-    while let Some(vertex) = graph
-        .get_edge_start_vertex(edge)
-        .filter(|&v| !is_node_valid(graph, v))
-    {
+    while !is_node_valid(graph, graph.get_edge_start_vertex(edge)) {
+        let vertex = graph.get_edge_start_vertex(edge);
         let candidates = graph.vertex_entering_edges(vertex).map(|(e, _)| e);
 
         match resolve_edge_expansion(config, graph, line, offset, &expansion, edge, candidates) {
@@ -140,7 +136,7 @@ where
     I: IntoIterator<Item = G::EdgeId>,
 {
     let candidate = select_edge_expansion_candidate(graph, edge, candidates)?;
-    let length = graph.get_edge_length(candidate).unwrap_or(Length::MAX);
+    let length = graph.get_edge_length(candidate);
 
     // including the edge in the expansion must not exceed the max distance or form a loop
     if offset + length > config.max_lrp_distance
@@ -184,10 +180,8 @@ where
     } else if is_e2_opposite && !is_e1_opposite {
         return Some(e1);
     } else if is_e1_opposite && is_e2_opposite {
-        let length = graph.get_edge_length(edge)?;
-
-        let is_length_similar =
-            |e| Some((length - graph.get_edge_length(e)?).meters().abs() <= 1.0);
+        let length = graph.get_edge_length(edge);
+        let is_length_similar = |e| Some((length - graph.get_edge_length(e)).meters().abs() <= 1.0);
 
         match (is_length_similar(e1)?, is_length_similar(e2)?) {
             (false, true) => return Some(e1),

@@ -48,22 +48,22 @@ pub struct LocRefPoint<EdgeId> {
 
 impl<EdgeId: Copy> LocRefPoint<EdgeId> {
     /// Constructs a new LRP based on a node.
-    pub fn node<G>(config: &EncoderConfig, graph: &G, edges: Vec<EdgeId>) -> Option<Self>
+    pub fn node<G>(config: &EncoderConfig, graph: &G, edges: Vec<EdgeId>) -> Self
     where
         G: DirectedGraph<EdgeId = EdgeId>,
     {
-        let edge = *edges.first()?;
-        let coordinate = graph.get_vertex_coordinate(graph.get_edge_start_vertex(edge)?)?;
+        let first_edge = edges[0];
+        let coordinate = graph.get_vertex_coordinate(graph.get_edge_start_vertex(first_edge));
         let projection = Length::ZERO;
         let bearing_distance = config.bearing_distance;
 
-        let lfrcnp = edges.iter().filter_map(|&e| graph.get_edge_frc(e)).max();
-        let dnp: Length = edges.iter().filter_map(|&e| graph.get_edge_length(e)).sum();
+        let lfrcnp = edges.iter().map(|&e| graph.get_edge_frc(e)).max();
+        let dnp: Length = edges.iter().map(|&e| graph.get_edge_length(e)).sum();
 
         let line = LineAttributes {
-            frc: graph.get_edge_frc(edge)?,
-            fow: graph.get_edge_fow(edge)?,
-            bearing: graph.get_edge_bearing(edge, projection, bearing_distance)?,
+            frc: graph.get_edge_frc(first_edge),
+            fow: graph.get_edge_fow(first_edge),
+            bearing: graph.get_edge_bearing(first_edge, projection, bearing_distance),
         };
 
         let path = PathAttributes {
@@ -71,7 +71,7 @@ impl<EdgeId: Copy> LocRefPoint<EdgeId> {
             dnp,
         };
 
-        Some(Self {
+        Self {
             edges,
             point: Point {
                 coordinate,
@@ -79,25 +79,25 @@ impl<EdgeId: Copy> LocRefPoint<EdgeId> {
                 path: Some(path),
             },
             projection_coordinate: None,
-        })
+        }
     }
 
     /// Constructs a new LRP based on the last node.
-    pub fn last_node<G>(config: &EncoderConfig, graph: &G, edge: EdgeId) -> Option<Self>
+    pub fn last_node<G>(config: &EncoderConfig, graph: &G, edge: EdgeId) -> Self
     where
         G: DirectedGraph<EdgeId = EdgeId>,
     {
-        let coordinate = graph.get_vertex_coordinate(graph.get_edge_end_vertex(edge)?)?;
-        let projection = graph.get_edge_length(edge)?;
+        let coordinate = graph.get_vertex_coordinate(graph.get_edge_end_vertex(edge));
+        let projection = graph.get_edge_length(edge);
         let bearing_distance = config.bearing_distance.reverse();
 
         let line = LineAttributes {
-            frc: graph.get_edge_frc(edge)?,
-            fow: graph.get_edge_fow(edge)?,
-            bearing: graph.get_edge_bearing(edge, projection, bearing_distance)?,
+            frc: graph.get_edge_frc(edge),
+            fow: graph.get_edge_fow(edge),
+            bearing: graph.get_edge_bearing(edge, projection, bearing_distance),
         };
 
-        Some(Self {
+        Self {
             edges: vec![],
             point: Point {
                 coordinate,
@@ -105,31 +105,26 @@ impl<EdgeId: Copy> LocRefPoint<EdgeId> {
                 path: None,
             },
             projection_coordinate: None,
-        })
+        }
     }
 
     /// Constructs a new LRP based on a line.
-    pub fn line<G>(
-        config: &EncoderConfig,
-        graph: &G,
-        edge: EdgeId,
-        coordinate: Coordinate,
-    ) -> Option<Self>
+    pub fn line<G>(config: &EncoderConfig, graph: &G, edge: EdgeId, coordinate: Coordinate) -> Self
     where
         G: DirectedGraph<EdgeId = EdgeId>,
     {
-        let projection = graph.get_distance_along_edge(edge, coordinate)?;
+        let projection = graph.get_distance_along_edge(edge, coordinate);
         let bearing_distance = config.bearing_distance;
-        let lfrcnp = graph.get_edge_frc(edge)?;
-        let dnp = graph.get_edge_length(edge)? - projection;
+        let lfrcnp = graph.get_edge_frc(edge);
+        let dnp = graph.get_edge_length(edge) - projection;
 
         let line = LineAttributes {
-            frc: graph.get_edge_frc(edge)?,
-            fow: graph.get_edge_fow(edge)?,
-            bearing: graph.get_edge_bearing(edge, projection, bearing_distance)?,
+            frc: graph.get_edge_frc(edge),
+            fow: graph.get_edge_fow(edge),
+            bearing: graph.get_edge_bearing(edge, projection, bearing_distance),
         };
 
-        Some(Self {
+        Self {
             edges: vec![edge],
             point: Point {
                 coordinate,
@@ -137,7 +132,7 @@ impl<EdgeId: Copy> LocRefPoint<EdgeId> {
                 path: Some(PathAttributes { lfrcnp, dnp }),
             },
             projection_coordinate: Some(coordinate),
-        })
+        }
     }
 
     /// Constructs a new LRP based on the last line.
@@ -146,20 +141,20 @@ impl<EdgeId: Copy> LocRefPoint<EdgeId> {
         graph: &G,
         edge: EdgeId,
         coordinate: Coordinate,
-    ) -> Option<Self>
+    ) -> Self
     where
         G: DirectedGraph<EdgeId = EdgeId>,
     {
-        let projection = graph.get_distance_along_edge(edge, coordinate)?;
+        let projection = graph.get_distance_along_edge(edge, coordinate);
         let bearing_distance = config.bearing_distance.reverse();
 
         let line = LineAttributes {
-            frc: graph.get_edge_frc(edge)?,
-            fow: graph.get_edge_fow(edge)?,
-            bearing: graph.get_edge_bearing(edge, projection, bearing_distance)?,
+            frc: graph.get_edge_frc(edge),
+            fow: graph.get_edge_fow(edge),
+            bearing: graph.get_edge_bearing(edge, projection, bearing_distance),
         };
 
-        Some(Self {
+        Self {
             edges: vec![],
             point: Point {
                 coordinate,
@@ -167,7 +162,7 @@ impl<EdgeId: Copy> LocRefPoint<EdgeId> {
                 path: None,
             },
             projection_coordinate: Some(coordinate),
-        })
+        }
     }
 }
 
@@ -211,8 +206,7 @@ impl<EdgeId: Copy + Debug> LocRefPoints<EdgeId> {
                 LocRefPoint::last_line(config, graph, last_edge, coordinate)
             } else {
                 LocRefPoint::last_node(config, graph, last_edge)
-            }
-            .ok_or(EncoderError::InvalidLrpOffsets)?;
+            };
         }
 
         Ok(self)

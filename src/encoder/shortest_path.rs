@@ -88,12 +88,8 @@ pub fn shortest_path_location<G: DirectedGraph>(
         }));
     }
 
-    let max_length = location
-        .iter()
-        .filter_map(|&e| graph.get_edge_length(e))
-        .sum();
-
-    let origin_length = graph.get_edge_length(origin).unwrap_or(Length::MAX);
+    let max_length = location.iter().map(|&e| graph.get_edge_length(e)).sum();
+    let origin_length = graph.get_edge_length(origin);
 
     let mut shortest_distances = FxHashMap::from_iter([(origin, origin_length)]);
     let mut previous_map: FxHashMap<G::EdgeId, G::EdgeId> = FxHashMap::default();
@@ -143,14 +139,11 @@ pub fn shortest_path_location<G: DirectedGraph>(
         }
 
         let exiting_edges = graph
-            .get_edge_end_vertex(h_edge)
-            .into_iter()
-            .flat_map(|v| graph.vertex_exiting_edges(v))
+            .vertex_exiting_edges(graph.get_edge_end_vertex(h_edge))
             .filter(|&(e, _)| !graph.is_turn_restricted(h_edge, e));
 
         for (edge, _) in exiting_edges {
-            let edge_length = graph.get_edge_length(edge).unwrap_or(Length::MAX);
-            let distance = h_distance + edge_length;
+            let distance = h_distance + graph.get_edge_length(edge);
 
             if distance > max_length {
                 continue;
@@ -311,7 +304,7 @@ impl<'a, G: DirectedGraph> Intermediator<'a, G> {
             // found in the location.
             if edge == self.location[0] {
                 return Some(self.last_edge_index);
-            } else if is_node_valid(self.graph, self.graph.get_edge_start_vertex(edge)?) {
+            } else if is_node_valid(self.graph, self.graph.get_edge_start_vertex(edge)) {
                 return self.location.iter().position(|&e| e == edge);
             }
 

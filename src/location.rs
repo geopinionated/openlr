@@ -28,10 +28,7 @@ impl<EdgeId: Copy + Debug> LineLocation<EdgeId> {
     where
         G: DirectedGraph<EdgeId = EdgeId>,
     {
-        self.path
-            .iter()
-            .filter_map(|&e| graph.get_edge_length(e))
-            .sum()
+        self.path.iter().map(|&e| graph.get_edge_length(e)).sum()
     }
 
     /// Construct a valid Line location from the path trimed by its offsets.
@@ -138,7 +135,7 @@ where
         .scan(Length::ZERO, |length, (i, edge)| {
             let current_length = *length;
             if current_length <= offset {
-                *length += graph.get_edge_length(edge).unwrap_or(Length::ZERO);
+                *length += graph.get_edge_length(edge);
                 Some((i, current_length))
             } else {
                 None

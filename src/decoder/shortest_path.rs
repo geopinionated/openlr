@@ -17,11 +17,11 @@ pub fn shortest_path<G: DirectedGraph>(
 ) -> Option<Path<G::EdgeId>> {
     trace!(
         "Computing shortest path {origin:?} {:?} -> {destination:?} {:?}",
-        graph.get_edge_start_vertex(origin)?,
-        graph.get_edge_end_vertex(destination)?
+        graph.get_edge_start_vertex(origin),
+        graph.get_edge_end_vertex(destination)
     );
 
-    let origin_length = graph.get_edge_length(origin)?;
+    let origin_length = graph.get_edge_length(origin);
     let mut shortest_distances = FxHashMap::from_iter([(origin, origin_length)]);
     let mut previous_map: FxHashMap<G::EdgeId, G::EdgeId> = FxHashMap::default();
     let mut heap = RadixHeapMap::from_iter([(Reverse(origin_length), origin)]);
@@ -45,14 +45,12 @@ pub fn shortest_path<G: DirectedGraph>(
         }
 
         let exiting_edges = graph
-            .get_edge_end_vertex(h_edge)
-            .into_iter()
-            .flat_map(|v| graph.vertex_exiting_edges(v))
+            .vertex_exiting_edges(graph.get_edge_end_vertex(h_edge))
             .filter(|&(e, _)| !graph.is_turn_restricted(h_edge, e));
 
         for (edge, _) in exiting_edges {
-            let distance = h_distance + graph.get_edge_length(edge)?;
-            let frc = graph.get_edge_frc(edge)?;
+            let distance = h_distance + graph.get_edge_length(edge);
+            let frc = graph.get_edge_frc(edge);
 
             if distance > max_length {
                 trace!("Element distance too far: {edge:?} {distance} > {max_length}");
@@ -111,16 +109,6 @@ mod tests {
         let graph: &NetworkGraph = &NETWORK_GRAPH;
 
         assert_eq!(
-            shortest_path(graph, EdgeId(0), EdgeId(i64::MAX), Frc::Frc7, Length::MAX),
-            None
-        );
-    }
-
-    #[test]
-    fn decoder_shortest_path_003() {
-        let graph: &NetworkGraph = &NETWORK_GRAPH;
-
-        assert_eq!(
             shortest_path(
                 graph,
                 EdgeId(8717174),
@@ -137,7 +125,7 @@ mod tests {
     }
 
     #[test]
-    fn decoder_shortest_path_004() {
+    fn decoder_shortest_path_003() {
         let graph: &NetworkGraph = &NETWORK_GRAPH;
 
         assert_eq!(
@@ -156,7 +144,7 @@ mod tests {
     }
 
     #[test]
-    fn decoder_shortest_path_005() {
+    fn decoder_shortest_path_004() {
         let graph: &NetworkGraph = &NETWORK_GRAPH;
 
         assert_eq!(
@@ -172,7 +160,7 @@ mod tests {
     }
 
     #[test]
-    fn decoder_shortest_path_006() {
+    fn decoder_shortest_path_005() {
         let graph: &NetworkGraph = &NETWORK_GRAPH;
 
         assert_eq!(
@@ -192,7 +180,7 @@ mod tests {
     }
 
     #[test]
-    fn decoder_shortest_path_007() {
+    fn decoder_shortest_path_006() {
         let graph: &NetworkGraph = &NETWORK_GRAPH;
 
         assert_eq!(
@@ -228,7 +216,7 @@ mod tests {
     }
 
     #[test]
-    fn decoder_shortest_path_008() {
+    fn decoder_shortest_path_007() {
         let graph: &NetworkGraph = &NETWORK_GRAPH;
 
         assert_eq!(

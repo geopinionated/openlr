@@ -13,37 +13,30 @@ pub trait DirectedGraph {
     type EdgeId: Debug + Copy + Ord + Hash;
 
     /// Gets the vertex coordinate.
-    /// Returns None if the vertex doesn't belong to the graph.
-    fn get_vertex_coordinate(&self, vertex: Self::VertexId) -> Option<Coordinate>;
+    fn get_vertex_coordinate(&self, vertex: Self::VertexId) -> Coordinate;
 
     /// Gets the start vertex of the directed edge.
-    /// Returns None if the edge doesn't belong to the graph.
-    fn get_edge_start_vertex(&self, edge: Self::EdgeId) -> Option<Self::VertexId>;
+    fn get_edge_start_vertex(&self, edge: Self::EdgeId) -> Self::VertexId;
 
     /// Gets the end vertex of the directed edge.
-    /// Returns None if the edge doesn't belong to the graph.
-    fn get_edge_end_vertex(&self, edge: Self::EdgeId) -> Option<Self::VertexId>;
+    fn get_edge_end_vertex(&self, edge: Self::EdgeId) -> Self::VertexId;
 
     /// Gets the total length of the directed edge.
-    /// Returns None if the edge doesn't belong to the graph.
-    fn get_edge_length(&self, edge: Self::EdgeId) -> Option<Length>;
+    fn get_edge_length(&self, edge: Self::EdgeId) -> Length;
 
     /// Gets the Functional Road Class (FRC) of the directed edge.
-    /// Returns None if the edge doesn't belong to the graph.
-    fn get_edge_frc(&self, edge: Self::EdgeId) -> Option<Frc>;
+    fn get_edge_frc(&self, edge: Self::EdgeId) -> Frc;
 
     /// Gets the Form of Way (FOW) of the directed edge.
-    /// Returns None if the edge doesn't belong to the graph.
-    fn get_edge_fow(&self, edge: Self::EdgeId) -> Option<Fow>;
+    fn get_edge_fow(&self, edge: Self::EdgeId) -> Fow;
 
     /// Gets an iterator over all the coordinates of the directed edge.
     /// The coordinates will be sorted from the first vertex to the last vertex.
-    /// Returns an empty iterator if the edge doesn't belong to the graph.
+    /// The iterator cannot be empty, every edge should have at least 2 coordinates.
     fn get_edge_coordinates(&self, edge: Self::EdgeId) -> impl Iterator<Item = Coordinate>;
 
     /// Gets an iterator over all the outgoing edges from the given vertex.
     /// For each edge returns the edge ID and the edge end vertex.
-    /// Returns an empty iterator if the vertex doesn't belong to the graph.
     fn vertex_exiting_edges(
         &self,
         vertex: Self::VertexId,
@@ -51,7 +44,6 @@ pub trait DirectedGraph {
 
     /// Gets an iterator over all the incoming edges to the given vertex.
     /// For each edge returns the edge ID and the edge start vertex.
-    /// Returns an empty iterator if the vertex doesn't belong to the graph.
     fn vertex_entering_edges(
         &self,
         vertex: Self::VertexId,
@@ -60,7 +52,7 @@ pub trait DirectedGraph {
     /// Gets an iterator over all the vertices that are within a max distance from the coordinate.
     /// For each vertex also returns the distance from the coordinate.
     /// Vertices must be returned sorted by their distance to the coordinate.
-    /// Returns an empty iterator if no vertex could be found within distance.
+    /// Returns an empty iterator if no vertex can be found within max distance.
     fn nearest_vertices_within_distance(
         &self,
         coordinate: Coordinate,
@@ -70,7 +62,7 @@ pub trait DirectedGraph {
     /// Gets an iterator over all the edges that are within a max distance from the coordinate.
     /// For each edges also returns the distance from the coordinate.
     /// Edges must be returned sorted by their distance to the coordinate.
-    /// Returns an empty iterator if no vertex could be found within distance.
+    /// Returns an empty iterator if no vertex can be found within max distance.
     fn nearest_edges_within_distance(
         &self,
         coordinate: Coordinate,
@@ -79,38 +71,31 @@ pub trait DirectedGraph {
 
     /// Gets the distance of the projected coordinate to the start vertex of the edge when following
     /// the edge coordinates.
-    /// Returns None if the edge doesn't belong to the graph or if the coordinate cannot be
-    /// projected.
+    /// The returned length should be clamped between 0 and the edge length.
     ///
     /// The projection point shall be that coordinate on the line with the smallest distance between
     /// the line and the given coordinate.
-    fn get_distance_along_edge(&self, edge: Self::EdgeId, coordinate: Coordinate)
-    -> Option<Length>;
+    fn get_distance_along_edge(&self, edge: Self::EdgeId, coordinate: Coordinate) -> Length;
 
     /// Gets the coordinate along the edge geometry which is at the given distance from the edge
-    /// start vertex. Returns None if the edge doesn't belong to the graph or if the coordinate
-    /// cannot be found.
+    /// start vertex.
     ///
     /// The distance is clamped within the edge length, therefore for distances lower of equal to
     /// zero the edge start vertex coordinate will be returned and for distances greater or equal to
     /// the edge length the edge end vertex coordinate will be returned.
-    fn get_coordinate_along_edge(&self, edge: Self::EdgeId, distance: Length)
-    -> Option<Coordinate>;
+    fn get_coordinate_along_edge(&self, edge: Self::EdgeId, distance: Length) -> Coordinate;
 
     /// Gets the bearing of a subsection A-B of the edge that goes from the coordinate (A) at the
     /// given distance from the start vertex, and the coordinate (B) that is at the given distance
     /// from A. The segment length can be negative.
-    /// Returns None if the edge doesn't belong to the graph or if the segment cannot be
-    /// constructed.
     fn get_edge_bearing(
         &self,
         edge: Self::EdgeId,
         distance_from_start: Length,
         segment_length: Length,
-    ) -> Option<Bearing>;
+    ) -> Bearing;
 
     /// Returns true if turning from the start edge to the end edge is not allowed.
-    /// If any of the given edges doesn't belog to the path returns true.
     fn is_turn_restricted(&self, start: Self::EdgeId, end: Self::EdgeId) -> bool;
 
     /// Returns the total number of edges that are connected to the vertex, that is, the sum of the
@@ -136,6 +121,7 @@ pub mod path;
 
 #[cfg(test)]
 pub mod tests {
+    #![allow(clippy::panic)]
     #![allow(clippy::disallowed_types)]
 
     mod geojson;

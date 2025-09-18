@@ -29,17 +29,14 @@ pub fn is_path_loop<G: DirectedGraph>(
         let first = path
             .first()
             .filter(|_| pos_offset.is_zero())
-            .and_then(|&e| graph.get_edge_start_vertex(e));
+            .map(|&e| graph.get_edge_start_vertex(e));
 
-        let middle = path
-            .iter()
-            .skip(1)
-            .flat_map(|&e| graph.get_edge_start_vertex(e));
+        let middle = path.iter().skip(1).map(|&e| graph.get_edge_start_vertex(e));
 
         let last = path
             .last()
             .filter(|_| neg_offset.is_zero())
-            .and_then(|&e| graph.get_edge_end_vertex(e));
+            .map(|&e| graph.get_edge_end_vertex(e));
 
         first.into_iter().chain(middle).chain(last)
     };
@@ -65,11 +62,12 @@ pub fn is_path_connected<G: DirectedGraph>(graph: &G, path: &[G::EdgeId]) -> boo
             return false;
         }
 
-        match graph.get_edge_end_vertex(e1) {
-            Some(v) if !graph.vertex_exiting_edges(v).any(|(e, _)| e == e2) => return false,
-            None => return false,
-            Some(_) => (),
-        };
+        if !graph
+            .vertex_exiting_edges(graph.get_edge_end_vertex(e1))
+            .any(|(e, _)| e == e2)
+        {
+            return false;
+        }
     }
 
     true

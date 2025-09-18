@@ -14,7 +14,6 @@ pub fn resolve_lrps<G: DirectedGraph>(
     let mut location: Vec<G::EdgeId> = line.path.clone();
 
     let last_edge = location[location.len() - 1];
-    let last_lrp = LocRefPoint::last_node(config, graph, last_edge).ok_or(InvalidLrp)?;
     let mut candidate_lrps = vec![];
 
     // Step – 7 Find shortest paths until the whole location is covered by a concatenation of these.
@@ -23,16 +22,14 @@ pub fn resolve_lrps<G: DirectedGraph>(
         match shortest_path_location(graph, &location, config.max_lrp_distance)? {
             // Step – 4 Check whether the calculated shortest-path covers the location completely.
             ShortestPath::Location => {
-                let lrp = LocRefPoint::node(config, graph, location).ok_or(InvalidLrp)?;
-                candidate_lrps.push(lrp);
+                candidate_lrps.push(LocRefPoint::node(config, graph, location));
                 break;
             }
             // Step – 6 Restart shortest path calculation between the new intermediate location
             // reference point and the end of the location.
             ShortestPath::Intermediate(Intermediate { location_index }) => {
                 let loc = location[..location_index].to_vec();
-                let lrp = LocRefPoint::node(config, graph, loc).ok_or(InvalidLrp)?;
-                candidate_lrps.push(lrp);
+                candidate_lrps.push(LocRefPoint::node(config, graph, loc));
                 location.drain(..location_index);
             }
             ShortestPath::NotFound => {
@@ -41,7 +38,7 @@ pub fn resolve_lrps<G: DirectedGraph>(
         }
     }
 
-    candidate_lrps.push(last_lrp);
+    candidate_lrps.push(LocRefPoint::last_node(config, graph, last_edge));
 
     let lrp_edges = || candidate_lrps.iter().flat_map(|lrp| &lrp.edges);
     debug_assert_eq!(line.path.len(), lrp_edges().count());
@@ -101,18 +98,14 @@ fn split_lrp<G: DirectedGraph>(
     let mut distance = max_lrp_distance;
 
     while dnp > max_lrp_distance {
-        let coordinate = graph
-            .get_coordinate_along_edge(edge, distance)
-            .ok_or(EncoderError::MaxDistanceExceeded)?;
+        let coordinate = graph.get_coordinate_along_edge(edge, distance);
 
         if let Some(path) = lrps.last_mut().and_then(|lrp| lrp.point.path.as_mut()) {
             // creating another LRP on the same line requires updating the DNP of the previous
             path.dnp = max_lrp_distance;
         }
 
-        let lrp = LocRefPoint::line(config, graph, edge, coordinate).ok_or(InvalidLrp)?;
-        lrps.push(lrp);
-
+        lrps.push(LocRefPoint::line(config, graph, edge, coordinate));
         dnp -= max_lrp_distance;
         distance += max_lrp_distance;
     }
