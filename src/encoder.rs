@@ -10,7 +10,7 @@ mod shortest_path;
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 
-use crate::encoder::line::{encode_line, encode_point_along_line};
+use crate::encoder::line::{encode_line, encode_poi, encode_point_along_line};
 use crate::{
     DirectedGraph, EncodeError, Length, Location, LocationReference, serialize_binary_openlr,
 };
@@ -63,6 +63,7 @@ pub fn encode_binary_openlr<G: DirectedGraph>(
         Location::PointAlongLine(point) => {
             encode_point_along_line(config, graph, point).map(PointAlongLine)?
         }
+        Location::Poi(poi) => encode_poi(config, graph, poi).map(Poi)?,
     };
 
     // Step – 10 Create physical representation of the location reference.

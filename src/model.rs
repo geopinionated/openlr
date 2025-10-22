@@ -648,7 +648,7 @@ pub struct PointAlongLine {
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Poi {
     pub point: PointAlongLine,
-    pub poi: Coordinate,
+    pub coordinate: Coordinate,
 }
 
 /// A circle location is given by the position of the center and the radius.

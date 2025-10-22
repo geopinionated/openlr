@@ -12,6 +12,7 @@ pub enum Location<EdgeId> {
     Line(LineLocation<EdgeId>),
     GeoCoordinate(Coordinate),
     PointAlongLine(PointAlongLineLocation<EdgeId>),
+    Poi(PoiLocation<EdgeId>),
 }
 
 /// Location (in a map) that represents a Line Location Reference.
@@ -39,6 +40,15 @@ pub struct PointAlongLineLocation<EdgeId> {
     /// The point can be on the right side of the line, on the left side of the line, on both sides
     /// of the line, or directly on the line.
     pub side: SideOfRoad,
+}
+
+/// Location of a point of interest (in a map) with access point along a line.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PoiLocation<EdgeId> {
+    /// The access point along a line.
+    pub point: PointAlongLineLocation<EdgeId>,
+    /// The coordinate of the Point Of Interest (POI).
+    pub coordinate: Coordinate,
 }
 
 impl<EdgeId: Copy + Debug> LineLocation<EdgeId> {

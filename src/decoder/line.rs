@@ -3,8 +3,8 @@ use tracing::debug;
 use crate::decoder::candidates::{find_candidate_lines, find_candidate_nodes};
 use crate::decoder::resolver::resolve_routes;
 use crate::{
-    DecodeError, DecoderConfig, DirectedGraph, Line, LineLocation, Offsets, PointAlongLine,
-    PointAlongLineLocation,
+    DecodeError, DecoderConfig, DirectedGraph, Line, LineLocation, Offsets, Poi, PoiLocation,
+    PointAlongLine, PointAlongLineLocation,
 };
 
 /// 1. Decode physical data and check its validity.
@@ -69,6 +69,19 @@ pub fn decode_point_along_line<G: DirectedGraph>(
         offset: line.pos_offset,
         orientation: point.orientation,
         side: point.side,
+    })
+}
+
+pub fn decode_poi<G: DirectedGraph>(
+    config: &DecoderConfig,
+    graph: &G,
+    poi: Poi,
+) -> Result<PoiLocation<G::EdgeId>, DecodeError<G::Error>> {
+    let point = decode_point_along_line(config, graph, poi.point)?;
+
+    Ok(PoiLocation {
+        point,
+        coordinate: poi.coordinate,
     })
 }
 

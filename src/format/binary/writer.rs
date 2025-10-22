@@ -131,9 +131,9 @@ impl OpenLrBinaryWriter {
     }
 
     fn write_poi(&mut self, poi: &Poi) -> Result<(), SerializeError> {
-        let Poi { point, poi } = poi;
+        let Poi { point, coordinate } = poi;
         self.write_point_along_line(point)?;
-        self.write_relative_coordinate(*poi, point.points[0].coordinate)?;
+        self.write_relative_coordinate(*coordinate, point.points[0].coordinate)?;
         Ok(())
     }
 
@@ -654,7 +654,7 @@ mod tests {
                 orientation: Orientation::Unknown,
                 side: SideOfRoad::OnRoadOrUnknown,
             },
-            poi: Coordinate {
+            coordinate: Coordinate {
                 lon: 5.1013007,
                 lat: 52.1057878,
             },
