@@ -2,7 +2,7 @@ use std::io::ErrorKind;
 
 use thiserror::Error;
 
-use crate::{Length, LocationType, Point};
+use crate::{Coordinate, Length, LocationType, Point};
 
 #[derive(Error, Debug, PartialEq, Clone, Copy)]
 pub enum DeserializeError {
@@ -22,6 +22,8 @@ pub enum DeserializeError {
     InvalidOrientation(u8),
     #[error("OpenLR Side of Road is not valid: {0}")]
     InvalidSideOfRoad(u8),
+    #[error("OpenLR Coordinate is not valid: {0:?}")]
+    InvalidCoordinate(Coordinate),
 }
 
 #[derive(Error, Debug, PartialEq, Clone, Copy)]
@@ -40,6 +42,8 @@ pub enum SerializeError {
     InvalidRectangle,
     #[error("OpenLR Grid size must have number of columns and rows > 1")]
     InvalidGridSize,
+    #[error("OpenLR Coordinate is not valid: {0:?}")]
+    InvalidCoordinate(Coordinate),
 }
 
 #[derive(Error, Debug, PartialEq, Clone, Copy)]

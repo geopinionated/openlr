@@ -444,6 +444,17 @@ pub struct Coordinate {
 
 impl Coordinate {
     pub const EPSILON: f64 = 180.0 / (1 << 24) as f64;
+
+    pub const MIN_LON: f64 = -180.0;
+    pub const MAX_LON: f64 = 180.0;
+    pub const MIN_LAT: f64 = -90.0;
+    pub const MAX_LAT: f64 = 90.0;
+
+    /// Returns true only if the coordinate bounds are valid.
+    pub fn is_valid(&self) -> bool {
+        (Self::MIN_LON..=Self::MAX_LON).contains(&self.lon)
+            && (Self::MIN_LAT..=Self::MAX_LAT).contains(&self.lat)
+    }
 }
 
 impl PartialEq for Coordinate {

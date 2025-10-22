@@ -3,13 +3,14 @@ use std::fmt::Debug;
 use tracing::debug;
 
 use crate::graph::path::is_path_connected;
-use crate::{DirectedGraph, Length, LocationError};
+use crate::{Coordinate, DirectedGraph, Length, LocationError};
 
 /// Defines a location (in a map) that can be encoded using the OpenLR encoder
 /// and is also the result of the decoding process.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Location<EdgeId> {
     Line(LineLocation<EdgeId>),
+    GeoCoordinate(Coordinate),
 }
 
 /// Location (in a map) that represents a Line Location Reference.

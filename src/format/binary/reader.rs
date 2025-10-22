@@ -268,7 +268,13 @@ impl<'a> OpenLrBinaryReader<'a> {
 
         let lon = read_degrees()?;
         let lat = read_degrees()?;
-        Ok(Coordinate { lon, lat })
+        let coordinate = Coordinate { lon, lat };
+
+        if coordinate.is_valid() {
+            Ok(coordinate)
+        } else {
+            Err(DeserializeError::InvalidCoordinate(coordinate))
+        }
     }
 
     fn read_relative_coordinate(

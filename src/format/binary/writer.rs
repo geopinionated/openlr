@@ -208,6 +208,10 @@ impl OpenLrBinaryWriter {
     }
 
     fn write_coordinate(&mut self, coordinate: &Coordinate) -> Result<(), SerializeError> {
+        if !coordinate.is_valid() {
+            return Err(SerializeError::InvalidCoordinate(*coordinate));
+        }
+
         let mut write_degrees = |degrees| -> Result<(), SerializeError> {
             let bytes = Coordinate::degrees_into_be_bytes(degrees);
             self.cursor.write_all(&bytes)?;

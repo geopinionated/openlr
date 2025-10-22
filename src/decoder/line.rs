@@ -1,3 +1,11 @@
+//! 1. Decode physical data and check its validity.
+//! 2. For each location reference point find candidate nodes.
+//! 3. For each location reference point find candidate lines.
+//! 4. Rate candidate lines for each location reference point.
+//! 5. Determine shortest-path(s) between two subsequent location reference points.
+//! 6. Check validity of the calculated shortest-path(s).
+//! 7. Concatenate shortest-path(s) to form the location and trim path according to the offsets.
+
 use tracing::debug;
 
 use crate::decoder::candidates::{find_candidate_lines, find_candidate_nodes};
