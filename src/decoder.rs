@@ -10,7 +10,7 @@ mod shortest_path;
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 
-use crate::decoder::line::{decode_line, decode_poi, decode_point_along_line};
+use crate::decoder::line::{decode_closed_line, decode_line, decode_poi, decode_point_along_line};
 use crate::error::DecodeError;
 use crate::model::RatingScore;
 use crate::{
@@ -89,7 +89,8 @@ pub fn decode_binary_openlr<G: DirectedGraph>(
             decode_point_along_line(config, graph, point).map(Location::PointAlongLine)
         }
         Poi(poi) => decode_poi(config, graph, poi).map(Location::Poi),
-        Circle(_) | Rectangle(_) | Grid(_) | Polygon(_) | ClosedLine(_) => Err(
+        ClosedLine(line) => decode_closed_line(config, graph, line).map(Location::ClosedLine),
+        Circle(_) | Rectangle(_) | Grid(_) | Polygon(_) => Err(
             DecodeError::LocationTypeNotSupported(location.location_type()),
         ),
     }

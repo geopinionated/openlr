@@ -3,8 +3,8 @@ use tracing::debug;
 use crate::encoder::expansion::line_location_with_expansion;
 use crate::encoder::resolver::resolve_lrps;
 use crate::{
-    DirectedGraph, EncodeError, EncoderConfig, Length, Line, LineLocation, Poi, PoiLocation,
-    PointAlongLine, PointAlongLineLocation,
+    ClosedLine, ClosedLineLocation, DirectedGraph, EncodeError, EncoderConfig, Length, Line,
+    LineLocation, Offsets, Poi, PoiLocation, PointAlongLine, PointAlongLineLocation,
 };
 
 /// 1. Check validity of the location and offsets to be encoded.
@@ -80,6 +80,29 @@ pub fn encode_poi<G: DirectedGraph>(
     Ok(Poi {
         point,
         coordinate: poi.coordinate,
+    })
+}
+
+pub fn encode_closed_line<G: DirectedGraph>(
+    config: &EncoderConfig,
+    graph: &G,
+    line: ClosedLineLocation<G::EdgeId>,
+) -> Result<ClosedLine, EncodeError<G::Error>> {
+    let line = LineLocation {
+        path: line.path,
+        pos_offset: Length::ZERO,
+        neg_offset: Length::ZERO,
+    };
+
+    let mut line = encode_line(config, graph, line)?;
+    debug_assert_eq!(line.offsets, Offsets::ZERO);
+
+    let last_line = line.points[line.points.len() - 1].line;
+    line.points.pop();
+
+    Ok(ClosedLine {
+        points: line.points,
+        last_line,
     })
 }
 

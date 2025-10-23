@@ -75,7 +75,7 @@ impl OpenLrBinaryWriter {
         let path = first_point.path.unwrap_or_default();
         let attributes = EncodedAttributes::from(first_point.line).with_lfrcnp(path.lfrcnp);
         self.write_attributes(attributes)?;
-        self.write_dnp(&path.dnp)?;
+        self.write_dnp(path.dnp)?;
 
         let relative_points = points.get(1..points.len() - 1).into_iter().flatten();
         for point in relative_points {
@@ -83,7 +83,7 @@ impl OpenLrBinaryWriter {
             let path = point.path.unwrap_or_default();
             let attributes = EncodedAttributes::from(point.line).with_lfrcnp(path.lfrcnp);
             self.write_attributes(attributes)?;
-            self.write_dnp(&path.dnp)?;
+            self.write_dnp(path.dnp)?;
         }
 
         let last_point = points.last().ok_or(SerializeError::InvalidLine)?;
@@ -115,7 +115,7 @@ impl OpenLrBinaryWriter {
             .with_lfrcnp(path.lfrcnp)
             .with_orientation(orientation);
         self.write_attributes(attributes)?;
-        self.write_dnp(&path.dnp)?;
+        self.write_dnp(path.dnp)?;
 
         self.write_relative_coordinate(last_point.coordinate, first_point.coordinate)?;
         let attributes = EncodedAttributes::from(last_point.line)
@@ -140,7 +140,7 @@ impl OpenLrBinaryWriter {
     fn write_circle(&mut self, circle: &Circle) -> Result<(), SerializeError> {
         let Circle { center, radius } = circle;
         self.write_coordinate(center)?;
-        self.write_radius(radius)
+        self.write_radius(*radius)
     }
 
     fn write_rectangle(&mut self, rectangle: &Rectangle) -> Result<(), SerializeError> {
@@ -150,7 +150,7 @@ impl OpenLrBinaryWriter {
         } = rectangle;
 
         if lower_left == upper_right {
-            return Err(SerializeError::InvalidRectangle);
+            return Err(SerializeError::InvalidRectangle(*rectangle));
         }
 
         self.write_coordinate(lower_left)?;
@@ -193,7 +193,7 @@ impl OpenLrBinaryWriter {
         let path = first_point.path.unwrap_or_default();
         let attributes = EncodedAttributes::from(first_point.line).with_lfrcnp(path.lfrcnp);
         self.write_attributes(attributes)?;
-        self.write_dnp(&path.dnp)?;
+        self.write_dnp(path.dnp)?;
 
         let relative_points = points.get(1..).into_iter().flatten();
         for point in relative_points {
@@ -201,7 +201,7 @@ impl OpenLrBinaryWriter {
             let path = point.path.unwrap_or_default();
             let attributes = EncodedAttributes::from(point.line).with_lfrcnp(path.lfrcnp);
             self.write_attributes(attributes)?;
-            self.write_dnp(&path.dnp)?;
+            self.write_dnp(path.dnp)?;
         }
 
         self.write_attributes(EncodedAttributes::from(*last_line))
@@ -227,6 +227,12 @@ impl OpenLrBinaryWriter {
         coordinate: Coordinate,
         previous: Coordinate,
     ) -> Result<Coordinate, SerializeError> {
+        debug_assert!(previous.is_valid());
+
+        if !coordinate.is_valid() {
+            return Err(SerializeError::InvalidCoordinate(coordinate));
+        }
+
         let mut write_degrees = |degrees, previous| -> Result<(), SerializeError> {
             let bytes = Coordinate::degrees_into_be_bytes_relative(degrees, previous);
             self.cursor.write_all(&bytes)?;
@@ -249,14 +255,14 @@ impl OpenLrBinaryWriter {
         Ok(())
     }
 
-    fn write_dnp(&mut self, dnp: &Length) -> Result<(), SerializeError> {
-        let dnp = dnp.dnp_into_byte();
+    fn write_dnp(&mut self, dnp: Length) -> Result<(), SerializeError> {
+        let dnp = dnp.try_dnp_into_byte()?;
         self.cursor.write_all(&[dnp])?;
         Ok(())
     }
 
-    fn write_radius(&mut self, radius: &Length) -> Result<(), SerializeError> {
-        let radius = radius.radius_into_be_bytes();
+    fn write_radius(&mut self, radius: Length) -> Result<(), SerializeError> {
+        let radius = radius.try_radius_into_be_bytes()?;
         self.cursor.write_all(&radius)?;
         Ok(())
     }

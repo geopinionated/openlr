@@ -13,6 +13,7 @@ pub enum Location<EdgeId> {
     GeoCoordinate(Coordinate),
     PointAlongLine(PointAlongLineLocation<EdgeId>),
     Poi(PoiLocation<EdgeId>),
+    ClosedLine(ClosedLineLocation<EdgeId>),
 }
 
 /// Location (in a map) that represents a Line Location Reference.
@@ -49,6 +50,13 @@ pub struct PoiLocation<EdgeId> {
     pub point: PointAlongLineLocation<EdgeId>,
     /// The coordinate of the Point Of Interest (POI).
     pub coordinate: Coordinate,
+}
+
+/// Location (in a map) that represents a closed Line Location Reference.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClosedLineLocation<EdgeId> {
+    /// Complete list of edges that form the line.
+    pub path: Vec<EdgeId>,
 }
 
 impl<EdgeId: Copy + Debug> LineLocation<EdgeId> {
