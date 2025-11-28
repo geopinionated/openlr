@@ -9,9 +9,13 @@ readme = "README.md"
 keywords = ["openlr", "routing", "routing-engine"]
 categories = ["encoding"]
 
+[features]
+geo = ["dep:geo"]
+
 [dependencies]
 approx = "0.5"
 base64 = "0.22"
+geo = { version = "0.31", optional = true }
 ordered-float = "5.0"
 radix-heap = "0.4"
 rustc-hash = "2.1"
