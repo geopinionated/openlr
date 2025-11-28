@@ -473,6 +473,28 @@ impl PartialEq for Coordinate {
     }
 }
 
+#[cfg(feature = "geo")]
+impl From<geo::Coord> for Coordinate {
+    #[inline]
+    fn from(value: geo::Coord) -> Self {
+        Coordinate {
+            lon: value.x,
+            lat: value.y
+        }
+    }
+}
+
+#[cfg(feature = "geo")]
+impl From<geo::Point> for Coordinate {
+    #[inline]
+    fn from(value: geo::Point) -> Self {
+        Coordinate {
+            lon: value.x(),
+            lat: value.y()
+        }
+    }
+}
+
 /// Line attributes are part of a location reference point and consist of functional road
 /// class (FRC), form of way (FOW) and bearing (BEAR) data.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
