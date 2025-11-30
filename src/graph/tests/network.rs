@@ -3,7 +3,7 @@ use std::sync::LazyLock;
 
 use geo::{
     BoundingRect, Closest, Distance, Haversine, HaversineClosestPoint, InterpolatableLine,
-    LineString, Point, coord,
+    LineString, Point,
 };
 use graph::prelude::{DirectedCsrGraph, DirectedNeighborsWithValues};
 use rstar::{AABB, PointDistance, RTree, RTreeObject};
@@ -102,7 +102,11 @@ impl DirectedGraph for NetworkGraph {
             .next()
             .and_then(|(e, _)| {
                 debug_assert_eq!(self.get_edge_start_vertex(e), vertex);
-                self.get_edge_coordinates(e).next()
+                self.edge_line_string(e).coords().copied().next()
+            })
+            .map(|coord| Coordinate {
+                lon: coord.x,
+                lat: coord.y,
             })
             .unwrap()
     }
@@ -152,26 +156,6 @@ impl DirectedGraph for NetworkGraph {
             .get(&edge.undirected())
             .map(|EdgeProperties { fow, .. }| *fow)
             .unwrap()
-    }
-
-    fn get_edge_coordinates(&self, edge: Self::EdgeId) -> impl Iterator<Item = Coordinate> {
-        self.edge_properties
-            .get(&edge.undirected())
-            .into_iter()
-            .flat_map(move |EdgeProperties { geometry, .. }| {
-                let geometry = geometry.coords().map(|coordinate| Coordinate {
-                    lon: coordinate.x,
-                    lat: coordinate.y,
-                });
-
-                let geometry: Box<dyn Iterator<Item = Coordinate>> = if edge.is_reversed() {
-                    Box::new(geometry.into_iter().rev())
-                } else {
-                    Box::new(geometry.into_iter())
-                };
-
-                geometry
-            })
     }
 
     fn vertex_exiting_edges(
@@ -312,10 +296,13 @@ impl DirectedGraph for NetworkGraph {
 
 impl NetworkGraph {
     fn edge_line_string(&self, edge: EdgeId) -> LineString {
-        LineString::from_iter(
-            self.get_edge_coordinates(edge)
-                .map(|coordinate| coord! { x: coordinate.lon, y: coordinate.lat }),
-        )
+        let EdgeProperties { geometry, .. } = self.edge_properties.get(&edge.undirected()).unwrap();
+
+        if edge.is_reversed() {
+            geometry.coords().rev().copied().collect()
+        } else {
+            geometry.coords().copied().collect()
+        }
     }
 
     fn from_geojson_graph(graph: &GeojsonGraph) -> NetworkGraph {
@@ -728,79 +715,6 @@ fn network_graph_edge_vertices() {
     assert_eq!(
         graph.get_edge_end_vertex(EdgeId(-5359425)),
         graph.get_edge_start_vertex(EdgeId(5359425))
-    );
-}
-
-#[test]
-fn network_graph_edge_coordinates() {
-    let graph = &NETWORK_GRAPH;
-
-    assert_eq!(
-        graph
-            .get_edge_coordinates(EdgeId(5359425))
-            .collect::<Vec<_>>(),
-        [
-            Coordinate {
-                lon: 13.4615934,
-                lat: 52.5180374
-            },
-            Coordinate {
-                lon: 13.4611206,
-                lat: 52.5170944
-            }
-        ]
-    );
-
-    assert_eq!(
-        graph
-            .get_edge_coordinates(EdgeId(8717174))
-            .collect::<Vec<_>>(),
-        [
-            Coordinate {
-                lon: 13.4611206,
-                lat: 52.5170944
-            },
-            Coordinate {
-                lon: 13.4630579,
-                lat: 52.5167465
-            }
-        ]
-    );
-
-    assert_eq!(
-        graph
-            .get_edge_coordinates(EdgeId(-8717174))
-            .collect::<Vec<_>>(),
-        [
-            Coordinate {
-                lon: 13.4630579,
-                lat: 52.5167465
-            },
-            Coordinate {
-                lon: 13.4611206,
-                lat: 52.5170944
-            },
-        ]
-    );
-
-    assert_eq!(
-        graph
-            .get_edge_coordinates(EdgeId(7531948))
-            .collect::<Vec<_>>(),
-        [
-            Coordinate {
-                lon: 13.463911,
-                lat: 52.5148731
-            },
-            Coordinate {
-                lon: 13.4631576,
-                lat: 52.5149491
-            },
-            Coordinate {
-                lon: 13.4628442,
-                lat: 52.5149807
-            }
-        ]
     );
 }
 
