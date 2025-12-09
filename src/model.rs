@@ -86,7 +86,7 @@ impl MulAssign<f64> for RatingScore {
 /// Functional Road Class.
 /// The functional road class (FRC) of a line is a road classification
 /// based on the importance of the road represented by the line.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, strum::EnumIter)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, strum::EnumIter)]
 #[repr(u8)]
 pub enum Frc {
     /// Main road, highest importance
@@ -104,13 +104,8 @@ pub enum Frc {
     /// Sixth class road.
     Frc6 = 6,
     /// Other class road, lowest importance
+    #[default]
     Frc7 = 7,
-}
-
-impl Default for Frc {
-    fn default() -> Self {
-        Self::Frc7
-    }
 }
 
 impl Frc {
@@ -169,7 +164,7 @@ impl Frc {
 
 /// Form of Way.
 /// The form of way (FOW) describes the physical road type of a line.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, strum::EnumIter)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, strum::EnumIter)]
 #[repr(u8)]
 pub enum Fow {
     /// The physical road type is unknown.
@@ -195,13 +190,8 @@ pub enum Fow {
     SlipRoad = 6,
     /// The physical road type is known but does not fit into one of the
     /// other categories.
+    #[default]
     Other = 7,
-}
-
-impl Default for Fow {
-    fn default() -> Self {
-        Self::Other
-    }
 }
 
 impl Fow {
@@ -251,11 +241,12 @@ impl Fow {
 
 /// The side of road information (SOR) describes the relationship between the
 /// point of interest and a referenced line.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u8)]
 pub enum SideOfRoad {
     /// Point is directly on (or above) the road, or determination of right/left
     /// side is not applicable.
+    #[default]
     OnRoadOrUnknown = 0,
     /// Point is on right side of the road.
     Right = 1,
@@ -265,19 +256,14 @@ pub enum SideOfRoad {
     Both = 3,
 }
 
-impl Default for SideOfRoad {
-    fn default() -> Self {
-        Self::OnRoadOrUnknown
-    }
-}
-
 /// The orientation information (ORI) describes the relationship between the
 /// point of interest and the direction of a referenced line.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u8)]
 pub enum Orientation {
     /// Point has no sense of orientation, or determination of orientation
-    /// is not applicable
+    /// is not applicable.
+    #[default]
     Unknown = 0,
     /// Point has orientation from first LRP towards second LRP.
     Forward = 1,
@@ -285,12 +271,6 @@ pub enum Orientation {
     Backward = 2,
     /// Point has orientation in both directions
     Both = 3,
-}
-
-impl Default for Orientation {
-    fn default() -> Self {
-        Self::Unknown
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]

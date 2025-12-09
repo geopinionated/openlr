@@ -294,7 +294,7 @@ fn append_projected_candidate_lines<G: DirectedGraph>(
             debug_assert!(distance_to_lrp <= config.max_node_distance);
             let distance_to_projection = graph.get_distance_along_edge(edge, lrp.coordinate);
 
-            // if distance is 0 or equal to the edge length it would essentially reprensent a
+            // if distance is 0 or equal to the edge length it would essentially represent a
             // line based on a node, instead of the outcome of the LRP projection
             if distance_to_projection.floor() <= Length::ZERO
                 || distance_to_projection.ceil() >= graph.get_edge_length(edge)

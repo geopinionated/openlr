@@ -1,6 +1,6 @@
 [package]
 name = "openlr"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 description = "OpenLR Rust implementation"
 license = "MIT OR Apache-2.0"
@@ -12,7 +12,7 @@ categories = ["encoding"]
 [dependencies]
 approx = "0.5"
 base64 = "0.22"
-ordered-float = "5.0"
+ordered-float = "5.1"
 radix-heap = "0.4"
 rustc-hash = "2.1"
 strum = { version = "0.27", features = ["derive"] }

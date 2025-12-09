@@ -30,11 +30,6 @@ pub trait DirectedGraph {
     /// Gets the Form of Way (FOW) of the directed edge.
     fn get_edge_fow(&self, edge: Self::EdgeId) -> Fow;
 
-    /// Gets an iterator over all the coordinates of the directed edge.
-    /// The coordinates will be sorted from the first vertex to the last vertex.
-    /// The iterator cannot be empty, every edge should have at least 2 coordinates.
-    fn get_edge_coordinates(&self, edge: Self::EdgeId) -> impl Iterator<Item = Coordinate>;
-
     /// Gets an iterator over all the outgoing edges from the given vertex.
     /// For each edge returns the edge ID and the edge end vertex.
     fn vertex_exiting_edges(
