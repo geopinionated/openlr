@@ -1,16 +1,16 @@
 use tracing::warn;
 
-use crate::EncoderError::InvalidLrp;
+use crate::EncodeError::InvalidLrp;
 use crate::encoder::lrp::{LocRefPoint, LocRefPoints};
 use crate::encoder::shortest_path::{Intermediate, ShortestPath, shortest_path_location};
-use crate::{DirectedGraph, EncoderConfig, EncoderError, LineLocation};
+use crate::{DirectedGraph, EncodeError, EncoderConfig, LineLocation};
 
 /// Resolves all the LRPs that should be necessary to encode the given line.
 pub fn resolve_lrps<G: DirectedGraph>(
     config: &EncoderConfig,
     graph: &G,
     line: LineLocation<G::EdgeId>,
-) -> Result<LocRefPoints<G::EdgeId>, EncoderError> {
+) -> Result<LocRefPoints<G::EdgeId>, EncodeError<G::Error>> {
     let mut location: Vec<G::EdgeId> = line.path.clone();
 
     let last_edge = location[location.len() - 1];
@@ -22,23 +22,23 @@ pub fn resolve_lrps<G: DirectedGraph>(
         match shortest_path_location(graph, &location, config.max_lrp_distance)? {
             // Step – 4 Check whether the calculated shortest-path covers the location completely.
             ShortestPath::Location => {
-                candidate_lrps.push(LocRefPoint::node(config, graph, location));
+                candidate_lrps.push(LocRefPoint::node(config, graph, location)?);
                 break;
             }
             // Step – 6 Restart shortest path calculation between the new intermediate location
             // reference point and the end of the location.
             ShortestPath::Intermediate(Intermediate { location_index }) => {
                 let loc = location[..location_index].to_vec();
-                candidate_lrps.push(LocRefPoint::node(config, graph, loc));
+                candidate_lrps.push(LocRefPoint::node(config, graph, loc)?);
                 location.drain(..location_index);
             }
             ShortestPath::NotFound => {
-                return Err(EncoderError::RouteNotFound);
+                return Err(EncodeError::RouteNotFound);
             }
         }
     }
 
-    candidate_lrps.push(LocRefPoint::last_node(config, graph, last_edge));
+    candidate_lrps.push(LocRefPoint::last_node(config, graph, last_edge)?);
 
     let lrp_edges = || candidate_lrps.iter().flat_map(|lrp| &lrp.edges);
     debug_assert_eq!(line.path.len(), lrp_edges().count());
@@ -76,7 +76,7 @@ fn split_lrp<G: DirectedGraph>(
     config: &EncoderConfig,
     graph: &G,
     lrp: LocRefPoint<G::EdgeId>,
-) -> Result<Vec<LocRefPoint<G::EdgeId>>, EncoderError> {
+) -> Result<Vec<LocRefPoint<G::EdgeId>>, EncodeError<G::Error>> {
     let EncoderConfig {
         max_lrp_distance, ..
     } = *config;
@@ -98,14 +98,14 @@ fn split_lrp<G: DirectedGraph>(
     let mut distance = max_lrp_distance;
 
     while dnp > max_lrp_distance {
-        let coordinate = graph.get_coordinate_along_edge(edge, distance);
+        let coordinate = graph.get_coordinate_along_edge(edge, distance)?;
 
         if let Some(path) = lrps.last_mut().and_then(|lrp| lrp.point.path.as_mut()) {
             // creating another LRP on the same line requires updating the DNP of the previous
             path.dnp = max_lrp_distance;
         }
 
-        lrps.push(LocRefPoint::line(config, graph, edge, coordinate));
+        lrps.push(LocRefPoint::line(config, graph, edge, coordinate)?);
         dnp -= max_lrp_distance;
         distance += max_lrp_distance;
     }

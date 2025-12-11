@@ -22,8 +22,7 @@ use crate::decoder::line::decode_line;
 use crate::error::DecodeError;
 use crate::model::RatingScore;
 use crate::{
-    Bearing, DeserializeError, DirectedGraph, Length, Location, LocationReference,
-    deserialize_binary_openlr,
+    Bearing, DirectedGraph, Length, Location, LocationReference, deserialize_binary_openlr,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -74,10 +73,10 @@ pub fn decode_base64_openlr<G: DirectedGraph>(
     config: &DecoderConfig,
     graph: &G,
     data: impl AsRef<[u8]>,
-) -> Result<Location<G::EdgeId>, DecodeError> {
+) -> Result<Location<G::EdgeId>, DecodeError<G::Error>> {
     let data = BASE64_STANDARD
         .decode(data)
-        .map_err(DeserializeError::from)?;
+        .map_err(|e| DecodeError::DeserializeError(e.into()))?;
     decode_binary_openlr(config, graph, &data)
 }
 
@@ -86,9 +85,9 @@ pub fn decode_binary_openlr<G: DirectedGraph>(
     config: &DecoderConfig,
     graph: &G,
     data: &[u8],
-) -> Result<Location<G::EdgeId>, DecodeError> {
+) -> Result<Location<G::EdgeId>, DecodeError<G::Error>> {
     // Step – 1 Decode physical data and check its validity
-    let location = deserialize_binary_openlr(data)?;
+    let location = deserialize_binary_openlr(data).map_err(DecodeError::DeserializeError)?;
 
     use LocationReference::*;
     match location {

@@ -24,11 +24,13 @@ pub struct LineLocation<EdgeId> {
 }
 
 impl<EdgeId: Copy + Debug> LineLocation<EdgeId> {
-    pub fn path_length<G>(&self, graph: &G) -> Length
+    pub fn path_length<G>(&self, graph: &G) -> Result<Length, G::Error>
     where
         G: DirectedGraph<EdgeId = EdgeId>,
     {
-        self.path.iter().map(|&e| graph.get_edge_length(e)).sum()
+        self.path
+            .iter()
+            .try_fold(Length::ZERO, |acc, &e| Ok(acc + graph.get_edge_length(e)?))
     }
 
     /// Construct a valid Line location from the path trimed by its offsets.
@@ -44,12 +46,12 @@ impl<EdgeId: Copy + Debug> LineLocation<EdgeId> {
     ///     - Otherwise the last line can be removed from the list of location lines and the offset
     ///       value must be reduced in the same way.
     ///     - This procedure shall be repeated until this constraint is fulfilled.
-    pub fn trim<G>(self, graph: &G) -> Result<LineLocation<G::EdgeId>, LocationError>
+    pub fn trim<G>(self, graph: &G) -> Result<LineLocation<G::EdgeId>, LocationError<G::Error>>
     where
         G: DirectedGraph<EdgeId = EdgeId>,
     {
         debug!("Trimming {self:?}");
-        let path_length = self.path_length(graph);
+        let path_length = self.path_length(graph)?;
 
         let Self {
             mut path,
@@ -61,11 +63,11 @@ impl<EdgeId: Copy + Debug> LineLocation<EdgeId> {
             return Err(LocationError::InvalidOffsets((pos_offset, neg_offset)));
         }
 
-        let start_cut = get_path_cut(graph, path.iter().copied(), pos_offset);
+        let start_cut = get_path_cut(graph, path.iter().copied(), pos_offset)?;
         let (start, cut_length) = start_cut.unwrap_or((0, Length::ZERO));
         pos_offset -= cut_length;
 
-        let end_cut = get_path_cut(graph, path.iter().rev().copied(), neg_offset);
+        let end_cut = get_path_cut(graph, path.iter().rev().copied(), neg_offset)?;
         let end_cut = end_cut.map(|(i, length)| (path.len() - i, length));
         let (end, cut_length) = end_cut.unwrap_or((path.len(), Length::ZERO));
         neg_offset -= cut_length;
@@ -100,7 +102,7 @@ fn ensure_line_is_valid<G: DirectedGraph>(
     graph: &G,
     line: &LineLocation<G::EdgeId>,
     max_lrp_distance: Length,
-) -> Result<(), LocationError> {
+) -> Result<(), LocationError<G::Error>> {
     let LineLocation {
         ref path,
         pos_offset,
@@ -109,13 +111,13 @@ fn ensure_line_is_valid<G: DirectedGraph>(
 
     if path.is_empty() {
         return Err(LocationError::Empty);
-    } else if !is_path_connected(graph, path) {
+    } else if !is_path_connected(graph, path)? {
         return Err(LocationError::NotConnected);
     }
 
     if pos_offset > max_lrp_distance
         || neg_offset > max_lrp_distance
-        || pos_offset + neg_offset >= line.path_length(graph)
+        || pos_offset + neg_offset >= line.path_length(graph)?
     {
         return Err(LocationError::InvalidOffsets((pos_offset, neg_offset)));
     }
@@ -124,7 +126,11 @@ fn ensure_line_is_valid<G: DirectedGraph>(
 }
 
 /// Returns the cut index and the total cut length.
-fn get_path_cut<G, I>(graph: &G, edges: I, offset: Length) -> Option<(usize, Length)>
+fn get_path_cut<G, I>(
+    graph: &G,
+    edges: I,
+    offset: Length,
+) -> Result<Option<(usize, Length)>, G::Error>
 where
     G: DirectedGraph,
     I: IntoIterator<Item = G::EdgeId>,
@@ -135,13 +141,16 @@ where
         .scan(Length::ZERO, |length, (i, edge)| {
             let current_length = *length;
             if current_length <= offset {
-                *length += graph.get_edge_length(edge);
-                Some((i, current_length))
+                match graph.get_edge_length(edge) {
+                    Ok(edge_length) => *length += edge_length,
+                    Err(e) => return Some(Err(e)),
+                };
+                Some(Ok((i, current_length)))
             } else {
                 None
             }
         })
-        .last()
+        .try_fold(None, |_, last| Ok(Some(last?)))
 }
 
 #[cfg(test)]

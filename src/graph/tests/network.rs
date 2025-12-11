@@ -7,6 +7,7 @@ use geo::{
 };
 use graph::prelude::{DirectedCsrGraph, DirectedNeighborsWithValues};
 use rstar::{AABB, PointDistance, RTree, RTreeObject};
+use thiserror::Error;
 
 use crate::graph::tests::geojson::{GEOJSON_GRAPH, GeojsonGraph};
 use crate::{Bearing, Coordinate, DirectedGraph, Fow, Frc, Length};
@@ -93,75 +94,82 @@ impl PointDistance for GeospatialEdge {
     }
 }
 
+#[derive(Debug, Error, PartialEq)]
+#[error("NetworkGraph internal error")]
+pub struct NetworkGraphError;
+
 impl DirectedGraph for NetworkGraph {
+    type Error = NetworkGraphError;
     type EdgeId = EdgeId;
     type VertexId = VertexId;
 
-    fn get_vertex_coordinate(&self, vertex: Self::VertexId) -> Coordinate {
-        self.vertex_exiting_edges(vertex)
+    fn get_vertex_coordinate(&self, vertex: Self::VertexId) -> Result<Coordinate, Self::Error> {
+        self.vertex_exiting_edges(vertex)?
             .next()
             .and_then(|(e, _)| {
-                debug_assert_eq!(self.get_edge_start_vertex(e), vertex);
+                debug_assert_eq!(self.get_edge_start_vertex(e).unwrap(), vertex);
                 self.edge_line_string(e).coords().copied().next()
             })
-            .map(|coord| Coordinate {
-                lon: coord.x,
-                lat: coord.y,
+            .map(|coord| {
+                Ok(Coordinate {
+                    lon: coord.x,
+                    lat: coord.y,
+                })
             })
             .unwrap()
     }
 
-    fn get_edge_start_vertex(&self, edge: Self::EdgeId) -> Self::VertexId {
+    fn get_edge_start_vertex(&self, edge: Self::EdgeId) -> Result<Self::VertexId, Self::Error> {
         self.edge_properties
             .get(&edge.undirected())
             .map(|EdgeProperties { vertices, .. }| {
                 if edge.is_reversed() {
-                    vertices[1]
+                    Ok(vertices[1])
                 } else {
-                    vertices[0]
+                    Ok(vertices[0])
                 }
             })
             .unwrap()
     }
 
-    fn get_edge_end_vertex(&self, edge: Self::EdgeId) -> Self::VertexId {
+    fn get_edge_end_vertex(&self, edge: Self::EdgeId) -> Result<Self::VertexId, Self::Error> {
         self.edge_properties
             .get(&edge.undirected())
             .map(|EdgeProperties { vertices, .. }| {
                 if edge.is_reversed() {
-                    vertices[0]
+                    Ok(vertices[0])
                 } else {
-                    vertices[1]
+                    Ok(vertices[1])
                 }
             })
             .unwrap()
     }
 
-    fn get_edge_length(&self, edge: Self::EdgeId) -> Length {
+    fn get_edge_length(&self, edge: Self::EdgeId) -> Result<Length, Self::Error> {
         self.edge_properties
             .get(&edge.undirected())
-            .map(|EdgeProperties { length, .. }| *length)
+            .map(|EdgeProperties { length, .. }| Ok(*length))
             .unwrap()
     }
 
-    fn get_edge_frc(&self, edge: Self::EdgeId) -> Frc {
+    fn get_edge_frc(&self, edge: Self::EdgeId) -> Result<Frc, Self::Error> {
         self.edge_properties
             .get(&edge.undirected())
-            .map(|EdgeProperties { frc, .. }| *frc)
+            .map(|EdgeProperties { frc, .. }| Ok(*frc))
             .unwrap()
     }
 
-    fn get_edge_fow(&self, edge: Self::EdgeId) -> Fow {
+    fn get_edge_fow(&self, edge: Self::EdgeId) -> Result<Fow, Self::Error> {
         self.edge_properties
             .get(&edge.undirected())
-            .map(|EdgeProperties { fow, .. }| *fow)
+            .map(|EdgeProperties { fow, .. }| Ok(*fow))
             .unwrap()
     }
 
     fn vertex_exiting_edges(
         &self,
         vertex: Self::VertexId,
-    ) -> impl Iterator<Item = (Self::EdgeId, Self::VertexId)> {
+    ) -> Result<impl Iterator<Item = (Self::EdgeId, Self::VertexId)>, Self::Error> {
         let mut edges: Vec<_> = self
             .network
             .out_neighbors_with_values(vertex.0)
@@ -170,13 +178,13 @@ impl DirectedGraph for NetworkGraph {
 
         // edges returned in a deterministic order
         edges.sort();
-        edges.into_iter()
+        Ok(edges.into_iter())
     }
 
     fn vertex_entering_edges(
         &self,
         vertex: Self::VertexId,
-    ) -> impl Iterator<Item = (Self::EdgeId, Self::VertexId)> {
+    ) -> Result<impl Iterator<Item = (Self::EdgeId, Self::VertexId)>, Self::Error> {
         let mut edges: Vec<_> = self
             .network
             .in_neighbors_with_values(vertex.0)
@@ -185,44 +193,50 @@ impl DirectedGraph for NetworkGraph {
 
         // edges returned in a deterministic order
         edges.sort();
-        edges.into_iter()
+        Ok(edges.into_iter())
     }
 
     fn nearest_vertices_within_distance(
         &self,
         coordinate: Coordinate,
         max_distance: Length,
-    ) -> impl Iterator<Item = (Self::VertexId, Length)> {
+    ) -> Result<impl Iterator<Item = (Self::VertexId, Length)>, Self::Error> {
         let max_distance_2 = max_distance.meters() * max_distance.meters();
         let point = Point::new(coordinate.lon, coordinate.lat);
 
-        self.geospatial_nodes
+        Ok(self
+            .geospatial_nodes
             .nearest_neighbor_iter_with_distance_2(&point)
             .take_while(move |(_, distance_2)| *distance_2 <= max_distance_2)
             .map(|(node, distance_2)| {
                 let length = Length::from_meters(distance_2.sqrt());
                 (node.vertex, length)
-            })
+            }))
     }
 
     fn nearest_edges_within_distance(
         &self,
         coordinate: Coordinate,
         max_distance: Length,
-    ) -> impl Iterator<Item = (Self::EdgeId, Length)> {
+    ) -> Result<impl Iterator<Item = (Self::EdgeId, Length)>, Self::Error> {
         let max_distance_2 = max_distance.meters() * max_distance.meters();
         let point = Point::new(coordinate.lon, coordinate.lat);
 
-        self.geospatial_edges
+        Ok(self
+            .geospatial_edges
             .nearest_neighbor_iter_with_distance_2(&point)
             .take_while(move |(_, distance_2)| *distance_2 <= max_distance_2)
             .map(|(node, distance_2)| {
                 let length = Length::from_meters(distance_2.sqrt());
                 (node.edge, length)
-            })
+            }))
     }
 
-    fn get_distance_along_edge(&self, edge: Self::EdgeId, coordinate: Coordinate) -> Length {
+    fn get_distance_along_edge(
+        &self,
+        edge: Self::EdgeId,
+        coordinate: Coordinate,
+    ) -> Result<Length, Self::Error> {
         let mut closest_distance = f64::INFINITY;
         let mut distance_along_edge = 0.0;
         let mut distance_acc = 0.0;
@@ -248,21 +262,25 @@ impl DirectedGraph for NetworkGraph {
             }
         }
 
-        Length::from_meters(distance_along_edge).min(self.get_edge_length(edge))
+        Ok(Length::from_meters(distance_along_edge).min(self.get_edge_length(edge)?))
     }
 
-    fn get_coordinate_along_edge(&self, edge: Self::EdgeId, distance: Length) -> Coordinate {
-        let ratio = distance.meters() / self.get_edge_length(edge).meters();
+    fn get_coordinate_along_edge(
+        &self,
+        edge: Self::EdgeId,
+        distance: Length,
+    ) -> Result<Coordinate, Self::Error> {
+        let ratio = distance.meters() / self.get_edge_length(edge)?.meters();
 
         let geometry = self.edge_line_string(edge);
         let point = geometry
             .point_at_ratio_from_start(&Haversine, ratio)
             .unwrap();
 
-        Coordinate {
+        Ok(Coordinate {
             lon: point.x(),
             lat: point.y(),
-        }
+        })
     }
 
     fn get_edge_bearing(
@@ -270,15 +288,15 @@ impl DirectedGraph for NetworkGraph {
         edge: Self::EdgeId,
         distance_from_start: Length,
         segment_length: Length,
-    ) -> Bearing {
-        let edge_length = self.get_edge_length(edge);
+    ) -> Result<Bearing, Self::Error> {
+        let edge_length = self.get_edge_length(edge)?;
         let distance_start = distance_from_start.clamp(Length::ZERO, edge_length);
         let distance_end = (distance_start + segment_length).clamp(Length::ZERO, edge_length);
 
-        let c1 = self.get_coordinate_along_edge(edge, distance_start);
+        let c1 = self.get_coordinate_along_edge(edge, distance_start)?;
         let p1 = Point::new(c1.lon, c1.lat);
 
-        let c2 = self.get_coordinate_along_edge(edge, distance_end);
+        let c2 = self.get_coordinate_along_edge(edge, distance_end)?;
         let p2 = Point::new(c2.lon, c2.lat);
 
         let degrees = {
@@ -286,11 +304,15 @@ impl DirectedGraph for NetworkGraph {
             Haversine.bearing(p1, p2).round() as u16
         };
 
-        Bearing::from_degrees(degrees)
+        Ok(Bearing::from_degrees(degrees))
     }
 
-    fn is_turn_restricted(&self, _start: Self::EdgeId, _end: Self::EdgeId) -> bool {
-        false
+    fn is_turn_restricted(
+        &self,
+        _start: Self::EdgeId,
+        _end: Self::EdgeId,
+    ) -> Result<bool, Self::Error> {
+        Ok(false)
     }
 }
 
@@ -374,7 +396,9 @@ fn network_graph_coordinate_along_edge() {
     let graph = &NETWORK_GRAPH;
 
     assert_eq!(
-        graph.get_coordinate_along_edge(EdgeId(16218), Length::ZERO),
+        graph
+            .get_coordinate_along_edge(EdgeId(16218), Length::ZERO)
+            .unwrap(),
         Coordinate {
             lon: 13.454214,
             lat: 52.5157088
@@ -382,7 +406,9 @@ fn network_graph_coordinate_along_edge() {
     );
 
     assert_eq!(
-        graph.get_coordinate_along_edge(EdgeId(16218), graph.get_edge_length(EdgeId(16218))),
+        graph
+            .get_coordinate_along_edge(EdgeId(16218), graph.get_edge_length(EdgeId(16218)).unwrap())
+            .unwrap(),
         Coordinate {
             lon: 13.457386,
             lat: 52.5153814
@@ -390,7 +416,9 @@ fn network_graph_coordinate_along_edge() {
     );
 
     assert_eq!(
-        graph.get_coordinate_along_edge(EdgeId(16218), Length::from_meters(10.0)),
+        graph
+            .get_coordinate_along_edge(EdgeId(16218), Length::from_meters(10.0))
+            .unwrap(),
         Coordinate {
             lon: 13.454360,
             lat: 52.515693
@@ -398,7 +426,9 @@ fn network_graph_coordinate_along_edge() {
     );
 
     assert_eq!(
-        graph.get_coordinate_along_edge(EdgeId(16218), Length::from_meters(100.0)),
+        graph
+            .get_coordinate_along_edge(EdgeId(16218), Length::from_meters(100.0))
+            .unwrap(),
         Coordinate {
             lon: 13.455676,
             lat: 52.515561
@@ -406,7 +436,9 @@ fn network_graph_coordinate_along_edge() {
     );
 
     assert_eq!(
-        graph.get_coordinate_along_edge(EdgeId(16218), Length::from_meters(-1.0)),
+        graph
+            .get_coordinate_along_edge(EdgeId(16218), Length::from_meters(-1.0))
+            .unwrap(),
         Coordinate {
             lon: 13.454214,
             lat: 52.5157088
@@ -414,10 +446,12 @@ fn network_graph_coordinate_along_edge() {
     );
 
     assert_eq!(
-        graph.get_coordinate_along_edge(
-            EdgeId(16218),
-            graph.get_edge_length(EdgeId(16218)) + Length::from_meters(1.0)
-        ),
+        graph
+            .get_coordinate_along_edge(
+                EdgeId(16218),
+                graph.get_edge_length(EdgeId(16218)).unwrap() + Length::from_meters(1.0)
+            )
+            .unwrap(),
         Coordinate {
             lon: 13.457386,
             lat: 52.5153814
@@ -430,7 +464,7 @@ fn network_graph_vertex_coordinate() {
     let graph = &NETWORK_GRAPH;
 
     assert_eq!(
-        graph.get_vertex_coordinate(VertexId(1)),
+        graph.get_vertex_coordinate(VertexId(1)).unwrap(),
         Coordinate {
             lon: 13.454214,
             lat: 52.5157088
@@ -438,7 +472,7 @@ fn network_graph_vertex_coordinate() {
     );
 
     assert_eq!(
-        graph.get_vertex_coordinate(VertexId(2)),
+        graph.get_vertex_coordinate(VertexId(2)).unwrap(),
         Coordinate {
             lon: 13.457386,
             lat: 52.5153814
@@ -446,7 +480,7 @@ fn network_graph_vertex_coordinate() {
     );
 
     assert_eq!(
-        graph.get_vertex_coordinate(VertexId(58)),
+        graph.get_vertex_coordinate(VertexId(58)).unwrap(),
         Coordinate {
             lon: 13.4572516,
             lat: 52.5149212
@@ -454,7 +488,7 @@ fn network_graph_vertex_coordinate() {
     );
 
     assert_eq!(
-        graph.get_vertex_coordinate(VertexId(105)),
+        graph.get_vertex_coordinate(VertexId(105)).unwrap(),
         Coordinate {
             lon: 13.4551048,
             lat: 52.5152531
@@ -462,7 +496,7 @@ fn network_graph_vertex_coordinate() {
     );
 
     assert_eq!(
-        graph.get_vertex_coordinate(VertexId(134)),
+        graph.get_vertex_coordinate(VertexId(134)).unwrap(),
         Coordinate {
             lon: 13.4587361,
             lat: 52.516543
@@ -474,13 +508,13 @@ fn network_graph_vertex_coordinate() {
 fn network_graph_vertex_degree() {
     let graph = &NETWORK_GRAPH;
 
-    assert_eq!(graph.vertex_degree(VertexId(1)), 1);
-    assert_eq!(graph.vertex_degree(VertexId(2)), 4);
-    assert_eq!(graph.vertex_degree(VertexId(58)), 6);
-    assert_eq!(graph.vertex_degree(VertexId(105)), 2);
-    assert_eq!(graph.vertex_degree(VertexId(68)), 8);
-    assert_eq!(graph.vertex_degree(VertexId(134)), 4);
-    assert_eq!(graph.vertex_degree(VertexId(77)), 3);
+    assert_eq!(graph.vertex_degree(VertexId(1)).unwrap(), 1);
+    assert_eq!(graph.vertex_degree(VertexId(2)).unwrap(), 4);
+    assert_eq!(graph.vertex_degree(VertexId(58)).unwrap(), 6);
+    assert_eq!(graph.vertex_degree(VertexId(105)).unwrap(), 2);
+    assert_eq!(graph.vertex_degree(VertexId(68)).unwrap(), 8);
+    assert_eq!(graph.vertex_degree(VertexId(134)).unwrap(), 4);
+    assert_eq!(graph.vertex_degree(VertexId(77)).unwrap(), 3);
 }
 
 #[test]
@@ -488,49 +522,63 @@ fn network_graph_edge_bearing_between() {
     let graph = &NETWORK_GRAPH;
 
     assert_eq!(
-        graph.get_edge_bearing(EdgeId(109783), Length::ZERO, Length::from_meters(20.0)),
+        graph
+            .get_edge_bearing(EdgeId(109783), Length::ZERO, Length::from_meters(20.0))
+            .unwrap(),
         Bearing::from_degrees(200)
     );
 
     assert_eq!(
-        graph.get_edge_bearing(EdgeId(-109783), Length::ZERO, Length::from_meters(20.0)),
+        graph
+            .get_edge_bearing(EdgeId(-109783), Length::ZERO, Length::from_meters(20.0))
+            .unwrap(),
         Bearing::from_degrees(18)
     );
 
     assert_eq!(
-        graph.get_edge_bearing(
-            EdgeId(5359425),
-            graph.get_edge_length(EdgeId(5359425)) - Length::from_meters(1.0),
-            Length::from_meters(20.0)
-        ),
+        graph
+            .get_edge_bearing(
+                EdgeId(5359425),
+                graph.get_edge_length(EdgeId(5359425)).unwrap() - Length::from_meters(1.0),
+                Length::from_meters(20.0)
+            )
+            .unwrap(),
         Bearing::from_degrees(197)
     );
 
     assert_eq!(
-        graph.get_edge_bearing(EdgeId(-5359425), Length::ZERO, Length::from_meters(20.0)),
+        graph
+            .get_edge_bearing(EdgeId(-5359425), Length::ZERO, Length::from_meters(20.0))
+            .unwrap(),
         Bearing::from_degrees(17)
     );
 
     assert_eq!(
-        graph.get_edge_bearing(EdgeId(5104156), Length::ZERO, Length::from_meters(10.0)),
+        graph
+            .get_edge_bearing(EdgeId(5104156), Length::ZERO, Length::from_meters(10.0))
+            .unwrap(),
         Bearing::from_degrees(139)
     );
 
     assert_eq!(
-        graph.get_edge_bearing(
-            EdgeId(5104156),
-            Length::from_meters(15.0),
-            Length::from_meters(5.0)
-        ),
+        graph
+            .get_edge_bearing(
+                EdgeId(5104156),
+                Length::from_meters(15.0),
+                Length::from_meters(5.0)
+            )
+            .unwrap(),
         Bearing::from_degrees(97)
     );
 
     assert_eq!(
-        graph.get_edge_bearing(
-            EdgeId(109783),
-            graph.get_edge_length(EdgeId(109783)),
-            Length::from_meters(-20.0)
-        ),
+        graph
+            .get_edge_bearing(
+                EdgeId(109783),
+                graph.get_edge_length(EdgeId(109783)).unwrap(),
+                Length::from_meters(-20.0)
+            )
+            .unwrap(),
         Bearing::from_degrees(18)
     );
 }
@@ -539,8 +587,11 @@ fn network_graph_edge_bearing_between() {
 fn network_graph_edge_bearing() {
     let graph = &NETWORK_GRAPH;
 
-    let get_edge_bearing =
-        |edge| graph.get_edge_bearing(edge, Length::ZERO, graph.get_edge_length(edge));
+    let get_edge_bearing = |edge| {
+        graph
+            .get_edge_bearing(edge, Length::ZERO, graph.get_edge_length(edge).unwrap())
+            .unwrap()
+    };
 
     assert_eq!(
         get_edge_bearing(EdgeId(-6828301)),
@@ -600,6 +651,7 @@ fn network_graph_distance_along_edge() {
                     lat: 52.51499534095764,
                 }
             )
+            .unwrap()
             .round(),
         Length::from_meters(0.0)
     );
@@ -613,6 +665,7 @@ fn network_graph_distance_along_edge() {
                     lat: 52.51499534095764,
                 }
             )
+            .unwrap()
             .round(),
         Length::from_meters(1.0)
     );
@@ -626,6 +679,7 @@ fn network_graph_distance_along_edge() {
                     lat: 52.51499534095764,
                 }
             )
+            .unwrap()
             .round(),
         Length::from_meters(191.0)
     );
@@ -639,6 +693,7 @@ fn network_graph_distance_along_edge() {
                     lat: 52.51710534095764,
                 }
             )
+            .unwrap()
             .round(),
         Length::from_meters(142.0)
     );
@@ -652,6 +707,7 @@ fn network_graph_distance_along_edge() {
                     lat: 52.51710534095764,
                 }
             )
+            .unwrap()
             .round(),
         Length::from_meters(1.0)
     );
@@ -665,6 +721,7 @@ fn network_graph_distance_along_edge() {
                     lat: 52.51700,
                 }
             )
+            .unwrap()
             .round(),
         Length::from_meters(57.0)
     );
@@ -678,6 +735,7 @@ fn network_graph_distance_along_edge() {
                     lat: 52.51700,
                 }
             )
+            .unwrap()
             .round(),
         Length::from_meters(80.0)
     );
@@ -687,17 +745,32 @@ fn network_graph_distance_along_edge() {
 fn network_graph_edge_vertices() {
     let graph = &NETWORK_GRAPH;
 
-    assert_eq!(graph.get_edge_start_vertex(EdgeId(-6770340)), VertexId(102));
+    assert_eq!(
+        graph.get_edge_start_vertex(EdgeId(-6770340)).unwrap(),
+        VertexId(102)
+    );
 
     assert_eq!(
-        graph.vertex_exiting_edges(VertexId(1)).collect::<Vec<_>>(),
+        graph
+            .vertex_exiting_edges(VertexId(1))
+            .unwrap()
+            .collect::<Vec<_>>(),
         vec![(EdgeId(16218), VertexId(2))]
     );
-    assert_eq!(graph.get_edge_start_vertex(EdgeId(16218)), VertexId(1));
-    assert_eq!(graph.get_edge_end_vertex(EdgeId(16218)), VertexId(2));
+    assert_eq!(
+        graph.get_edge_start_vertex(EdgeId(16218)).unwrap(),
+        VertexId(1)
+    );
+    assert_eq!(
+        graph.get_edge_end_vertex(EdgeId(16218)).unwrap(),
+        VertexId(2)
+    );
 
     assert_eq!(
-        graph.vertex_exiting_edges(VertexId(68)).collect::<Vec<_>>(),
+        graph
+            .vertex_exiting_edges(VertexId(68))
+            .unwrap()
+            .collect::<Vec<_>>(),
         [
             (EdgeId(-5359425), VertexId(12)),
             (EdgeId(-4925291), VertexId(67)),
@@ -706,15 +779,21 @@ fn network_graph_edge_vertices() {
         ]
     );
 
-    assert_eq!(graph.get_edge_start_vertex(EdgeId(-5359425)), VertexId(68));
-    assert_eq!(graph.get_edge_end_vertex(EdgeId(-5359425)), VertexId(12));
     assert_eq!(
-        graph.get_edge_start_vertex(EdgeId(-5359425)),
-        graph.get_edge_end_vertex(EdgeId(5359425))
+        graph.get_edge_start_vertex(EdgeId(-5359425)).unwrap(),
+        VertexId(68)
     );
     assert_eq!(
-        graph.get_edge_end_vertex(EdgeId(-5359425)),
-        graph.get_edge_start_vertex(EdgeId(5359425))
+        graph.get_edge_end_vertex(EdgeId(-5359425)).unwrap(),
+        VertexId(12)
+    );
+    assert_eq!(
+        graph.get_edge_start_vertex(EdgeId(-5359425)).unwrap(),
+        graph.get_edge_end_vertex(EdgeId(5359425)).unwrap()
+    );
+    assert_eq!(
+        graph.get_edge_end_vertex(EdgeId(-5359425)).unwrap(),
+        graph.get_edge_start_vertex(EdgeId(5359425)).unwrap()
     );
 }
 
@@ -731,6 +810,7 @@ fn network_graph_nearest_edges() {
 
     let edges: Vec<_> = graph
         .nearest_edges_within_distance(coordinate, MAX_DISTANCE)
+        .unwrap()
         .map(|(edge, distance)| {
             assert!(distance <= MAX_DISTANCE);
             (edge, distance)
@@ -778,6 +858,7 @@ fn network_graph_nearest_vertices() {
 
     let neighbours: Vec<VertexId> = graph
         .nearest_vertices_within_distance(node_75_location, MAX_DISTANCE)
+        .unwrap()
         .map(|(vertex, distance)| {
             assert!(distance <= MAX_DISTANCE);
             vertex
@@ -806,12 +887,13 @@ fn network_graph_edge_properties() {
     let get_exiting_edge_properties = |vertex| {
         graph
             .vertex_exiting_edges(vertex)
+            .unwrap()
             .map(|(edge, vertex_to)| {
                 (
                     edge,
-                    graph.get_edge_length(edge),
-                    graph.get_edge_frc(edge),
-                    graph.get_edge_fow(edge),
+                    graph.get_edge_length(edge).unwrap(),
+                    graph.get_edge_frc(edge).unwrap(),
+                    graph.get_edge_fow(edge).unwrap(),
                     vertex_to,
                 )
             })
@@ -821,19 +903,20 @@ fn network_graph_edge_properties() {
     let get_entering_edge_properties = |vertex| {
         graph
             .vertex_entering_edges(vertex)
+            .unwrap()
             .map(|(edge, vertex_to)| {
                 (
                     edge,
-                    graph.get_edge_length(edge),
-                    graph.get_edge_frc(edge),
-                    graph.get_edge_fow(edge),
+                    graph.get_edge_length(edge).unwrap(),
+                    graph.get_edge_frc(edge).unwrap(),
+                    graph.get_edge_fow(edge).unwrap(),
                     vertex_to,
                 )
             })
             .collect::<Vec<_>>()
     };
 
-    assert_eq!(graph.vertex_entering_edges(VertexId(1)).count(), 0);
+    assert_eq!(graph.vertex_entering_edges(VertexId(1)).unwrap().count(), 0);
     assert_eq!(
         get_exiting_edge_properties(VertexId(1)),
         vec![(

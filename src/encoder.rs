@@ -30,7 +30,7 @@ use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 
 use crate::encoder::line::encode_line;
-use crate::{DirectedGraph, EncoderError, Length, Location, serialize_binary_openlr};
+use crate::{DirectedGraph, EncodeError, Length, Location, serialize_binary_openlr};
 
 #[derive(Debug, Clone, Copy)]
 pub struct EncoderConfig {
@@ -62,7 +62,7 @@ pub fn encode_base64_openlr<G: DirectedGraph>(
     config: &EncoderConfig,
     graph: &G,
     location: Location<G::EdgeId>,
-) -> Result<String, EncoderError> {
+) -> Result<String, EncodeError<G::Error>> {
     let data = encode_binary_openlr(config, graph, location)?;
     Ok(BASE64_STANDARD.encode(data))
 }
@@ -72,11 +72,11 @@ pub fn encode_binary_openlr<G: DirectedGraph>(
     config: &EncoderConfig,
     graph: &G,
     location: Location<G::EdgeId>,
-) -> Result<Vec<u8>, EncoderError> {
+) -> Result<Vec<u8>, EncodeError<G::Error>> {
     let location = match location {
         Location::Line(line) => encode_line(config, graph, line)?,
     };
 
     // Step – 10 Create physical representation of the location reference.
-    Ok(serialize_binary_openlr(&location)?)
+    serialize_binary_openlr(&location).map_err(EncodeError::SerializeError)
 }

@@ -6,7 +6,7 @@ use tracing::trace;
 
 use crate::graph::dijkstra::unpack_path;
 use crate::graph::path::{Path, is_path_connected};
-use crate::{DirectedGraph, Frc, Length};
+use crate::{DecodeError, DirectedGraph, Frc, Length};
 
 pub fn shortest_path<G: DirectedGraph>(
     graph: &G,
@@ -14,14 +14,14 @@ pub fn shortest_path<G: DirectedGraph>(
     destination: G::EdgeId,
     lowest_frc: Frc,
     max_length: Length,
-) -> Option<Path<G::EdgeId>> {
+) -> Result<Option<Path<G::EdgeId>>, DecodeError<G::Error>> {
     trace!(
         "Computing shortest path {origin:?} {:?} -> {destination:?} {:?}",
         graph.get_edge_start_vertex(origin),
         graph.get_edge_end_vertex(destination)
     );
 
-    let origin_length = graph.get_edge_length(origin);
+    let origin_length = graph.get_edge_length(origin)?;
     let mut shortest_distances = FxHashMap::from_iter([(origin, origin_length)]);
     let mut previous_map: FxHashMap<G::EdgeId, G::EdgeId> = FxHashMap::default();
     let mut heap = RadixHeapMap::from_iter([(Reverse(origin_length), origin)]);
@@ -30,12 +30,12 @@ pub fn shortest_path<G: DirectedGraph>(
         if h_edge == destination {
             // Unpacking: the shortest path from destination back to origin
             let edges = unpack_path(&previous_map, destination);
-            debug_assert!(is_path_connected(graph, &edges), "{edges:?}");
+            debug_assert!(is_path_connected(graph, &edges)?, "{edges:?}");
 
-            return Some(Path {
+            return Ok(Some(Path {
                 length: h_distance,
                 edges,
-            });
+            }));
         }
 
         // check if we already know a cheaper way to get to the end of this path from the origin
@@ -44,13 +44,15 @@ pub fn shortest_path<G: DirectedGraph>(
             continue;
         }
 
-        let exiting_edges = graph
-            .vertex_exiting_edges(graph.get_edge_end_vertex(h_edge))
-            .filter(|&(e, _)| !graph.is_turn_restricted(h_edge, e));
+        let exiting_edges = graph.vertex_exiting_edges(graph.get_edge_end_vertex(h_edge)?)?;
 
         for (edge, _) in exiting_edges {
-            let distance = h_distance + graph.get_edge_length(edge);
-            let frc = graph.get_edge_frc(edge);
+            if graph.is_turn_restricted(h_edge, edge)? {
+                continue;
+            }
+
+            let distance = h_distance + graph.get_edge_length(edge)?;
+            let frc = graph.get_edge_frc(edge)?;
 
             if distance > max_length {
                 trace!("Element distance too far: {edge:?} {distance} > {max_length}");
@@ -74,7 +76,7 @@ pub fn shortest_path<G: DirectedGraph>(
         }
     }
 
-    None
+    Ok(None)
 }
 
 #[cfg(test)]
@@ -96,6 +98,7 @@ mod tests {
                 Frc::Frc7,
                 Length::MAX
             )
+            .unwrap()
             .unwrap(),
             Path {
                 length: Length::from_meters(136.0),
@@ -116,6 +119,7 @@ mod tests {
                 Frc::Frc7,
                 Length::MAX
             )
+            .unwrap()
             .unwrap(),
             Path {
                 length: Length::from_meters(379.0),
@@ -129,7 +133,9 @@ mod tests {
         let graph: &NetworkGraph = &NETWORK_GRAPH;
 
         assert_eq!(
-            shortest_path(graph, EdgeId(16218), EdgeId(961826), Frc::Frc7, Length::MAX).unwrap(),
+            shortest_path(graph, EdgeId(16218), EdgeId(961826), Frc::Frc7, Length::MAX)
+                .unwrap()
+                .unwrap(),
             Path {
                 length: Length::from_meters(753.0),
                 edges: vec![
@@ -154,7 +160,8 @@ mod tests {
                 EdgeId(961826),
                 Frc::Frc7,
                 Length::from_meters(752.0)
-            ),
+            )
+            .unwrap(),
             None
         );
     }
@@ -171,6 +178,7 @@ mod tests {
                 Frc::Frc7,
                 Length::MAX
             )
+            .unwrap()
             .unwrap(),
             Path {
                 length: Length::from_meters(16.0),
@@ -191,6 +199,7 @@ mod tests {
                 Frc::Frc7,
                 Length::MAX
             )
+            .unwrap()
             .unwrap(),
             Path {
                 length: Length::from_meters(1462.0),
@@ -227,6 +236,7 @@ mod tests {
                 Frc::Frc7,
                 Length::MAX
             )
+            .unwrap()
             .unwrap(),
             Path {
                 length: Length::from_meters(489.0),

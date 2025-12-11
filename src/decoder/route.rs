@@ -3,7 +3,7 @@ use std::ops::{Deref, DerefMut};
 
 use crate::decoder::candidates::{CandidateLine, CandidateLinePair};
 use crate::graph::path::Path;
-use crate::{DirectedGraph, Length, Offsets};
+use crate::{DecodeError, DirectedGraph, Length, Offsets};
 
 /// The shortest route between two (consecutive) LRPs.
 #[derive(Debug, Clone, PartialEq)]
@@ -50,15 +50,22 @@ impl<EdgeId: Debug + Copy + PartialEq> CandidateRoutes<EdgeId> {
 
     /// Gets the positive and negative offsets calculated from the projections of the LRPs
     /// into the first and last route (sub-path) respectively.
-    pub fn calculate_offsets<G>(&self, graph: &G, offsets: Offsets) -> Option<(Length, Length)>
+    pub fn calculate_offsets<G>(
+        &self,
+        graph: &G,
+        offsets: Offsets,
+    ) -> Result<(Length, Length), DecodeError<G::Error>>
     where
         G: DirectedGraph<EdgeId = EdgeId>,
     {
-        let first_route = self.first()?; // LRP1 -> LRP2
-        let last_route = self.last()?; // Last LRP - 1 -> Last LRP
+        // first route: LRP1 -> LRP2
+        // last route: Last LRP - 1 -> Last LRP
+        let Some((first_route, last_route)) = self.first().zip(self.last()) else {
+            return Ok((Length::ZERO, Length::ZERO));
+        };
 
         let distance_from_start = first_route.distance_from_start();
-        let distance_to_end = last_route.distance_to_end(graph);
+        let distance_to_end = last_route.distance_to_end(graph)?;
 
         let mut head_length = first_route.path.length - distance_from_start;
         let mut tail_length = last_route.path.length - distance_to_end;
@@ -84,7 +91,7 @@ impl<EdgeId: Debug + Copy + PartialEq> CandidateRoutes<EdgeId> {
         let pos_offset = offsets.distance_from_start(head_length) + distance_from_start;
         let neg_offset = offsets.distance_to_end(tail_length) + distance_to_end;
 
-        Some((pos_offset, neg_offset))
+        Ok((pos_offset, neg_offset))
     }
 }
 
@@ -95,7 +102,7 @@ impl<EdgeId: Copy> CandidateRoute<EdgeId> {
             .unwrap_or(Length::ZERO)
     }
 
-    pub fn distance_to_end<G>(&self, graph: &G) -> Length
+    pub fn distance_to_end<G>(&self, graph: &G) -> Result<Length, DecodeError<G::Error>>
     where
         G: DirectedGraph<EdgeId = EdgeId>,
     {
@@ -106,25 +113,29 @@ impl<EdgeId: Copy> CandidateRoute<EdgeId> {
         } = self.last_candidate();
 
         if let Some(projection) = distance_to_projection {
-            (graph.get_edge_length(edge) - projection).max(Length::ZERO)
+            Ok((graph.get_edge_length(edge)? - projection).max(Length::ZERO))
         } else {
-            Length::ZERO
+            Ok(Length::ZERO)
         }
     }
 
     /// Gets the positive and negative offsets calculated from the projections of the LRPs.
-    pub fn calculate_offsets<G>(&self, graph: &G, offsets: Offsets) -> (Length, Length)
+    pub fn calculate_offsets<G>(
+        &self,
+        graph: &G,
+        offsets: Offsets,
+    ) -> Result<(Length, Length), DecodeError<G::Error>>
     where
         G: DirectedGraph<EdgeId = EdgeId>,
     {
         let distance_from_start = self.distance_from_start();
-        let distance_to_end = self.distance_to_end(graph);
+        let distance_to_end = self.distance_to_end(graph)?;
         let length = self.path.length - distance_from_start - distance_to_end;
 
         let pos_offset = offsets.distance_from_start(length) + distance_from_start;
         let neg_offset = offsets.distance_to_end(length) + distance_to_end;
 
-        (pos_offset, neg_offset)
+        Ok((pos_offset, neg_offset))
     }
 
     pub const fn first_candidate(&self) -> CandidateLine<EdgeId> {
