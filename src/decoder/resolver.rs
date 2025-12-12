@@ -192,13 +192,17 @@ fn resolve_candidate_route<G: DirectedGraph>(
         return Ok(Some(CandidateRoute { path, candidates }));
     }
 
-    let lowest_frc_value = lrp1.lfrcnp().value() + Frc::variance(&lrp1.lfrcnp());
-    let lowest_frc = Frc::from_value(lowest_frc_value).unwrap_or(Frc::Frc7);
+    // LRP1 lfrcnp (lowest FRC to the next point) encoded up to edge before LRP2, but the shortest
+    // path implementation is edge-based and checks include the destination edge (LRP2 first edge)
+    let destination_frc = graph.get_edge_frc(edge_lrp2)?;
+    let lfrcnp = Frc::from_value(lrp1.lfrcnp().value() + Frc::variance(&lrp1.lfrcnp()));
+    let lfrcnp = lfrcnp.unwrap_or(Frc::Frc7).max(destination_frc);
+
     let max_length = max_route_length(config, graph, &candidates)?;
 
-    debug!("Finding route: {edge_lrp1:?} -> {edge_lrp2:?} (max={max_length} low={lowest_frc:?})");
+    debug!("Finding route: {edge_lrp1:?} -> {edge_lrp2:?} (max={max_length} lfrcnp={lfrcnp:?})");
 
-    if let Some(mut path) = shortest_path(graph, edge_lrp1, edge_lrp2, lowest_frc, max_length)? {
+    if let Some(mut path) = shortest_path(graph, edge_lrp1, edge_lrp2, lfrcnp, max_length)? {
         let min_length = lrp1.dnp() - config.next_point_variance;
 
         if path.length < min_length {
@@ -213,7 +217,7 @@ fn resolve_candidate_route<G: DirectedGraph>(
         }
 
         debug_assert!(!path.edges.is_empty());
-        debug_assert!(path.length <= max_length);
+        debug_assert!(path.length <= max_length, "{} > {max_length}", path.length);
 
         debug!("Route found: {edge_lrp1:?} -> {edge_lrp2:?}: {path:?}");
         return Ok(Some(CandidateRoute { path, candidates }));
@@ -273,7 +277,7 @@ fn max_route_length<G: DirectedGraph>(
         max_distance += graph.get_edge_length(line_lrp2.edge)?;
     }
 
-    Ok(Length::from_meters(max_distance.meters().ceil()))
+    Ok(max_distance.ceil())
 }
 
 fn resolve_top_k_candidate_pairs<EdgeId: Debug + Copy + PartialEq>(

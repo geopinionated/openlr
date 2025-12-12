@@ -60,7 +60,7 @@ pub fn shortest_path<G: DirectedGraph>(
             }
 
             if frc > lowest_frc {
-                trace!("Element FRC too low: {edge:?} {frc:?} > {lowest_frc:?}",);
+                trace!("Element FRC too low: {edge:?} {frc:?} > {lowest_frc:?}");
                 continue;
             }
 

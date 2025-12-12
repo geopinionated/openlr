@@ -1,4 +1,4 @@
-use tracing::warn;
+use tracing::{trace, warn};
 
 use crate::EncodeError::InvalidLrp;
 use crate::encoder::lrp::{LocRefPoint, LocRefPoints};
@@ -22,6 +22,7 @@ pub fn resolve_lrps<G: DirectedGraph>(
         match shortest_path_location(graph, &location, config.max_lrp_distance)? {
             // Step – 4 Check whether the calculated shortest-path covers the location completely.
             ShortestPath::Location => {
+                trace!("Found (node) LRP for {location:?}");
                 candidate_lrps.push(LocRefPoint::node(config, graph, location)?);
                 break;
             }
@@ -29,6 +30,7 @@ pub fn resolve_lrps<G: DirectedGraph>(
             // reference point and the end of the location.
             ShortestPath::Intermediate(Intermediate { location_index }) => {
                 let loc = location[..location_index].to_vec();
+                trace!("Found (node) intermediate LRP for {loc:?}");
                 candidate_lrps.push(LocRefPoint::node(config, graph, loc)?);
                 location.drain(..location_index);
             }
