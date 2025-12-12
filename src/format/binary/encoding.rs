@@ -165,8 +165,12 @@ impl Length {
     }
 
     /// Returns the distance to next LR-point interval.
-    pub(crate) fn dnp_into_byte(self) -> u8 {
-        (self.meters() / Self::DISTANCE_PER_INTERVAL - 0.5).round() as u8
+    pub(crate) fn try_dnp_into_byte(self) -> Result<u8, SerializeError> {
+        if self < Length::ZERO {
+            return Err(SerializeError::InvalidLength(self));
+        }
+
+        Ok((self.meters() / Self::DISTANCE_PER_INTERVAL - 0.5).round() as u8)
     }
 
     /// Returns the length of a radius in meters from big-endian slice of (up to 4) bytes.
@@ -177,8 +181,12 @@ impl Length {
     }
 
     /// Returns the big-endian representation of a radius in 4 bytes.
-    pub(crate) fn radius_into_be_bytes(self) -> [u8; 4] {
-        u32::to_be_bytes(self.meters() as u32)
+    pub(crate) fn try_radius_into_be_bytes(self) -> Result<[u8; 4], SerializeError> {
+        if self < Length::ZERO {
+            return Err(SerializeError::InvalidLength(self));
+        }
+
+        Ok(u32::to_be_bytes(self.meters() as u32))
     }
 }
 
@@ -195,7 +203,7 @@ impl Bearing {
     pub(crate) fn try_into_byte(self) -> Result<u8, SerializeError> {
         let degrees = self.degrees();
         if !(0..360).contains(&degrees) {
-            return Err(SerializeError::InvalidBearing(degrees));
+            return Err(SerializeError::InvalidBearing(self));
         }
 
         let bearing = (degrees as f64 - Self::BEAR_SECTOR / 2.0) / Self::BEAR_SECTOR;
@@ -218,7 +226,7 @@ impl Offset {
     pub(crate) fn try_into_byte(self) -> Result<u8, SerializeError> {
         let range = self.range();
         if !(0.0..1.0).contains(&range) {
-            return Err(SerializeError::InvalidOffset(range));
+            return Err(SerializeError::InvalidOffset(self));
         }
 
         let bucket = if range == 0.0 {
@@ -291,7 +299,7 @@ impl GridSize {
 
     pub(crate) fn try_into_be_bytes(self) -> Result<[u8; 4], SerializeError> {
         if self.columns < 2 || self.rows < 2 {
-            return Err(SerializeError::InvalidGridSize);
+            return Err(SerializeError::InvalidGridSize(self));
         }
 
         let columns = u16::to_be_bytes(self.columns);

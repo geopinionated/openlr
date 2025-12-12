@@ -444,6 +444,17 @@ pub struct Coordinate {
 
 impl Coordinate {
     pub const EPSILON: f64 = 180.0 / (1 << 24) as f64;
+
+    pub const MIN_LON: f64 = -180.0;
+    pub const MAX_LON: f64 = 180.0;
+    pub const MIN_LAT: f64 = -90.0;
+    pub const MAX_LAT: f64 = 90.0;
+
+    /// Returns true only if the coordinate bounds are valid.
+    pub fn is_valid(&self) -> bool {
+        (Self::MIN_LON..=Self::MAX_LON).contains(&self.lon)
+            && (Self::MIN_LAT..=Self::MAX_LAT).contains(&self.lat)
+    }
 }
 
 impl PartialEq for Coordinate {
@@ -510,6 +521,12 @@ impl Point {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Offset(f64);
 
+impl fmt::Display for Offset {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 impl PartialEq for Offset {
     fn eq(&self, other: &Self) -> bool {
         abs_diff_eq!(self.0, other.0, epsilon = Self::EPSILON)
@@ -561,10 +578,22 @@ pub struct Offsets {
 }
 
 impl Offsets {
-    pub fn positive(offset: Offset) -> Self {
+    pub const ZERO: Offsets = Self {
+        pos: Offset::ZERO,
+        neg: Offset::ZERO,
+    };
+
+    pub const fn positive(offset: Offset) -> Self {
         Self {
             pos: offset,
-            neg: Offset::default(),
+            neg: Offset::ZERO,
+        }
+    }
+
+    pub const fn negative(offset: Offset) -> Self {
+        Self {
+            pos: Offset::ZERO,
+            neg: offset,
         }
     }
 
@@ -602,6 +631,8 @@ impl Line {
 /// in the road network. The boundary always consists of road segments.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct ClosedLine {
+    /// The last LRP refers to the end line of the location whereby the end node of the end line
+    /// equals the start node of the start line.
     pub points: Vec<Point>,
     pub last_line: LineAttributes,
 }
@@ -637,7 +668,7 @@ pub struct PointAlongLine {
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Poi {
     pub point: PointAlongLine,
-    pub poi: Coordinate,
+    pub coordinate: Coordinate,
 }
 
 /// A circle location is given by the position of the center and the radius.
@@ -653,7 +684,8 @@ pub struct Circle {
 /// A rectangle location reference consists of the lower left corner point as a pair
 /// of WGS84 coordinates in absolute format and the upper right corner point, given in
 /// absolute format (large rectangle) or relative format (standard rectangle).
-#[derive(Debug, Clone, PartialEq, Default)]
+/// The lower left coordinate must be southwestern of the upper right coordinate.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct Rectangle {
     pub lower_left: Coordinate,
     pub upper_right: Coordinate,
@@ -684,6 +716,9 @@ pub struct GridSize {
 /// The minimum number of coordinate pairs is three and there exists no maximum number.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Polygon {
+    /// The border is the concatenation of all direct line connections between two subsequent
+    /// coordinate pairs and the direct line connection between the last and the first coordinate
+    /// pair.
     pub corners: Vec<Coordinate>,
 }
 

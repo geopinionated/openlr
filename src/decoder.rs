@@ -1,13 +1,5 @@
 //! The decoder resolves a (map-dependent) location using its own map.
 //! This map might differ from the one used during encoding.
-//!
-//! 1. Decode physical data and check its validity.
-//! 2. For each location reference point find candidate nodes.
-//! 3. For each location reference point find candidate lines.
-//! 4. Rate candidate lines for each location reference point.
-//! 5. Determine shortest-path(s) between two subsequent location reference points.
-//! 6. Check validity of the calculated shortest-path(s).
-//! 7. Concatenate shortest-path(s) to form the location and trim path according to the offsets.
 
 mod candidates;
 mod line;
@@ -18,7 +10,7 @@ mod shortest_path;
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 
-use crate::decoder::line::decode_line;
+use crate::decoder::line::{decode_closed_line, decode_line, decode_poi, decode_point_along_line};
 use crate::error::DecodeError;
 use crate::model::RatingScore;
 use crate::{
@@ -92,9 +84,14 @@ pub fn decode_binary_openlr<G: DirectedGraph>(
     use LocationReference::*;
     match location {
         Line(line) => decode_line(config, graph, line).map(Location::Line),
-        GeoCoordinate(_) | PointAlongLine(_) | Poi(_) | Circle(_) | Rectangle(_) | Grid(_)
-        | Polygon(_) | ClosedLine(_) => Err(DecodeError::LocationTypeNotSupported(
-            location.location_type(),
-        )),
+        GeoCoordinate(coordinate) => Ok(Location::GeoCoordinate(coordinate)),
+        PointAlongLine(point) => {
+            decode_point_along_line(config, graph, point).map(Location::PointAlongLine)
+        }
+        Poi(poi) => decode_poi(config, graph, poi).map(Location::Poi),
+        ClosedLine(line) => decode_closed_line(config, graph, line).map(Location::ClosedLine),
+        Circle(_) | Rectangle(_) | Grid(_) | Polygon(_) => Err(
+            DecodeError::LocationTypeNotSupported(location.location_type()),
+        ),
     }
 }

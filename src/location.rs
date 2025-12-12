@@ -3,13 +3,17 @@ use std::fmt::Debug;
 use tracing::debug;
 
 use crate::graph::path::is_path_connected;
-use crate::{DirectedGraph, Length, LocationError};
+use crate::{Coordinate, DirectedGraph, Length, LocationError, Orientation, SideOfRoad};
 
 /// Defines a location (in a map) that can be encoded using the OpenLR encoder
 /// and is also the result of the decoding process.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Location<EdgeId> {
     Line(LineLocation<EdgeId>),
+    GeoCoordinate(Coordinate),
+    PointAlongLine(PointAlongLineLocation<EdgeId>),
+    Poi(PoiLocation<EdgeId>),
+    ClosedLine(ClosedLineLocation<EdgeId>),
 }
 
 /// Location (in a map) that represents a Line Location Reference.
@@ -21,6 +25,38 @@ pub struct LineLocation<EdgeId> {
     pub pos_offset: Length,
     /// Distance from the end of the last edge to the end of the location.
     pub neg_offset: Length,
+}
+
+/// Location of a point (in a map) along a line.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PointAlongLineLocation<EdgeId> {
+    /// Complete list of edges that form the line.
+    pub path: Vec<EdgeId>,
+    /// Distance from the start of line to the position of the point.
+    /// Cannot exceed the length of the line.
+    pub offset: Length,
+    /// The point may have an orientation to indicate in which direction of the line the
+    /// information referenced at that point is useful.
+    pub orientation: Orientation,
+    /// The point can be on the right side of the line, on the left side of the line, on both sides
+    /// of the line, or directly on the line.
+    pub side: SideOfRoad,
+}
+
+/// Location of a point of interest (in a map) with access point along a line.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PoiLocation<EdgeId> {
+    /// The access point along a line.
+    pub point: PointAlongLineLocation<EdgeId>,
+    /// The coordinate of the Point Of Interest (POI).
+    pub coordinate: Coordinate,
+}
+
+/// Location (in a map) that represents a closed Line Location Reference.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClosedLineLocation<EdgeId> {
+    /// Complete list of edges that form the line.
+    pub path: Vec<EdgeId>,
 }
 
 impl<EdgeId: Copy + Debug> LineLocation<EdgeId> {
@@ -117,6 +153,8 @@ fn ensure_line_is_valid<G: DirectedGraph>(
 
     if pos_offset > max_lrp_distance
         || neg_offset > max_lrp_distance
+        || pos_offset >= graph.get_edge_length(path[0])?
+        || neg_offset >= graph.get_edge_length(path[path.len() - 1])?
         || pos_offset + neg_offset >= line.path_length(graph)?
     {
         return Err(LocationError::InvalidOffsets((pos_offset, neg_offset)));

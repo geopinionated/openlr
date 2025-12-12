@@ -200,8 +200,8 @@ impl<'a> OpenLrBinaryReader<'a> {
 
     fn read_poi(&mut self) -> Result<Poi, DeserializeError> {
         let point = self.read_point_along_line()?;
-        let poi = self.read_relative_coordinate(point.points[0].coordinate)?;
-        Ok(Poi { point, poi })
+        let coordinate = self.read_relative_coordinate(point.points[0].coordinate)?;
+        Ok(Poi { point, coordinate })
     }
 
     fn read_circle(&mut self) -> Result<Circle, DeserializeError> {
@@ -268,7 +268,13 @@ impl<'a> OpenLrBinaryReader<'a> {
 
         let lon = read_degrees()?;
         let lat = read_degrees()?;
-        Ok(Coordinate { lon, lat })
+        let coordinate = Coordinate { lon, lat };
+
+        if coordinate.is_valid() {
+            Ok(coordinate)
+        } else {
+            Err(DeserializeError::InvalidCoordinate(coordinate))
+        }
     }
 
     fn read_relative_coordinate(
@@ -283,7 +289,13 @@ impl<'a> OpenLrBinaryReader<'a> {
 
         let lon = read_degrees(previous.lon)?;
         let lat = read_degrees(previous.lat)?;
-        Ok(Coordinate { lon, lat })
+        let coordinate = Coordinate { lon, lat };
+
+        if coordinate.is_valid() {
+            Ok(coordinate)
+        } else {
+            Err(DeserializeError::InvalidCoordinate(coordinate))
+        }
     }
 
     fn read_attributes(&mut self) -> Result<EncodedAttributes, DeserializeError> {
@@ -713,7 +725,7 @@ mod tests {
                     orientation: Orientation::Unknown,
                     side: SideOfRoad::OnRoadOrUnknown,
                 },
-                poi: Coordinate {
+                coordinate: Coordinate {
                     lon: 5.1013007,
                     lat: 52.105_79
                 }

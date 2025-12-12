@@ -20,7 +20,9 @@ pub use format::binary::{
     serialize_binary_openlr,
 };
 pub use graph::DirectedGraph;
-pub use location::{LineLocation, Location};
+pub use location::{
+    ClosedLineLocation, LineLocation, Location, PoiLocation, PointAlongLineLocation,
+};
 pub use model::{
     Bearing, Circle, ClosedLine, Coordinate, Fow, Frc, Grid, GridSize, Length, Line,
     LineAttributes, LocationReference, LocationType, Offset, Offsets, Orientation, PathAttributes,

@@ -2,7 +2,7 @@ use std::io::ErrorKind;
 
 use thiserror::Error;
 
-use crate::{Length, LocationType, Point};
+use crate::{Bearing, Coordinate, GridSize, Length, LocationType, Offset, Point, Rectangle};
 
 #[derive(Error, Debug, PartialEq, Clone, Copy)]
 pub enum DeserializeError {
@@ -22,6 +22,8 @@ pub enum DeserializeError {
     InvalidOrientation(u8),
     #[error("OpenLR Side of Road is not valid: {0}")]
     InvalidSideOfRoad(u8),
+    #[error("OpenLR Coordinate is not valid: {0:?}")]
+    InvalidCoordinate(Coordinate),
 }
 
 #[derive(Error, Debug, PartialEq, Clone, Copy)]
@@ -29,17 +31,21 @@ pub enum SerializeError {
     #[error("OpenLR buffer I/O error: {0:?}")]
     IO(ErrorKind),
     #[error("OpenLR Bearing is not valid, expected [0, 360): {0}")]
-    InvalidBearing(u16),
+    InvalidBearing(Bearing),
     #[error("OpenLR Offset is not valid, expected [0, 1): {0}")]
-    InvalidOffset(f64),
+    InvalidOffset(Offset),
     #[error("OpenLR Line consists of at least 2 LR-points")]
     InvalidLine,
     #[error("OpenLR Polygon consists of at least 3 LR-points")]
     InvalidPolygon,
-    #[error("OpenLR Rectangle consists of 2 different coordinates")]
-    InvalidRectangle,
+    #[error("OpenLR Rectangle consists of 2 different coordinates: {0:?}")]
+    InvalidRectangle(Rectangle),
     #[error("OpenLR Grid size must have number of columns and rows > 1")]
-    InvalidGridSize,
+    InvalidGridSize(GridSize),
+    #[error("OpenLR Coordinate is not valid: {0:?}")]
+    InvalidCoordinate(Coordinate),
+    #[error("OpenLR Length is not valid: {0:?}")]
+    InvalidLength(Length),
 }
 
 #[derive(Error, Debug, PartialEq, Clone, Copy)]

@@ -2,8 +2,19 @@ use tracing::debug;
 
 use crate::decoder::candidates::{find_candidate_lines, find_candidate_nodes};
 use crate::decoder::resolver::resolve_routes;
-use crate::{DecodeError, DecoderConfig, DirectedGraph, Line, LineLocation};
+use crate::location::ClosedLineLocation;
+use crate::{
+    ClosedLine, DecodeError, DecoderConfig, DirectedGraph, Length, Line, LineLocation, Offsets,
+    Poi, PoiLocation, Point, PointAlongLine, PointAlongLineLocation,
+};
 
+/// 1. Decode physical data and check its validity.
+/// 2. For each location reference point find candidate nodes.
+/// 3. For each location reference point find candidate lines.
+/// 4. Rate candidate lines for each location reference point.
+/// 5. Determine shortest-path(s) between two subsequent location reference points.
+/// 6. Check validity of the calculated shortest-path(s).
+/// 7. Concatenate shortest-path(s) to form the location and trim path according to the offsets.
 pub fn decode_line<G: DirectedGraph>(
     config: &DecoderConfig,
     graph: &G,
@@ -40,6 +51,64 @@ pub fn decode_line<G: DirectedGraph>(
     debug_assert!(location.path.windows(2).all(|w| w[0] != w[1]));
 
     Ok(location)
+}
+
+pub fn decode_point_along_line<G: DirectedGraph>(
+    config: &DecoderConfig,
+    graph: &G,
+    point: PointAlongLine,
+) -> Result<PointAlongLineLocation<G::EdgeId>, DecodeError<G::Error>> {
+    let line = Line {
+        points: point.points.to_vec(),
+        offsets: Offsets::positive(point.offset),
+    };
+
+    let line = decode_line(config, graph, line)?;
+
+    Ok(PointAlongLineLocation {
+        path: line.path,
+        offset: line.pos_offset,
+        orientation: point.orientation,
+        side: point.side,
+    })
+}
+
+pub fn decode_poi<G: DirectedGraph>(
+    config: &DecoderConfig,
+    graph: &G,
+    poi: Poi,
+) -> Result<PoiLocation<G::EdgeId>, DecodeError<G::Error>> {
+    let point = decode_point_along_line(config, graph, poi.point)?;
+
+    Ok(PoiLocation {
+        point,
+        coordinate: poi.coordinate,
+    })
+}
+
+pub fn decode_closed_line<G: DirectedGraph>(
+    config: &DecoderConfig,
+    graph: &G,
+    mut line: ClosedLine,
+) -> Result<ClosedLineLocation<G::EdgeId>, DecodeError<G::Error>> {
+    let last_point = Point {
+        coordinate: line.points[0].coordinate,
+        line: line.last_line,
+        path: None,
+    };
+
+    line.points.push(last_point);
+
+    let line = Line {
+        points: line.points,
+        offsets: Offsets::ZERO,
+    };
+
+    let line = decode_line(config, graph, line)?;
+    debug_assert_eq!(line.pos_offset, Length::ZERO);
+    debug_assert_eq!(line.neg_offset, Length::ZERO);
+
+    Ok(ClosedLineLocation { path: line.path })
 }
 
 #[cfg(test)]
