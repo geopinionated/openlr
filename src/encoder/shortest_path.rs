@@ -8,7 +8,7 @@ use tracing::{debug, warn};
 
 use crate::graph::dijkstra::unpack_path;
 use crate::graph::path::{is_node_valid, is_path_loop};
-use crate::{DirectedGraph, EncoderError, Length, LocationError};
+use crate::{DirectedGraph, EncodeError, Length, LocationError};
 
 /// Represents a subset, or the totality, of the location that is a shortest path.
 #[derive(Debug, Clone, PartialEq)]
@@ -58,7 +58,7 @@ pub fn shortest_path_location<G: DirectedGraph>(
     graph: &G,
     location: &[G::EdgeId],
     max_lrp_distance: Length,
-) -> Result<ShortestPath, EncoderError> {
+) -> Result<ShortestPath, EncodeError<G::Error>> {
     debug!("Computing shortest path following {location:?}");
 
     let (origin, destination) = match location.first().zip(location.last()) {
@@ -88,8 +88,11 @@ pub fn shortest_path_location<G: DirectedGraph>(
         }));
     }
 
-    let max_length = location.iter().map(|&e| graph.get_edge_length(e)).sum();
-    let origin_length = graph.get_edge_length(origin);
+    let max_length = location.iter().try_fold(Length::ZERO, |acc, &e| {
+        Ok::<_, G::Error>(acc + graph.get_edge_length(e)?)
+    })?;
+
+    let origin_length = graph.get_edge_length(origin)?;
 
     let mut shortest_distances = FxHashMap::from_iter([(origin, origin_length)]);
     let mut previous_map: FxHashMap<G::EdgeId, G::EdgeId> = FxHashMap::default();
@@ -107,7 +110,7 @@ pub fn shortest_path_location<G: DirectedGraph>(
 
             let path = &location[..=location_index];
             debug_assert_eq!(path, unpack_path(&previous_map, h_edge));
-            if is_path_loop(graph, path, Length::ZERO, Length::ZERO) {
+            if is_path_loop(graph, path, Length::ZERO, Length::ZERO)? {
                 return Ok(ShortestPath::Intermediate(Intermediate { location_index }));
             }
         }
@@ -138,12 +141,14 @@ pub fn shortest_path_location<G: DirectedGraph>(
             continue;
         }
 
-        let exiting_edges = graph
-            .vertex_exiting_edges(graph.get_edge_end_vertex(h_edge))
-            .filter(|&(e, _)| !graph.is_turn_restricted(h_edge, e));
+        let exiting_edges = graph.vertex_exiting_edges(graph.get_edge_end_vertex(h_edge)?)?;
 
         for (edge, _) in exiting_edges {
-            let distance = h_distance + graph.get_edge_length(edge);
+            if graph.is_turn_restricted(h_edge, edge)? {
+                continue;
+            }
+
+            let distance = h_distance + graph.get_edge_length(edge)?;
 
             if distance > max_length {
                 continue;
@@ -179,7 +184,7 @@ impl<'a, G: DirectedGraph> Intermediator<'a, G> {
         graph: &'a G,
         location: &'a [G::EdgeId],
         max_lrp_distance: Length,
-    ) -> Result<Self, EncoderError> {
+    ) -> Result<Self, EncodeError<G::Error>> {
         let last_edge = location.first().copied().ok_or(LocationError::Empty)?;
         let last_edge_index = 0;
 
@@ -208,7 +213,7 @@ impl<'a, G: DirectedGraph> Intermediator<'a, G> {
         h_edge: G::EdgeId,
         h_distance: Length,
         previous_map: &FxHashMap<G::EdgeId, G::EdgeId>,
-    ) -> Result<Option<Intermediate>, EncoderError> {
+    ) -> Result<Option<Intermediate>, EncodeError<G::Error>> {
         if h_edge == self.location[0] {
             // the first line is always found because all paths start from the origin
             return Ok(None);
@@ -220,10 +225,10 @@ impl<'a, G: DirectedGraph> Intermediator<'a, G> {
 
             let intermediate = if h_distance > self.max_lrp_distance {
                 let location_index =
-                    self.rfind_intermediate_index(previous_map).ok_or_else(|| {
-                        warn!("Cannot rfind valid intermediate to split max LRP distance");
-                        EncoderError::IntermediateError(self.last_edge_index)
-                    })?;
+                    self.rfind_intermediate_index(previous_map)
+                        .inspect_err(|e| {
+                            warn!("Cannot rfind valid intermediate to split max LRP distance: {e}");
+                        })?;
 
                 Some(Intermediate { location_index })
             } else {
@@ -239,7 +244,7 @@ impl<'a, G: DirectedGraph> Intermediator<'a, G> {
         let common_edge =
             find_common_edge(self.location, previous_map, h_edge).ok_or_else(|| {
                 warn!("Cannot find common edge of {h_edge:?}");
-                EncoderError::IntermediateError(self.last_edge_index)
+                EncodeError::IntermediateError(self.last_edge_index)
             })?;
 
         // check if the deviation starts at the last element found so far or earlier in the path
@@ -249,7 +254,7 @@ impl<'a, G: DirectedGraph> Intermediator<'a, G> {
 
             let previous_edge = *previous_map.get(&intermediate).ok_or_else(|| {
                 warn!("Cannot find previous edge of intermediate {intermediate:?}");
-                EncoderError::IntermediateError(self.last_edge_index)
+                EncodeError::IntermediateError(self.last_edge_index)
             })?;
 
             if previous_edge != self.last_edge {
@@ -261,10 +266,11 @@ impl<'a, G: DirectedGraph> Intermediator<'a, G> {
 
             Ok(Some(Intermediate { location_index }))
         } else {
-            let location_index = self.rfind_intermediate_index(previous_map).ok_or_else(|| {
-                warn!("Cannot rfind valid intermediate earlier in the path");
-                EncoderError::IntermediateError(self.last_edge_index)
-            })?;
+            let location_index = self
+                .rfind_intermediate_index(previous_map)
+                .inspect_err(|e| {
+                    warn!("Cannot rfind valid intermediate earlier in the path: {e}");
+                })?;
 
             Ok(Some(Intermediate { location_index }))
         }
@@ -295,7 +301,7 @@ impl<'a, G: DirectedGraph> Intermediator<'a, G> {
     fn rfind_intermediate_index(
         &self,
         previous_map: &FxHashMap<G::EdgeId, G::EdgeId>,
-    ) -> Option<usize> {
+    ) -> Result<usize, EncodeError<G::Error>> {
         let mut edge = self.last_edge;
 
         loop {
@@ -303,12 +309,16 @@ impl<'a, G: DirectedGraph> Intermediator<'a, G> {
             // and cannot find a valid node to place the intermediate. Fallback to the last element
             // found in the location.
             if edge == self.location[0] {
-                return Some(self.last_edge_index);
-            } else if is_node_valid(self.graph, self.graph.get_edge_start_vertex(edge)) {
-                return self.location.iter().position(|&e| e == edge);
+                return Ok(self.last_edge_index);
+            } else if is_node_valid(self.graph, self.graph.get_edge_start_vertex(edge)?)? {
+                let index = self.location.iter().position(|&e| e == edge);
+                return index.ok_or_else(|| EncodeError::IntermediateError(self.last_edge_index));
             }
 
-            edge = previous_map.get(&edge).copied()?;
+            edge = previous_map
+                .get(&edge)
+                .copied()
+                .ok_or_else(|| EncodeError::IntermediateError(self.last_edge_index))?;
         }
     }
 }

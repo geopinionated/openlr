@@ -20,7 +20,7 @@ thiserror = "2.0"
 tracing = "0.1"
 
 [dev-dependencies]
-geo = "0.31"
+geo = "0.32"
 geojson = "0.24"
 graph = "0.3"
 rayon = "=1.10.0" # https://github.com/neo4j-labs/graph/issues/138

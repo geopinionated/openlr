@@ -43,25 +43,29 @@ pub enum SerializeError {
 }
 
 #[derive(Error, Debug, PartialEq, Clone, Copy)]
-pub enum DecodeError {
+pub enum DecodeError<GraphError> {
+    #[error(transparent)]
+    GraphError(#[from] GraphError),
+    #[error("Cannot decode location: {0}")]
+    InvalidLocation(#[from] LocationError<GraphError>),
     #[error("Decoding {0:?} is not supported")]
     LocationTypeNotSupported(LocationType),
-    #[error("Cannot deserialize: {0}")]
-    InvalidData(DeserializeError),
+    #[error("Cannot decode location: {0}")]
+    DeserializeError(DeserializeError),
     #[error("Cannot find candidates for {0:?}")]
     CandidatesNotFound(Point),
     #[error("Cannot find route between LRPs {0:?}")]
     RouteNotFound((Point, Point)),
-    #[error("Cannot decode invalid location {0:?}")]
-    InvalidLocation(LocationError),
 }
 
 #[derive(Error, Debug, PartialEq, Clone, Copy)]
-pub enum EncoderError {
-    #[error("Cannot encode invalid location: {0:?}")]
-    InvalidLocation(LocationError),
-    #[error("Cannot serialize location: {0:?}")]
-    InvalidLocationReference(SerializeError),
+pub enum EncodeError<GraphError> {
+    #[error(transparent)]
+    GraphError(#[from] GraphError),
+    #[error("Cannot encode location: {0}")]
+    InvalidLocation(#[from] LocationError<GraphError>),
+    #[error("Cannot encode location: {0}")]
+    SerializeError(SerializeError),
     #[error("Cannot find intermediate at location index {0}")]
     IntermediateError(usize),
     #[error("Cannot find route between LRPs")]
@@ -75,37 +79,15 @@ pub enum EncoderError {
 }
 
 #[derive(Error, Debug, PartialEq, Clone, Copy)]
-pub enum LocationError {
+pub enum LocationError<GraphError> {
+    #[error(transparent)]
+    GraphError(#[from] GraphError),
     #[error("Invalid offsets {0:?}")]
     InvalidOffsets((Length, Length)),
     #[error("Location is empty")]
     Empty,
     #[error("Location is not connected")]
     NotConnected,
-}
-
-impl From<LocationError> for DecodeError {
-    fn from(error: LocationError) -> Self {
-        Self::InvalidLocation(error)
-    }
-}
-
-impl From<LocationError> for EncoderError {
-    fn from(error: LocationError) -> Self {
-        Self::InvalidLocation(error)
-    }
-}
-
-impl From<DeserializeError> for DecodeError {
-    fn from(error: DeserializeError) -> Self {
-        Self::InvalidData(error)
-    }
-}
-
-impl From<SerializeError> for EncoderError {
-    fn from(error: SerializeError) -> Self {
-        Self::InvalidLocationReference(error)
-    }
 }
 
 impl From<base64::DecodeError> for DeserializeError {
