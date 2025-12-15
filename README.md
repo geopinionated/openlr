@@ -10,8 +10,8 @@ Binary (and Base64) ser/deserialization of OpenLR Location References (version 3
 ### License
 
 Licensed under either of
-- MIT license (LICENSE-MIT or https://opensource.org/licenses/MIT)
-- Apache License, Version 2.0 (LICENSE-APACHE or https://www.apache.org/licenses/LICENSE-2.0)
+- [MIT license](https://opensource.org/licenses/MIT)
+- [Apache License, Version 2.0](https://www.apache.org/licenses/LICENSE-2.0)
 
 
 ### Examples
@@ -37,12 +37,17 @@ use openlr::{
     DecoderConfig, DirectedGraph, EncoderConfig, Location, decode_base64_openlr, encode_base64_openlr
 };
 
+#[derive(Debug, thiserror::Error)]
+#[error("RoadNetworkGraphError internal error")]
+pub struct RoadNetworkGraphError;
+
 struct RoadNetworkGraph;
 
 type VertexId = i64;
 type EdgeId = i64;
 
 impl DirectedGraph for RoadNetworkGraph {
+    type Error = RoadNetworkGraphError;
     type VertexId = VertexId;
     type EdgeId = EdgeId;
 
