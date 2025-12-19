@@ -23,7 +23,7 @@ pub enum DeserializeError {
     #[error("OpenLR Side of Road is not valid: {0}")]
     InvalidSideOfRoad(u8),
     #[error("OpenLR Coordinate is not valid: {0:?}")]
-    InvalidCoordinate(Coordinate),
+    InvalidCoordinate(#[from] CoordinateError),
 }
 
 #[derive(Error, Debug, PartialEq, Clone, Copy)]
@@ -43,7 +43,7 @@ pub enum SerializeError {
     #[error("OpenLR Grid size must have number of columns and rows > 1")]
     InvalidGridSize(GridSize),
     #[error("OpenLR Coordinate is not valid: {0:?}")]
-    InvalidCoordinate(Coordinate),
+    InvalidCoordinate(#[from] CoordinateError),
     #[error("OpenLR Length is not valid: {0:?}")]
     InvalidLength(Length),
 }
@@ -94,6 +94,14 @@ pub enum LocationError<GraphError> {
     Empty,
     #[error("Location is not connected")]
     NotConnected,
+}
+
+#[derive(Error, Debug, PartialEq, Clone, Copy)]
+pub enum CoordinateError {
+    #[error("Invalid coordinate location: {0}")]
+    InvalidLocation(Coordinate),
+    #[error("Invalid longitude,latitude coordinate format")]
+    InvalidFormat,
 }
 
 impl From<base64::DecodeError> for DeserializeError {

@@ -6,8 +6,9 @@ use base64::prelude::BASE64_STANDARD;
 use crate::format::binary::encoding::EncodedAttributes;
 use crate::model::Offsets;
 use crate::{
-    Circle, ClosedLine, Coordinate, Grid, GridSize, Length, Line, LocationReference, LocationType,
-    Offset, Poi, PointAlongLine, Polygon, Rectangle, SerializeError,
+    Circle, ClosedLine, Coordinate, CoordinateError, Grid, GridSize, Length, Line,
+    LocationReference, LocationType, Offset, Poi, PointAlongLine, Polygon, Rectangle,
+    SerializeError,
 };
 
 /// Serializes an OpenLR Location Reference into Base64.
@@ -209,7 +210,7 @@ impl OpenLrBinaryWriter {
 
     fn write_coordinate(&mut self, coordinate: &Coordinate) -> Result<(), SerializeError> {
         if !coordinate.is_valid() {
-            return Err(SerializeError::InvalidCoordinate(*coordinate));
+            return Err(CoordinateError::InvalidLocation(*coordinate).into());
         }
 
         let mut write_degrees = |degrees| -> Result<(), SerializeError> {
@@ -230,7 +231,7 @@ impl OpenLrBinaryWriter {
         debug_assert!(previous.is_valid());
 
         if !coordinate.is_valid() {
-            return Err(SerializeError::InvalidCoordinate(coordinate));
+            return Err(CoordinateError::InvalidLocation(coordinate).into());
         }
 
         let mut write_degrees = |degrees, previous| -> Result<(), SerializeError> {
