@@ -1,10 +1,13 @@
 use std::fmt;
 use std::iter::Sum;
 use std::ops::{Add, AddAssign, Mul, MulAssign, Range, Sub, SubAssign};
+use std::str::FromStr;
 
 use approx::abs_diff_eq;
 use ordered_float::OrderedFloat;
 use strum::IntoEnumIterator;
+
+use crate::CoordinateError;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, strum::EnumIter)]
 #[repr(u8)]
@@ -442,6 +445,49 @@ pub struct Coordinate {
     pub lat: f64,
 }
 
+impl fmt::Display for Coordinate {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:.5},{:.5}", self.lon, self.lat)
+    }
+}
+
+impl FromStr for Coordinate {
+    type Err = CoordinateError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (lon, lat) = s.split_once(',').ok_or(CoordinateError::InvalidFormat)?;
+        let (lon, lat) = (lon.trim(), lat.trim());
+        let lon: f64 = lon.parse().map_err(|_| CoordinateError::InvalidFormat)?;
+        let lat: f64 = lat.parse().map_err(|_| CoordinateError::InvalidFormat)?;
+        Self::new(lon, lat)
+    }
+}
+
+impl TryFrom<[f64; 2]> for Coordinate {
+    type Error = CoordinateError;
+    fn try_from([lon, lat]: [f64; 2]) -> Result<Self, Self::Error> {
+        Self::new(lon, lat)
+    }
+}
+
+impl TryFrom<(f64, f64)> for Coordinate {
+    type Error = CoordinateError;
+    fn try_from((lon, lat): (f64, f64)) -> Result<Self, Self::Error> {
+        Self::new(lon, lat)
+    }
+}
+
+impl From<Coordinate> for [f64; 2] {
+    fn from(coordinate: Coordinate) -> Self {
+        [coordinate.lon, coordinate.lat]
+    }
+}
+
+impl From<Coordinate> for (f64, f64) {
+    fn from(coordinate: Coordinate) -> Self {
+        (coordinate.lon, coordinate.lat)
+    }
+}
+
 impl Coordinate {
     pub const EPSILON: f64 = 180.0 / (1 << 24) as f64;
 
@@ -450,10 +496,21 @@ impl Coordinate {
     pub const MIN_LAT: f64 = -90.0;
     pub const MAX_LAT: f64 = 90.0;
 
+    pub const fn new(lon: f64, lat: f64) -> Result<Self, CoordinateError> {
+        let coordinate = Self { lon, lat };
+        if coordinate.is_valid() {
+            Ok(coordinate)
+        } else {
+            Err(CoordinateError::InvalidLocation(coordinate))
+        }
+    }
+
     /// Returns true only if the coordinate bounds are valid.
-    pub fn is_valid(&self) -> bool {
-        (Self::MIN_LON..=Self::MAX_LON).contains(&self.lon)
-            && (Self::MIN_LAT..=Self::MAX_LAT).contains(&self.lat)
+    pub const fn is_valid(&self) -> bool {
+        self.lon >= Self::MIN_LON
+            && self.lon <= Self::MAX_LON
+            && self.lat >= Self::MIN_LAT
+            && self.lat <= Self::MAX_LAT
     }
 }
 
@@ -828,5 +885,37 @@ mod tests {
         assert_eq!(Bearing::from_radians(-PI).degrees(), 180);
         assert_eq!(Bearing::from_radians(-FRAC_PI_2).degrees(), 270);
         assert_eq!(Bearing::from_radians(-PI - FRAC_PI_2).degrees(), 90);
+    }
+
+    #[test]
+    fn invalid_coordinate() {
+        assert!(Coordinate::new(180.1, 46.78186).is_err());
+        assert!(Coordinate::new(6.63237, 90.1).is_err());
+        assert!(Coordinate::new(180.1, 90.1).is_err());
+        assert!(Coordinate::new(-180.1, -90.1).is_err());
+    }
+
+    #[test]
+    fn coordinate_parse_to_string() {
+        assert_eq!(
+            Coordinate::new(6.63237, 46.78186).unwrap().to_string(),
+            "6.63237,46.78186"
+        );
+
+        assert_eq!(
+            Coordinate::from_str("6.63237,46.78186").unwrap(),
+            Coordinate {
+                lon: 6.63237,
+                lat: 46.78186
+            }
+        );
+
+        assert_eq!(
+            Coordinate::from_str("  6.63237  ,  46.78186  ").unwrap(),
+            Coordinate {
+                lon: 6.63237,
+                lat: 46.78186
+            }
+        );
     }
 }
