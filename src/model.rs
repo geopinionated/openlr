@@ -655,13 +655,11 @@ impl Offsets {
     }
 
     pub fn distance_from_start(&self, length: Length) -> Length {
-        let length = (self.pos.range() * length.meters()).round();
-        Length::from_meters(length)
+        Length::from_meters(self.pos.range() * length.meters())
     }
 
     pub fn distance_to_end(&self, length: Length) -> Length {
-        let length = (self.neg.range() * length.meters()).round();
-        Length::from_meters(length)
+        Length::from_meters(self.neg.range() * length.meters())
     }
 }
 
