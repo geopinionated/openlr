@@ -123,7 +123,7 @@ mod tests {
 
     use super::*;
     use crate::graph::tests::{EdgeId, NETWORK_GRAPH, NetworkGraph};
-    use crate::{DecoderConfig, Length, Location, decode_base64_openlr};
+    use crate::{DecoderConfig, Length, Location, Orientation, SideOfRoad, decode_base64_openlr};
 
     #[test]
     fn decode_line_location_reference_001() {
@@ -160,6 +160,24 @@ mod tests {
                 ],
                 pos_offset: Length::from_meters(10.505859375),
                 neg_offset: Length::from_meters(14.326171875)
+            })
+        );
+    }
+
+    #[test]
+    fn decode_point_along_line_location_reference_001() {
+        let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+        let config = DecoderConfig::default();
+        let location = decode_base64_openlr(&config, graph, "KwmTQyVYUDPRA/+y/2czQTk=").unwrap();
+
+        assert_eq!(
+            location,
+            Location::PointAlongLine(PointAlongLineLocation {
+                path: vec![EdgeId(109782)],
+                offset: Length::from_meters(39.98046875),
+                orientation: Orientation::Unknown,
+                side: SideOfRoad::OnRoadOrUnknown,
             })
         );
     }

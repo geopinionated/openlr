@@ -118,7 +118,10 @@ mod tests {
 
     use super::*;
     use crate::graph::tests::{EdgeId, NETWORK_GRAPH, NetworkGraph};
-    use crate::{DecoderConfig, Length, Location, decode_base64_openlr, encode_base64_openlr};
+    use crate::{
+        DecoderConfig, Length, Location, Orientation, SideOfRoad, decode_base64_openlr,
+        encode_base64_openlr,
+    };
 
     #[test]
     fn encoder_encode_line_location_reference_001() {
@@ -148,6 +151,22 @@ mod tests {
             ],
             pos_offset: Length::from_meters(10.505859375),
             neg_offset: Length::from_meters(14.326171875),
+        });
+
+        let encoded = encode_base64_openlr(&EncoderConfig::default(), graph, line.clone()).unwrap();
+        let decoded = decode_base64_openlr(&DecoderConfig::default(), graph, &encoded).unwrap();
+        assert_eq!(decoded, line);
+    }
+
+    #[test]
+    fn encoder_encode_point_along_line_location_reference_001() {
+        let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+        let line = Location::PointAlongLine(PointAlongLineLocation {
+            path: vec![EdgeId(109782)],
+            offset: Length::from_meters(39.98046875),
+            orientation: Orientation::Backward,
+            side: SideOfRoad::Left,
         });
 
         let encoded = encode_base64_openlr(&EncoderConfig::default(), graph, line.clone()).unwrap();
