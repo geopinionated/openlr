@@ -8,7 +8,7 @@ use crate::Length;
 impl Radix for Length {
     const RADIX_BITS: u32 = u64::RADIX_BITS;
     fn radix_similarity(&self, other: &Self) -> u32 {
-        (self.round().meters().to_bits()).radix_similarity(&(other.round().meters().to_bits()))
+        (self.meters().to_bits()).radix_similarity(&(other.meters().to_bits()))
     }
 }
 
