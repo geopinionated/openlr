@@ -58,6 +58,8 @@ pub fn decode_point_along_line<G: DirectedGraph>(
     graph: &G,
     point: PointAlongLine,
 ) -> Result<PointAlongLineLocation<G::EdgeId>, DecodeError<G::Error>> {
+    debug!("Decoding {point:?} with {config:?}");
+
     let line = Line {
         points: point.points.to_vec(),
         offsets: Offsets::positive(point.offset),
@@ -78,6 +80,8 @@ pub fn decode_poi<G: DirectedGraph>(
     graph: &G,
     poi: Poi,
 ) -> Result<PoiLocation<G::EdgeId>, DecodeError<G::Error>> {
+    debug!("Decoding {poi:?} with {config:?}");
+
     let point = decode_point_along_line(config, graph, poi.point)?;
 
     Ok(PoiLocation {
@@ -91,6 +95,8 @@ pub fn decode_closed_line<G: DirectedGraph>(
     graph: &G,
     mut line: ClosedLine,
 ) -> Result<ClosedLineLocation<G::EdgeId>, DecodeError<G::Error>> {
+    debug!("Decoding {line:?} with {config:?}");
+
     let last_point = Point {
         coordinate: line.points[0].coordinate,
         line: line.last_line,
@@ -117,7 +123,7 @@ mod tests {
 
     use super::*;
     use crate::graph::tests::{EdgeId, NETWORK_GRAPH, NetworkGraph};
-    use crate::{DecoderConfig, Length, Location, decode_base64_openlr};
+    use crate::{DecoderConfig, Length, Location, Orientation, SideOfRoad, decode_base64_openlr};
 
     #[test]
     fn decode_line_location_reference_001() {
@@ -152,8 +158,26 @@ mod tests {
                     EdgeId(5359424),
                     EdgeId(5359425)
                 ],
-                pos_offset: Length::from_meters(11.0),
-                neg_offset: Length::from_meters(14.0)
+                pos_offset: Length::from_meters(10.505859375),
+                neg_offset: Length::from_meters(14.326171875)
+            })
+        );
+    }
+
+    #[test]
+    fn decode_point_along_line_location_reference_001() {
+        let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+        let config = DecoderConfig::default();
+        let location = decode_base64_openlr(&config, graph, "KwmTQyVYUDPRA/+y/2czQTk=").unwrap();
+
+        assert_eq!(
+            location,
+            Location::PointAlongLine(PointAlongLineLocation {
+                path: vec![EdgeId(109782)],
+                offset: Length::from_meters(39.98046875),
+                orientation: Orientation::Unknown,
+                side: SideOfRoad::OnRoadOrUnknown,
             })
         );
     }

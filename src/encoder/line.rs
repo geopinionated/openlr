@@ -54,6 +54,8 @@ pub fn encode_point_along_line<G: DirectedGraph>(
     graph: &G,
     point: PointAlongLineLocation<G::EdgeId>,
 ) -> Result<PointAlongLine, EncodeError<G::Error>> {
+    debug!("Encoding {point:?} with {config:?}");
+
     let line = LineLocation {
         path: point.path,
         pos_offset: point.offset,
@@ -75,6 +77,8 @@ pub fn encode_poi<G: DirectedGraph>(
     graph: &G,
     poi: PoiLocation<G::EdgeId>,
 ) -> Result<Poi, EncodeError<G::Error>> {
+    debug!("Encoding {poi:?} with {config:?}");
+
     let point = encode_point_along_line(config, graph, poi.point)?;
 
     Ok(Poi {
@@ -88,6 +92,8 @@ pub fn encode_closed_line<G: DirectedGraph>(
     graph: &G,
     line: ClosedLineLocation<G::EdgeId>,
 ) -> Result<ClosedLine, EncodeError<G::Error>> {
+    debug!("Encoding {line:?} with {config:?}");
+
     let line = LineLocation {
         path: line.path,
         pos_offset: Length::ZERO,
@@ -112,7 +118,10 @@ mod tests {
 
     use super::*;
     use crate::graph::tests::{EdgeId, NETWORK_GRAPH, NetworkGraph};
-    use crate::{DecoderConfig, Length, Location, decode_base64_openlr, encode_base64_openlr};
+    use crate::{
+        DecoderConfig, Length, Location, Orientation, SideOfRoad, decode_base64_openlr,
+        encode_base64_openlr,
+    };
 
     #[test]
     fn encoder_encode_line_location_reference_001() {
@@ -140,8 +149,24 @@ mod tests {
                 EdgeId(5359424),
                 EdgeId(5359425),
             ],
-            pos_offset: Length::from_meters(11.0),
-            neg_offset: Length::from_meters(14.0),
+            pos_offset: Length::from_meters(10.505859375),
+            neg_offset: Length::from_meters(14.326171875),
+        });
+
+        let encoded = encode_base64_openlr(&EncoderConfig::default(), graph, line.clone()).unwrap();
+        let decoded = decode_base64_openlr(&DecoderConfig::default(), graph, &encoded).unwrap();
+        assert_eq!(decoded, line);
+    }
+
+    #[test]
+    fn encoder_encode_point_along_line_location_reference_001() {
+        let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+        let line = Location::PointAlongLine(PointAlongLineLocation {
+            path: vec![EdgeId(109782)],
+            offset: Length::from_meters(39.98046875),
+            orientation: Orientation::Backward,
+            side: SideOfRoad::Left,
         });
 
         let encoded = encode_base64_openlr(&EncoderConfig::default(), graph, line.clone()).unwrap();
