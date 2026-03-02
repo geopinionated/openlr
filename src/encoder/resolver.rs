@@ -142,46 +142,49 @@ mod tests {
         };
 
         let LocRefPoints { lrps, .. } = resolve_lrps(&config, graph, line).unwrap();
+        assert_eq!(lrps.len(), 2);
 
         assert_eq!(
-            lrps,
-            [
-                LocRefPoint {
-                    projection_coordinate: None,
-                    edges: vec![EdgeId(9044472)],
-                    point: Point {
-                        coordinate: Coordinate {
-                            lon: 13.459407,
-                            lat: 52.5143601
-                        },
-                        line: LineAttributes {
-                            frc: Frc::Frc6,
-                            fow: Fow::SingleCarriageway,
-                            bearing: Bearing::from_degrees(303),
-                        },
-                        path: Some(PathAttributes {
-                            lfrcnp: Frc::Frc6,
-                            dnp: Length::from_meters(14.0)
-                        })
-                    }
-                },
-                LocRefPoint {
-                    projection_coordinate: None,
-                    edges: vec![],
-                    point: Point {
-                        coordinate: Coordinate {
-                            lon: 13.4592303,
-                            lat: 52.5144292
-                        },
-                        line: LineAttributes {
-                            frc: Frc::Frc6,
-                            fow: Fow::SingleCarriageway,
-                            bearing: Bearing::from_degrees(123),
-                        },
-                        path: None
-                    }
-                },
-            ]
+            lrps[0],
+            LocRefPoint {
+                projection_coordinate: None,
+                edges: vec![EdgeId(9044472)],
+                point: Point {
+                    coordinate: Coordinate {
+                        lon: 13.459407,
+                        lat: 52.5143601
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc6,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(303),
+                    },
+                    path: Some(PathAttributes {
+                        lfrcnp: Frc::Frc6,
+                        dnp: Length::from_meters(14.0)
+                    })
+                }
+            }
+        );
+
+        assert_eq!(
+            lrps[1],
+            LocRefPoint {
+                projection_coordinate: None,
+                edges: vec![],
+                point: Point {
+                    coordinate: Coordinate {
+                        lon: 13.4592303,
+                        lat: 52.5144292
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc6,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(123),
+                    },
+                    path: None
+                }
+            },
         );
     }
 
@@ -198,46 +201,49 @@ mod tests {
         };
 
         let LocRefPoints { lrps, .. } = resolve_lrps(&config, graph, line).unwrap();
+        assert_eq!(lrps.len(), 2);
 
         assert_eq!(
-            lrps,
-            [
-                LocRefPoint {
-                    projection_coordinate: None,
-                    edges: vec![EdgeId(-9044470), EdgeId(-9044471), EdgeId(-9044472)],
-                    point: Point {
-                        coordinate: Coordinate {
-                            lon: 13.458825,
-                            lat: 52.5145838
-                        },
-                        line: LineAttributes {
-                            frc: Frc::Frc6,
-                            fow: Fow::SingleCarriageway,
-                            bearing: Bearing::from_degrees(122),
-                        },
-                        path: Some(PathAttributes {
-                            lfrcnp: Frc::Frc6,
-                            dnp: Length::from_meters(45.0)
-                        })
-                    }
-                },
-                LocRefPoint {
-                    projection_coordinate: None,
-                    edges: vec![],
-                    point: Point {
-                        coordinate: Coordinate {
-                            lon: 13.459407,
-                            lat: 52.5143601
-                        },
-                        line: LineAttributes {
-                            frc: Frc::Frc6,
-                            fow: Fow::SingleCarriageway,
-                            bearing: Bearing::from_degrees(303),
-                        },
-                        path: None
-                    }
-                },
-            ]
+            lrps[0],
+            LocRefPoint {
+                projection_coordinate: None,
+                edges: vec![EdgeId(-9044470), EdgeId(-9044471), EdgeId(-9044472)],
+                point: Point {
+                    coordinate: Coordinate {
+                        lon: 13.458825,
+                        lat: 52.5145838
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc6,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(122),
+                    },
+                    path: Some(PathAttributes {
+                        lfrcnp: Frc::Frc6,
+                        dnp: Length::from_meters(45.0)
+                    })
+                }
+            }
+        );
+
+        assert_eq!(
+            lrps[1],
+            LocRefPoint {
+                projection_coordinate: None,
+                edges: vec![],
+                point: Point {
+                    coordinate: Coordinate {
+                        lon: 13.459407,
+                        lat: 52.5143601
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc6,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(303),
+                    },
+                    path: None
+                }
+            },
         );
     }
 
@@ -260,70 +266,77 @@ mod tests {
         };
 
         let LocRefPoints { lrps, .. } = resolve_lrps(&config, graph, line).unwrap();
+        assert_eq!(lrps.len(), 3);
 
         assert_eq!(
-            lrps,
-            [
-                LocRefPoint {
-                    projection_coordinate: None,
-                    edges: vec![EdgeId(-7292030)],
-                    point: Point {
-                        coordinate: Coordinate {
-                            lon: 13.4571122,
-                            lat: 52.5177995
-                        },
-                        line: LineAttributes {
-                            frc: Frc::Frc6,
-                            fow: Fow::SingleCarriageway,
-                            bearing: Bearing::from_degrees(20),
-                        },
-                        path: Some(PathAttributes {
-                            lfrcnp: Frc::Frc6,
-                            dnp: Length::from_meters(108.0)
-                        })
-                    }
-                },
-                LocRefPoint {
-                    projection_coordinate: None,
-                    edges: vec![
-                        EdgeId(-7292029),
-                        EdgeId(7516886),
-                        EdgeId(7516883),
-                        EdgeId(7516885)
-                    ],
-                    point: Point {
-                        coordinate: Coordinate {
-                            lon: 13.4576677,
-                            lat: 52.518717
-                        },
-                        line: LineAttributes {
-                            frc: Frc::Frc6,
-                            fow: Fow::SingleCarriageway,
-                            bearing: Bearing::from_degrees(20),
-                        },
-                        path: Some(PathAttributes {
-                            lfrcnp: Frc::Frc6,
-                            dnp: Length::from_meters(94.0)
-                        })
-                    }
-                },
-                LocRefPoint {
-                    projection_coordinate: None,
-                    edges: vec![],
-                    point: Point {
-                        coordinate: Coordinate {
-                            lon: 13.4580594,
-                            lat: 52.5186534
-                        },
-                        line: LineAttributes {
-                            frc: Frc::Frc6,
-                            fow: Fow::SingleCarriageway,
-                            bearing: Bearing::from_degrees(286),
-                        },
-                        path: None
-                    }
+            lrps[0],
+            LocRefPoint {
+                projection_coordinate: None,
+                edges: vec![EdgeId(-7292030)],
+                point: Point {
+                    coordinate: Coordinate {
+                        lon: 13.4571122,
+                        lat: 52.5177995
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc6,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(20),
+                    },
+                    path: Some(PathAttributes {
+                        lfrcnp: Frc::Frc6,
+                        dnp: Length::from_meters(108.0)
+                    })
                 }
-            ]
+            }
+        );
+
+        assert_eq!(
+            lrps[1],
+            LocRefPoint {
+                projection_coordinate: None,
+                edges: vec![
+                    EdgeId(-7292029),
+                    EdgeId(7516886),
+                    EdgeId(7516883),
+                    EdgeId(7516885)
+                ],
+                point: Point {
+                    coordinate: Coordinate {
+                        lon: 13.4576677,
+                        lat: 52.518717
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc6,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(20),
+                    },
+                    path: Some(PathAttributes {
+                        lfrcnp: Frc::Frc6,
+                        dnp: Length::from_meters(94.0)
+                    })
+                }
+            }
+        );
+
+        assert_eq!(
+            lrps[2],
+            LocRefPoint {
+                projection_coordinate: None,
+                edges: vec![],
+                point: Point {
+                    coordinate: Coordinate {
+                        lon: 13.4580594,
+                        lat: 52.5186534
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc6,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(286),
+                    },
+                    path: None
+                }
+            }
         );
     }
 
@@ -344,65 +357,72 @@ mod tests {
         };
 
         let LocRefPoints { lrps, .. } = resolve_lrps(&config, graph, line).unwrap();
+        assert_eq!(lrps.len(), 3);
 
         assert_eq!(
-            lrps,
-            [
-                LocRefPoint {
-                    projection_coordinate: None,
-                    edges: vec![EdgeId(7516884)],
-                    point: Point {
-                        coordinate: Coordinate {
-                            lon: 13.4576677,
-                            lat: 52.518717
-                        },
-                        line: LineAttributes {
-                            frc: Frc::Frc6,
-                            fow: Fow::SingleCarriageway,
-                            bearing: Bearing::from_degrees(105),
-                        },
-                        path: Some(PathAttributes {
-                            lfrcnp: Frc::Frc6,
-                            dnp: Length::from_meters(17.0)
-                        })
-                    }
-                },
-                LocRefPoint {
-                    projection_coordinate: None,
-                    edges: vec![EdgeId(7516884), EdgeId(7516885)],
-                    point: Point {
-                        coordinate: Coordinate {
-                            lon: 13.4576677,
-                            lat: 52.518717
-                        },
-                        line: LineAttributes {
-                            frc: Frc::Frc6,
-                            fow: Fow::SingleCarriageway,
-                            bearing: Bearing::from_degrees(105),
-                        },
-                        path: Some(PathAttributes {
-                            lfrcnp: Frc::Frc6,
-                            dnp: Length::from_meters(27.0)
-                        })
-                    }
-                },
-                LocRefPoint {
-                    projection_coordinate: None,
-                    edges: vec![],
-                    point: Point {
-                        coordinate: Coordinate {
-                            lon: 13.4580594,
-                            lat: 52.5186534
-                        },
-                        line: LineAttributes {
-                            frc: Frc::Frc6,
-                            fow: Fow::SingleCarriageway,
-                            bearing: Bearing::from_degrees(286),
-                        },
-                        path: None
-                    }
+            lrps[0],
+            LocRefPoint {
+                projection_coordinate: None,
+                edges: vec![EdgeId(7516884)],
+                point: Point {
+                    coordinate: Coordinate {
+                        lon: 13.4576677,
+                        lat: 52.518717
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc6,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(105),
+                    },
+                    path: Some(PathAttributes {
+                        lfrcnp: Frc::Frc6,
+                        dnp: Length::from_meters(17.0)
+                    })
                 }
-            ]
+            }
+        );
+
+        assert_eq!(
+            lrps[1],
+            LocRefPoint {
+                projection_coordinate: None,
+                edges: vec![EdgeId(7516884), EdgeId(7516885)],
+                point: Point {
+                    coordinate: Coordinate {
+                        lon: 13.4576677,
+                        lat: 52.518717
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc6,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(105),
+                    },
+                    path: Some(PathAttributes {
+                        lfrcnp: Frc::Frc6,
+                        dnp: Length::from_meters(27.0)
+                    })
+                }
+            }
+        );
+
+        assert_eq!(
+            lrps[2],
+            LocRefPoint {
+                projection_coordinate: None,
+                edges: vec![],
+                point: Point {
+                    coordinate: Coordinate {
+                        lon: 13.4580594,
+                        lat: 52.5186534
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc6,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(286),
+                    },
+                    path: None
+                }
+            }
         );
     }
 
@@ -426,65 +446,72 @@ mod tests {
         };
 
         let LocRefPoints { lrps, .. } = resolve_lrps(&config, graph, line).unwrap();
+        assert_eq!(lrps.len(), 3);
 
         assert_eq!(
-            lrps,
-            [
-                LocRefPoint {
-                    projection_coordinate: None,
-                    edges: vec![EdgeId(-7516884), EdgeId(-7292029), EdgeId(7516886)],
-                    point: Point {
-                        coordinate: Coordinate {
-                            lon: 13.4579134,
-                            lat: 52.5186781
-                        },
-                        line: LineAttributes {
-                            frc: Frc::Frc6,
-                            fow: Fow::SingleCarriageway,
-                            bearing: Bearing::from_degrees(285),
-                        },
-                        path: Some(PathAttributes {
-                            lfrcnp: Frc::Frc6,
-                            dnp: Length::from_meters(67.0)
-                        })
-                    }
-                },
-                LocRefPoint {
-                    projection_coordinate: None,
-                    edges: vec![EdgeId(7516883), EdgeId(-7516884), EdgeId(7292030)],
-                    point: Point {
-                        coordinate: Coordinate {
-                            lon: 13.4580688,
-                            lat: 52.5189743
-                        },
-                        line: LineAttributes {
-                            frc: Frc::Frc6,
-                            fow: Fow::SingleCarriageway,
-                            bearing: Bearing::from_degrees(198),
-                        },
-                        path: Some(PathAttributes {
-                            lfrcnp: Frc::Frc6,
-                            dnp: Length::from_meters(159.0)
-                        })
-                    }
-                },
-                LocRefPoint {
-                    projection_coordinate: None,
-                    edges: vec![],
-                    point: Point {
-                        coordinate: Coordinate {
-                            lon: 13.4571122,
-                            lat: 52.5177995
-                        },
-                        line: LineAttributes {
-                            frc: Frc::Frc6,
-                            fow: Fow::SingleCarriageway,
-                            bearing: Bearing::from_degrees(20),
-                        },
-                        path: None
-                    }
+            lrps[0],
+            LocRefPoint {
+                projection_coordinate: None,
+                edges: vec![EdgeId(-7516884), EdgeId(-7292029), EdgeId(7516886)],
+                point: Point {
+                    coordinate: Coordinate {
+                        lon: 13.4579134,
+                        lat: 52.5186781
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc6,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(285),
+                    },
+                    path: Some(PathAttributes {
+                        lfrcnp: Frc::Frc6,
+                        dnp: Length::from_meters(67.0)
+                    })
                 }
-            ]
+            }
+        );
+
+        assert_eq!(
+            lrps[1],
+            LocRefPoint {
+                projection_coordinate: None,
+                edges: vec![EdgeId(7516883), EdgeId(-7516884), EdgeId(7292030)],
+                point: Point {
+                    coordinate: Coordinate {
+                        lon: 13.4580688,
+                        lat: 52.5189743
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc6,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(198),
+                    },
+                    path: Some(PathAttributes {
+                        lfrcnp: Frc::Frc6,
+                        dnp: Length::from_meters(159.0)
+                    })
+                }
+            }
+        );
+
+        assert_eq!(
+            lrps[2],
+            LocRefPoint {
+                projection_coordinate: None,
+                edges: vec![],
+                point: Point {
+                    coordinate: Coordinate {
+                        lon: 13.4571122,
+                        lat: 52.5177995
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc6,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(20),
+                    },
+                    path: None
+                }
+            }
         );
     }
 
@@ -508,103 +535,118 @@ mod tests {
         };
 
         let LocRefPoints { lrps, .. } = resolve_lrps(&config, graph, line).unwrap();
+        assert_eq!(lrps.len(), 5);
 
         assert_eq!(
-            lrps,
-            [
-                LocRefPoint {
-                    projection_coordinate: None,
-                    edges: vec![EdgeId(-7516885)],
-                    point: Point {
-                        coordinate: Coordinate {
-                            lon: 13.4580594,
-                            lat: 52.5186534
-                        },
-                        line: LineAttributes {
-                            frc: Frc::Frc6,
-                            fow: Fow::SingleCarriageway,
-                            bearing: Bearing::from_degrees(286),
-                        },
-                        path: Some(PathAttributes {
-                            lfrcnp: Frc::Frc6,
-                            dnp: Length::from_meters(10.0)
-                        })
-                    }
-                },
-                LocRefPoint {
-                    projection_coordinate: None,
-                    edges: vec![EdgeId(-7516884)],
-                    point: Point {
-                        coordinate: Coordinate {
-                            lon: 13.4579134,
-                            lat: 52.5186781
-                        },
-                        line: LineAttributes {
-                            frc: Frc::Frc6,
-                            fow: Fow::SingleCarriageway,
-                            bearing: Bearing::from_degrees(285),
-                        },
-                        path: Some(PathAttributes {
-                            lfrcnp: Frc::Frc6,
-                            dnp: Length::from_meters(17.0)
-                        })
-                    }
-                },
-                LocRefPoint {
-                    projection_coordinate: None,
-                    edges: vec![EdgeId(-7292029), EdgeId(7516886), EdgeId(7516883)],
-                    point: Point {
-                        coordinate: Coordinate {
-                            lon: 13.4576677,
-                            lat: 52.518717
-                        },
-                        line: LineAttributes {
-                            frc: Frc::Frc6,
-                            fow: Fow::SingleCarriageway,
-                            bearing: Bearing::from_degrees(20),
-                        },
-                        path: Some(PathAttributes {
-                            lfrcnp: Frc::Frc6,
-                            dnp: Length::from_meters(84.0)
-                        })
-                    }
-                },
-                LocRefPoint {
-                    projection_coordinate: None,
-                    edges: vec![EdgeId(-7516884)],
-                    point: Point {
-                        coordinate: Coordinate {
-                            lon: 13.4579134,
-                            lat: 52.5186781
-                        },
-                        line: LineAttributes {
-                            frc: Frc::Frc6,
-                            fow: Fow::SingleCarriageway,
-                            bearing: Bearing::from_degrees(285),
-                        },
-                        path: Some(PathAttributes {
-                            lfrcnp: Frc::Frc6,
-                            dnp: Length::from_meters(17.0)
-                        })
-                    }
-                },
-                LocRefPoint {
-                    projection_coordinate: None,
-                    edges: vec![],
-                    point: Point {
-                        coordinate: Coordinate {
-                            lon: 13.4576677,
-                            lat: 52.518717
-                        },
-                        line: LineAttributes {
-                            frc: Frc::Frc6,
-                            fow: Fow::SingleCarriageway,
-                            bearing: Bearing::from_degrees(105),
-                        },
-                        path: None
-                    }
+            lrps[0],
+            LocRefPoint {
+                projection_coordinate: None,
+                edges: vec![EdgeId(-7516885)],
+                point: Point {
+                    coordinate: Coordinate {
+                        lon: 13.4580594,
+                        lat: 52.5186534
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc6,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(286),
+                    },
+                    path: Some(PathAttributes {
+                        lfrcnp: Frc::Frc6,
+                        dnp: Length::from_meters(10.0)
+                    })
                 }
-            ]
+            }
+        );
+
+        assert_eq!(
+            lrps[1],
+            LocRefPoint {
+                projection_coordinate: None,
+                edges: vec![EdgeId(-7516884)],
+                point: Point {
+                    coordinate: Coordinate {
+                        lon: 13.4579134,
+                        lat: 52.5186781
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc6,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(285),
+                    },
+                    path: Some(PathAttributes {
+                        lfrcnp: Frc::Frc6,
+                        dnp: Length::from_meters(17.0)
+                    })
+                }
+            }
+        );
+
+        assert_eq!(
+            lrps[2],
+            LocRefPoint {
+                projection_coordinate: None,
+                edges: vec![EdgeId(-7292029), EdgeId(7516886), EdgeId(7516883)],
+                point: Point {
+                    coordinate: Coordinate {
+                        lon: 13.4576677,
+                        lat: 52.518717
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc6,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(20),
+                    },
+                    path: Some(PathAttributes {
+                        lfrcnp: Frc::Frc6,
+                        dnp: Length::from_meters(84.0)
+                    })
+                }
+            }
+        );
+
+        assert_eq!(
+            lrps[3],
+            LocRefPoint {
+                projection_coordinate: None,
+                edges: vec![EdgeId(-7516884)],
+                point: Point {
+                    coordinate: Coordinate {
+                        lon: 13.4579134,
+                        lat: 52.5186781
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc6,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(285),
+                    },
+                    path: Some(PathAttributes {
+                        lfrcnp: Frc::Frc6,
+                        dnp: Length::from_meters(17.0)
+                    })
+                }
+            }
+        );
+
+        assert_eq!(
+            lrps[4],
+            LocRefPoint {
+                projection_coordinate: None,
+                edges: vec![],
+                point: Point {
+                    coordinate: Coordinate {
+                        lon: 13.4576677,
+                        lat: 52.518717
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc6,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(105),
+                    },
+                    path: None
+                }
+            }
         );
     }
 
@@ -621,46 +663,49 @@ mod tests {
         };
 
         let LocRefPoints { lrps, .. } = resolve_lrps(&config, graph, line).unwrap();
+        assert_eq!(lrps.len(), 2);
 
         assert_eq!(
-            lrps,
-            [
-                LocRefPoint {
-                    projection_coordinate: None,
-                    edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
-                    point: Point {
-                        coordinate: Coordinate {
-                            lon: 13.4611206,
-                            lat: 52.5170944
-                        },
-                        line: LineAttributes {
-                            frc: Frc::Frc6,
-                            fow: Fow::SingleCarriageway,
-                            bearing: Bearing::from_degrees(106),
-                        },
-                        path: Some(PathAttributes {
-                            lfrcnp: Frc::Frc6,
-                            dnp: Length::from_meters(379.0)
-                        })
-                    }
-                },
-                LocRefPoint {
-                    projection_coordinate: None,
-                    edges: vec![],
-                    point: Point {
-                        coordinate: Coordinate {
-                            lon: 13.4628442,
-                            lat: 52.5149807
-                        },
-                        line: LineAttributes {
-                            frc: Frc::Frc6,
-                            fow: Fow::SingleCarriageway,
-                            bearing: Bearing::from_degrees(18),
-                        },
-                        path: None
-                    }
+            lrps[0],
+            LocRefPoint {
+                projection_coordinate: None,
+                edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
+                point: Point {
+                    coordinate: Coordinate {
+                        lon: 13.4611206,
+                        lat: 52.5170944
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc6,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(106),
+                    },
+                    path: Some(PathAttributes {
+                        lfrcnp: Frc::Frc6,
+                        dnp: Length::from_meters(379.0)
+                    })
                 }
-            ]
+            }
+        );
+
+        assert_eq!(
+            lrps[1],
+            LocRefPoint {
+                projection_coordinate: None,
+                edges: vec![],
+                point: Point {
+                    coordinate: Coordinate {
+                        lon: 13.4628442,
+                        lat: 52.5149807
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc6,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(18),
+                    },
+                    path: None
+                }
+            }
         );
     }
 
@@ -682,51 +727,54 @@ mod tests {
         };
 
         let LocRefPoints { lrps, .. } = resolve_lrps(&config, graph, line).unwrap();
+        assert_eq!(lrps.len(), 2);
 
         assert_eq!(
-            lrps,
-            [
-                LocRefPoint {
-                    projection_coordinate: None,
-                    edges: vec![
-                        EdgeId(1653344),
-                        EdgeId(4997411),
-                        EdgeId(5359424),
-                        EdgeId(5359425),
-                    ],
-                    point: Point {
-                        coordinate: Coordinate {
-                            lon: 13.4659771,
-                            lat: 52.5181688
-                        },
-                        line: LineAttributes {
-                            frc: Frc::Frc6,
-                            fow: Fow::SingleCarriageway,
-                            bearing: Bearing::from_degrees(287),
-                        },
-                        path: Some(PathAttributes {
-                            lfrcnp: Frc::Frc6,
-                            dnp: Length::from_meters(489.0)
-                        })
-                    }
-                },
-                LocRefPoint {
-                    projection_coordinate: None,
-                    edges: vec![],
-                    point: Point {
-                        coordinate: Coordinate {
-                            lon: 13.4611206,
-                            lat: 52.5170944
-                        },
-                        line: LineAttributes {
-                            frc: Frc::Frc4,
-                            fow: Fow::SingleCarriageway,
-                            bearing: Bearing::from_degrees(17),
-                        },
-                        path: None
-                    }
+            lrps[0],
+            LocRefPoint {
+                projection_coordinate: None,
+                edges: vec![
+                    EdgeId(1653344),
+                    EdgeId(4997411),
+                    EdgeId(5359424),
+                    EdgeId(5359425),
+                ],
+                point: Point {
+                    coordinate: Coordinate {
+                        lon: 13.4659771,
+                        lat: 52.5181688
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc6,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(287),
+                    },
+                    path: Some(PathAttributes {
+                        lfrcnp: Frc::Frc6,
+                        dnp: Length::from_meters(489.0)
+                    })
                 }
-            ]
+            }
+        );
+
+        assert_eq!(
+            lrps[1],
+            LocRefPoint {
+                projection_coordinate: None,
+                edges: vec![],
+                point: Point {
+                    coordinate: Coordinate {
+                        lon: 13.4611206,
+                        lat: 52.5170944
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc4,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(17),
+                    },
+                    path: None
+                }
+            }
         );
     }
 
@@ -743,46 +791,49 @@ mod tests {
         };
 
         let LocRefPoints { lrps, .. } = resolve_lrps(&config, graph, line).unwrap();
+        assert_eq!(lrps.len(), 2);
 
         assert_eq!(
-            lrps,
-            [
-                LocRefPoint {
-                    projection_coordinate: None,
-                    edges: vec![EdgeId(16218)],
-                    point: Point {
-                        coordinate: Coordinate {
-                            lon: 13.454214,
-                            lat: 52.5157088
-                        },
-                        line: LineAttributes {
-                            frc: Frc::Frc2,
-                            fow: Fow::SingleCarriageway,
-                            bearing: Bearing::from_degrees(99),
-                        },
-                        path: Some(PathAttributes {
-                            lfrcnp: Frc::Frc2,
-                            dnp: Length::from_meters(217.0)
-                        })
-                    }
-                },
-                LocRefPoint {
-                    projection_coordinate: None,
-                    edges: vec![],
-                    point: Point {
-                        coordinate: Coordinate {
-                            lon: 13.457386,
-                            lat: 52.5153814
-                        },
-                        line: LineAttributes {
-                            frc: Frc::Frc2,
-                            fow: Fow::SingleCarriageway,
-                            bearing: Bearing::from_degrees(280),
-                        },
-                        path: None
-                    }
-                },
-            ]
+            lrps[0],
+            LocRefPoint {
+                projection_coordinate: None,
+                edges: vec![EdgeId(16218)],
+                point: Point {
+                    coordinate: Coordinate {
+                        lon: 13.454214,
+                        lat: 52.5157088
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc2,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(99),
+                    },
+                    path: Some(PathAttributes {
+                        lfrcnp: Frc::Frc2,
+                        dnp: Length::from_meters(217.0)
+                    })
+                }
+            }
+        );
+
+        assert_eq!(
+            lrps[1],
+            LocRefPoint {
+                projection_coordinate: None,
+                edges: vec![],
+                point: Point {
+                    coordinate: Coordinate {
+                        lon: 13.457386,
+                        lat: 52.5153814
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc2,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(280),
+                    },
+                    path: None
+                }
+            },
         );
     }
 
@@ -799,46 +850,49 @@ mod tests {
         };
 
         let LocRefPoints { lrps, .. } = resolve_lrps(&config, graph, line).unwrap();
+        assert_eq!(lrps.len(), 2);
 
         assert_eq!(
-            lrps,
-            [
-                LocRefPoint {
-                    projection_coordinate: None,
-                    edges: vec![EdgeId(16218), EdgeId(16219)],
-                    point: Point {
-                        coordinate: Coordinate {
-                            lon: 13.454214,
-                            lat: 52.5157088
-                        },
-                        line: LineAttributes {
-                            frc: Frc::Frc2,
-                            fow: Fow::SingleCarriageway,
-                            bearing: Bearing::from_degrees(99),
-                        },
-                        path: Some(PathAttributes {
-                            lfrcnp: Frc::Frc2,
-                            dnp: Length::from_meters(326.0)
-                        })
-                    }
-                },
-                LocRefPoint {
-                    projection_coordinate: None,
-                    edges: vec![],
-                    point: Point {
-                        coordinate: Coordinate {
-                            lon: 13.4589756,
-                            lat: 52.515216
-                        },
-                        line: LineAttributes {
-                            frc: Frc::Frc2,
-                            fow: Fow::SingleCarriageway,
-                            bearing: Bearing::from_degrees(280),
-                        },
-                        path: None
-                    }
-                },
-            ]
+            lrps[0],
+            LocRefPoint {
+                projection_coordinate: None,
+                edges: vec![EdgeId(16218), EdgeId(16219)],
+                point: Point {
+                    coordinate: Coordinate {
+                        lon: 13.454214,
+                        lat: 52.5157088
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc2,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(99),
+                    },
+                    path: Some(PathAttributes {
+                        lfrcnp: Frc::Frc2,
+                        dnp: Length::from_meters(326.0)
+                    })
+                }
+            }
+        );
+
+        assert_eq!(
+            lrps[1],
+            LocRefPoint {
+                projection_coordinate: None,
+                edges: vec![],
+                point: Point {
+                    coordinate: Coordinate {
+                        lon: 13.4589756,
+                        lat: 52.515216
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc2,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(280),
+                    },
+                    path: None
+                }
+            },
         );
     }
 
@@ -858,65 +912,72 @@ mod tests {
         };
 
         let LocRefPoints { lrps, .. } = resolve_lrps(&config, graph, line).unwrap();
+        assert_eq!(lrps.len(), 3);
 
         assert_eq!(
-            lrps,
-            [
-                LocRefPoint {
-                    projection_coordinate: None,
-                    edges: vec![EdgeId(16218)],
-                    point: Point {
-                        coordinate: Coordinate {
-                            lon: 13.454214,
-                            lat: 52.5157088
-                        },
-                        line: LineAttributes {
-                            frc: Frc::Frc2,
-                            fow: Fow::SingleCarriageway,
-                            bearing: Bearing::from_degrees(99),
-                        },
-                        path: Some(PathAttributes {
-                            lfrcnp: Frc::Frc2,
-                            dnp: Length::from_meters(217.0)
-                        })
-                    }
-                },
-                LocRefPoint {
-                    projection_coordinate: None,
-                    edges: vec![EdgeId(16219)],
-                    point: Point {
-                        coordinate: Coordinate {
-                            lon: 13.457386,
-                            lat: 52.5153814
-                        },
-                        line: LineAttributes {
-                            frc: Frc::Frc2,
-                            fow: Fow::SingleCarriageway,
-                            bearing: Bearing::from_degrees(100),
-                        },
-                        path: Some(PathAttributes {
-                            lfrcnp: Frc::Frc2,
-                            dnp: Length::from_meters(109.0)
-                        })
-                    }
-                },
-                LocRefPoint {
-                    projection_coordinate: None,
-                    edges: vec![],
-                    point: Point {
-                        coordinate: Coordinate {
-                            lon: 13.4589756,
-                            lat: 52.515216
-                        },
-                        line: LineAttributes {
-                            frc: Frc::Frc2,
-                            fow: Fow::SingleCarriageway,
-                            bearing: Bearing::from_degrees(280),
-                        },
-                        path: None
-                    }
-                },
-            ]
+            lrps[0],
+            LocRefPoint {
+                projection_coordinate: None,
+                edges: vec![EdgeId(16218)],
+                point: Point {
+                    coordinate: Coordinate {
+                        lon: 13.454214,
+                        lat: 52.5157088
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc2,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(99),
+                    },
+                    path: Some(PathAttributes {
+                        lfrcnp: Frc::Frc2,
+                        dnp: Length::from_meters(217.0)
+                    })
+                }
+            }
+        );
+
+        assert_eq!(
+            lrps[1],
+            LocRefPoint {
+                projection_coordinate: None,
+                edges: vec![EdgeId(16219)],
+                point: Point {
+                    coordinate: Coordinate {
+                        lon: 13.457386,
+                        lat: 52.5153814
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc2,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(100),
+                    },
+                    path: Some(PathAttributes {
+                        lfrcnp: Frc::Frc2,
+                        dnp: Length::from_meters(109.0)
+                    })
+                }
+            }
+        );
+
+        assert_eq!(
+            lrps[2],
+            LocRefPoint {
+                projection_coordinate: None,
+                edges: vec![],
+                point: Point {
+                    coordinate: Coordinate {
+                        lon: 13.4589756,
+                        lat: 52.515216
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc2,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(280),
+                    },
+                    path: None
+                }
+            },
         );
     }
 
@@ -936,131 +997,150 @@ mod tests {
         };
 
         let LocRefPoints { lrps, .. } = resolve_lrps(&config, graph, line).unwrap();
+        assert_eq!(lrps.len(), 6);
 
         assert_eq!(
-            lrps,
-            [
-                LocRefPoint {
-                    projection_coordinate: None,
-                    edges: vec![EdgeId(16218)],
-                    point: Point {
-                        coordinate: Coordinate {
-                            lon: 13.454214,
-                            lat: 52.5157088
-                        },
-                        line: LineAttributes {
-                            frc: Frc::Frc2,
-                            fow: Fow::SingleCarriageway,
-                            bearing: Bearing::from_degrees(99),
-                        },
-                        path: Some(PathAttributes {
-                            lfrcnp: Frc::Frc2,
-                            dnp: Length::from_meters(100.0)
-                        })
-                    }
-                },
-                LocRefPoint {
-                    projection_coordinate: Some(Coordinate {
+            lrps[0],
+            LocRefPoint {
+                projection_coordinate: None,
+                edges: vec![EdgeId(16218)],
+                point: Point {
+                    coordinate: Coordinate {
+                        lon: 13.454214,
+                        lat: 52.5157088
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc2,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(99),
+                    },
+                    path: Some(PathAttributes {
+                        lfrcnp: Frc::Frc2,
+                        dnp: Length::from_meters(100.0)
+                    })
+                }
+            }
+        );
+
+        assert_eq!(
+            lrps[1],
+            LocRefPoint {
+                projection_coordinate: Some(Coordinate {
+                    lon: 13.455676,
+                    lat: 52.515561,
+                }),
+                edges: vec![EdgeId(16218)],
+                point: Point {
+                    coordinate: Coordinate {
                         lon: 13.455676,
-                        lat: 52.515561,
-                    }),
-                    edges: vec![EdgeId(16218)],
-                    point: Point {
-                        coordinate: Coordinate {
-                            lon: 13.455676,
-                            lat: 52.515561
-                        },
-                        line: LineAttributes {
-                            frc: Frc::Frc2,
-                            fow: Fow::SingleCarriageway,
-                            bearing: Bearing::from_degrees(100),
-                        },
-                        path: Some(PathAttributes {
-                            lfrcnp: Frc::Frc2,
-                            dnp: Length::from_meters(100.0)
-                        })
-                    }
-                },
-                LocRefPoint {
-                    projection_coordinate: Some(Coordinate {
+                        lat: 52.515561
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc2,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(100),
+                    },
+                    path: Some(PathAttributes {
+                        lfrcnp: Frc::Frc2,
+                        dnp: Length::from_meters(100.0)
+                    })
+                }
+            }
+        );
+
+        assert_eq!(
+            lrps[2],
+            LocRefPoint {
+                projection_coordinate: Some(Coordinate {
+                    lon: 13.457137,
+                    lat: 52.515407,
+                }),
+                edges: vec![EdgeId(16218)],
+                point: Point {
+                    coordinate: Coordinate {
                         lon: 13.457137,
-                        lat: 52.515407,
-                    }),
-                    edges: vec![EdgeId(16218)],
-                    point: Point {
-                        coordinate: Coordinate {
-                            lon: 13.457137,
-                            lat: 52.515407
-                        },
-                        line: LineAttributes {
-                            frc: Frc::Frc2,
-                            fow: Fow::SingleCarriageway,
-                            bearing: Bearing::from_degrees(100),
-                        },
-                        path: Some(PathAttributes {
-                            lfrcnp: Frc::Frc2,
-                            dnp: Length::from_meters(17.0)
-                        })
-                    }
-                },
-                LocRefPoint {
-                    projection_coordinate: None,
-                    edges: vec![EdgeId(16219)],
-                    point: Point {
-                        coordinate: Coordinate {
-                            lon: 13.457386,
-                            lat: 52.5153814
-                        },
-                        line: LineAttributes {
-                            frc: Frc::Frc2,
-                            fow: Fow::SingleCarriageway,
-                            bearing: Bearing::from_degrees(100),
-                        },
-                        path: Some(PathAttributes {
-                            lfrcnp: Frc::Frc2,
-                            dnp: Length::from_meters(100.0)
-                        })
-                    }
-                },
-                LocRefPoint {
-                    projection_coordinate: Some(Coordinate {
+                        lat: 52.515407
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc2,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(100),
+                    },
+                    path: Some(PathAttributes {
+                        lfrcnp: Frc::Frc2,
+                        dnp: Length::from_meters(17.0)
+                    })
+                }
+            }
+        );
+
+        assert_eq!(
+            lrps[3],
+            LocRefPoint {
+                projection_coordinate: None,
+                edges: vec![EdgeId(16219)],
+                point: Point {
+                    coordinate: Coordinate {
+                        lon: 13.457386,
+                        lat: 52.5153814
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc2,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(100),
+                    },
+                    path: Some(PathAttributes {
+                        lfrcnp: Frc::Frc2,
+                        dnp: Length::from_meters(100.0)
+                    })
+                }
+            }
+        );
+
+        assert_eq!(
+            lrps[4],
+            LocRefPoint {
+                projection_coordinate: Some(Coordinate {
+                    lon: 13.458844,
+                    lat: 52.515229,
+                },),
+                edges: vec![EdgeId(16219)],
+                point: Point {
+                    coordinate: Coordinate {
                         lon: 13.458844,
-                        lat: 52.515229,
-                    },),
-                    edges: vec![EdgeId(16219)],
-                    point: Point {
-                        coordinate: Coordinate {
-                            lon: 13.458844,
-                            lat: 52.515229
-                        },
-                        line: LineAttributes {
-                            frc: Frc::Frc2,
-                            fow: Fow::SingleCarriageway,
-                            bearing: Bearing::from_degrees(100),
-                        },
-                        path: Some(PathAttributes {
-                            lfrcnp: Frc::Frc2,
-                            dnp: Length::from_meters(9.0)
-                        })
-                    }
-                },
-                LocRefPoint {
-                    projection_coordinate: None,
-                    edges: vec![],
-                    point: Point {
-                        coordinate: Coordinate {
-                            lon: 13.4589756,
-                            lat: 52.515216
-                        },
-                        line: LineAttributes {
-                            frc: Frc::Frc2,
-                            fow: Fow::SingleCarriageway,
-                            bearing: Bearing::from_degrees(280),
-                        },
-                        path: None
-                    }
-                },
-            ]
+                        lat: 52.515229
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc2,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(100),
+                    },
+                    path: Some(PathAttributes {
+                        lfrcnp: Frc::Frc2,
+                        dnp: Length::from_meters(9.0)
+                    })
+                }
+            }
+        );
+
+        assert_eq!(
+            lrps[5],
+            LocRefPoint {
+                projection_coordinate: None,
+                edges: vec![],
+                point: Point {
+                    coordinate: Coordinate {
+                        lon: 13.4589756,
+                        lat: 52.515216
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc2,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(280),
+                    },
+                    path: None
+                }
+            },
         );
     }
 
@@ -1080,106 +1160,121 @@ mod tests {
         };
 
         let LocRefPoints { lrps, .. } = resolve_lrps(&config, graph, line).unwrap();
+        assert_eq!(lrps.len(), 5);
 
         assert_eq!(
-            lrps,
-            [
-                LocRefPoint {
-                    projection_coordinate: None,
-                    edges: vec![EdgeId(-9044470)],
-                    point: Point {
-                        coordinate: Coordinate {
-                            lon: 13.458825,
-                            lat: 52.5145838
-                        },
-                        line: LineAttributes {
-                            frc: Frc::Frc6,
-                            fow: Fow::SingleCarriageway,
-                            bearing: Bearing::from_degrees(122),
-                        },
-                        path: Some(PathAttributes {
-                            lfrcnp: Frc::Frc6,
-                            dnp: Length::from_meters(15.0)
-                        })
-                    }
-                },
-                LocRefPoint {
-                    projection_coordinate: Some(Coordinate {
+            lrps[0],
+            LocRefPoint {
+                projection_coordinate: None,
+                edges: vec![EdgeId(-9044470)],
+                point: Point {
+                    coordinate: Coordinate {
+                        lon: 13.458825,
+                        lat: 52.5145838
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc6,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(122),
+                    },
+                    path: Some(PathAttributes {
+                        lfrcnp: Frc::Frc6,
+                        dnp: Length::from_meters(15.0)
+                    })
+                }
+            }
+        );
+
+        assert_eq!(
+            lrps[1],
+            LocRefPoint {
+                projection_coordinate: Some(Coordinate {
+                    lon: 13.459018,
+                    lat: 52.514509,
+                }),
+                edges: vec![EdgeId(-9044470)],
+                point: Point {
+                    coordinate: Coordinate {
                         lon: 13.459018,
-                        lat: 52.514509,
-                    }),
-                    edges: vec![EdgeId(-9044470)],
-                    point: Point {
-                        coordinate: Coordinate {
-                            lon: 13.459018,
-                            lat: 52.514509
-                        },
-                        line: LineAttributes {
-                            frc: Frc::Frc6,
-                            fow: Fow::SingleCarriageway,
-                            bearing: Bearing::from_degrees(122),
-                        },
-                        path: Some(PathAttributes {
-                            lfrcnp: Frc::Frc6,
-                            dnp: Length::from_meters(4.0)
-                        })
-                    }
-                },
-                LocRefPoint {
-                    projection_coordinate: None,
-                    edges: vec![EdgeId(-9044471)],
-                    point: Point {
-                        coordinate: Coordinate {
-                            lon: 13.4590704,
-                            lat: 52.5144901
-                        },
-                        line: LineAttributes {
-                            frc: Frc::Frc6,
-                            fow: Fow::SingleCarriageway,
-                            bearing: Bearing::from_degrees(122),
-                        },
-                        path: Some(PathAttributes {
-                            lfrcnp: Frc::Frc6,
-                            dnp: Length::from_meters(12.0)
-                        })
-                    }
-                },
-                LocRefPoint {
-                    projection_coordinate: None,
-                    edges: vec![EdgeId(-9044472)],
-                    point: Point {
-                        coordinate: Coordinate {
-                            lon: 13.4592303,
-                            lat: 52.5144292
-                        },
-                        line: LineAttributes {
-                            frc: Frc::Frc6,
-                            fow: Fow::SingleCarriageway,
-                            bearing: Bearing::from_degrees(123),
-                        },
-                        path: Some(PathAttributes {
-                            lfrcnp: Frc::Frc6,
-                            dnp: Length::from_meters(14.0)
-                        })
-                    }
-                },
-                LocRefPoint {
-                    projection_coordinate: None,
-                    edges: vec![],
-                    point: Point {
-                        coordinate: Coordinate {
-                            lon: 13.459407,
-                            lat: 52.5143601
-                        },
-                        line: LineAttributes {
-                            frc: Frc::Frc6,
-                            fow: Fow::SingleCarriageway,
-                            bearing: Bearing::from_degrees(303),
-                        },
-                        path: None
-                    }
-                },
-            ]
+                        lat: 52.514509
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc6,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(122),
+                    },
+                    path: Some(PathAttributes {
+                        lfrcnp: Frc::Frc6,
+                        dnp: Length::from_meters(4.0)
+                    })
+                }
+            }
+        );
+
+        assert_eq!(
+            lrps[2],
+            LocRefPoint {
+                projection_coordinate: None,
+                edges: vec![EdgeId(-9044471)],
+                point: Point {
+                    coordinate: Coordinate {
+                        lon: 13.4590704,
+                        lat: 52.5144901
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc6,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(122),
+                    },
+                    path: Some(PathAttributes {
+                        lfrcnp: Frc::Frc6,
+                        dnp: Length::from_meters(12.0)
+                    })
+                }
+            }
+        );
+
+        assert_eq!(
+            lrps[3],
+            LocRefPoint {
+                projection_coordinate: None,
+                edges: vec![EdgeId(-9044472)],
+                point: Point {
+                    coordinate: Coordinate {
+                        lon: 13.4592303,
+                        lat: 52.5144292
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc6,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(123),
+                    },
+                    path: Some(PathAttributes {
+                        lfrcnp: Frc::Frc6,
+                        dnp: Length::from_meters(14.0)
+                    })
+                }
+            }
+        );
+
+        assert_eq!(
+            lrps[4],
+            LocRefPoint {
+                projection_coordinate: None,
+                edges: vec![],
+                point: Point {
+                    coordinate: Coordinate {
+                        lon: 13.459407,
+                        lat: 52.5143601
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc6,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(303),
+                    },
+                    path: None
+                }
+            },
         );
     }
 }

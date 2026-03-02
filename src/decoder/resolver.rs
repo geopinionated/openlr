@@ -531,10 +531,11 @@ mod tests {
         ];
 
         let routes = resolve_routes(&config, graph, &candidate_lines, Offsets::default()).unwrap();
+        assert_eq!(routes.len(), 1);
 
         assert_eq!(
-            routes,
-            CandidateRoutes::from(vec![CandidateRoute {
+            routes[0],
+            CandidateRoute {
                 path: Path {
                     edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
                     length: Length::from_meters(379.0),
@@ -543,7 +544,7 @@ mod tests {
                     line_lrp1: line1_first_lrp,
                     line_lrp2: line_last_lrp
                 }
-            }])
+            }
         );
     }
 
@@ -615,10 +616,11 @@ mod tests {
         ];
 
         let routes = resolve_routes(&config, graph, &candidate_lines, Offsets::default()).unwrap();
+        assert_eq!(routes.len(), 1);
 
         assert_eq!(
-            routes,
-            CandidateRoutes::from(vec![CandidateRoute {
+            routes[0],
+            CandidateRoute {
                 path: Path {
                     edges: vec![EdgeId(8717174)],
                     length: Length::from_meters(136.0),
@@ -627,7 +629,7 @@ mod tests {
                     line_lrp1: line_first_lrp,
                     line_lrp2: line1_last_lrp
                 }
-            }])
+            }
         );
     }
 
@@ -719,31 +721,34 @@ mod tests {
         ];
 
         let routes = resolve_routes(&config, graph, &candidate_lines, Offsets::default()).unwrap();
+        assert_eq!(routes.len(), 2);
 
         assert_eq!(
-            routes,
-            CandidateRoutes::from(vec![
-                CandidateRoute {
-                    path: Path {
-                        edges: vec![], // first and second LRPs are on the same line
-                        length: Length::ZERO,
-                    },
-                    candidates: CandidateLinePair {
-                        line_lrp1: line_first_lrp,
-                        line_lrp2: line_second_lrp
-                    }
+            routes[0],
+            CandidateRoute {
+                path: Path {
+                    edges: vec![], // first and second LRPs are on the same line
+                    length: Length::ZERO,
                 },
-                CandidateRoute {
-                    path: Path {
-                        edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
-                        length: Length::from_meters(379.0),
-                    },
-                    candidates: CandidateLinePair {
-                        line_lrp1: line_second_lrp,
-                        line_lrp2: line_last_lrp
-                    }
+                candidates: CandidateLinePair {
+                    line_lrp1: line_first_lrp,
+                    line_lrp2: line_second_lrp
                 }
-            ])
+            }
+        );
+
+        assert_eq!(
+            routes[1],
+            CandidateRoute {
+                path: Path {
+                    edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
+                    length: Length::from_meters(379.0),
+                },
+                candidates: CandidateLinePair {
+                    line_lrp1: line_second_lrp,
+                    line_lrp2: line_last_lrp
+                }
+            }
         );
     }
 
@@ -849,31 +854,34 @@ mod tests {
         ];
 
         let routes = resolve_routes(&config, graph, &candidate_lines, Offsets::default()).unwrap();
+        assert_eq!(routes.len(), 2);
 
         assert_eq!(
-            routes,
-            CandidateRoutes::from(vec![
-                CandidateRoute {
-                    path: Path {
-                        edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
-                        length: Length::from_meters(379.0),
-                    },
-                    candidates: CandidateLinePair {
-                        line_lrp1: line1_first_lrp,
-                        line_lrp2: line1_second_lrp
-                    }
+            routes[0],
+            CandidateRoute {
+                path: Path {
+                    edges: vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)],
+                    length: Length::from_meters(379.0),
                 },
-                CandidateRoute {
-                    path: Path {
-                        edges: vec![EdgeId(6770340), EdgeId(7531947)],
-                        length: Length::from_meters(53.0),
-                    },
-                    candidates: CandidateLinePair {
-                        line_lrp1: line1_second_lrp,
-                        line_lrp2: line_last_lrp
-                    }
+                candidates: CandidateLinePair {
+                    line_lrp1: line1_first_lrp,
+                    line_lrp2: line1_second_lrp
+                }
+            }
+        );
+
+        assert_eq!(
+            routes[1],
+            CandidateRoute {
+                path: Path {
+                    edges: vec![EdgeId(6770340), EdgeId(7531947)],
+                    length: Length::from_meters(53.0),
                 },
-            ])
+                candidates: CandidateLinePair {
+                    line_lrp1: line1_second_lrp,
+                    line_lrp2: line_last_lrp
+                }
+            },
         );
     }
 
@@ -978,31 +986,34 @@ mod tests {
         ];
 
         let routes = resolve_routes(&config, graph, &candidate_lines, Offsets::default()).unwrap();
+        assert_eq!(routes.len(), 2);
 
         assert_eq!(
-            routes,
-            CandidateRoutes::from(vec![
-                CandidateRoute {
-                    path: Path {
-                        edges: vec![EdgeId(-7292030)],
-                        length: Length::from_meters(108.0),
-                    },
-                    candidates: CandidateLinePair {
-                        line_lrp1: line_first_lrp,
-                        line_lrp2: line2_second_lrp
-                    }
+            routes[0],
+            CandidateRoute {
+                path: Path {
+                    edges: vec![EdgeId(-7292030)],
+                    length: Length::from_meters(108.0),
                 },
-                CandidateRoute {
-                    path: Path {
-                        edges: vec![EdgeId(-7292029), EdgeId(-7292028)],
-                        length: Length::from_meters(90.0),
-                    },
-                    candidates: CandidateLinePair {
-                        line_lrp1: line2_second_lrp,
-                        line_lrp2: line_last_lrp
-                    }
+                candidates: CandidateLinePair {
+                    line_lrp1: line_first_lrp,
+                    line_lrp2: line2_second_lrp
+                }
+            }
+        );
+
+        assert_eq!(
+            routes[1],
+            CandidateRoute {
+                path: Path {
+                    edges: vec![EdgeId(-7292029), EdgeId(-7292028)],
+                    length: Length::from_meters(90.0),
                 },
-            ])
+                candidates: CandidateLinePair {
+                    line_lrp1: line2_second_lrp,
+                    line_lrp2: line_last_lrp
+                }
+            },
         );
     }
 
@@ -1105,152 +1116,159 @@ mod tests {
         ];
 
         let routes = resolve_routes(&config, graph, &candidate_lines, Offsets::default()).unwrap();
+        assert_eq!(routes.len(), 3);
 
         assert_eq!(
-            routes,
-            CandidateRoutes::from(vec![
-                CandidateRoute {
-                    path: Path {
-                        length: Length::from_meters(217.0),
-                        edges: vec![EdgeId(16218)]
-                    },
-                    candidates: CandidateLinePair {
-                        line_lrp1: CandidateLine {
-                            lrp: Point {
-                                coordinate: Coordinate {
-                                    lon: 13.454214,
-                                    lat: 52.5157088
-                                },
-                                line: LineAttributes {
-                                    frc: Frc::Frc2,
-                                    fow: Fow::SingleCarriageway,
-                                    bearing: Bearing::from_degrees(99)
-                                },
-                                path: Some(PathAttributes {
-                                    lfrcnp: Frc::Frc2,
-                                    dnp: Length::from_meters(100.0)
-                                })
-                            },
-                            edge: EdgeId(16218),
-                            rating: RatingScore::from(1000.0),
-                            distance_to_projection: None
-                        },
-                        line_lrp2: CandidateLine {
-                            lrp: Point {
-                                coordinate: Coordinate {
-                                    lon: 13.455676,
-                                    lat: 52.515561
-                                },
-                                line: LineAttributes {
-                                    frc: Frc::Frc2,
-                                    fow: Fow::SingleCarriageway,
-                                    bearing: Bearing::from_degrees(100)
-                                },
-                                path: Some(PathAttributes {
-                                    lfrcnp: Frc::Frc2,
-                                    dnp: Length::from_meters(100.0)
-                                })
-                            },
-                            edge: EdgeId(16218),
-                            rating: RatingScore::from(1000.0),
-                            distance_to_projection: None
-                        }
-                    }
+            routes[0],
+            CandidateRoute {
+                path: Path {
+                    length: Length::from_meters(217.0),
+                    edges: vec![EdgeId(16218)]
                 },
-                CandidateRoute {
-                    path: Path {
-                        length: Length::ZERO,
-                        edges: vec![]
-                    },
-                    candidates: CandidateLinePair {
-                        line_lrp1: CandidateLine {
-                            lrp: Point {
-                                coordinate: Coordinate {
-                                    lon: 13.455676,
-                                    lat: 52.515561
-                                },
-                                line: LineAttributes {
-                                    frc: Frc::Frc2,
-                                    fow: Fow::SingleCarriageway,
-                                    bearing: Bearing::from_degrees(100)
-                                },
-                                path: Some(PathAttributes {
-                                    lfrcnp: Frc::Frc2,
-                                    dnp: Length::from_meters(100.0)
-                                })
+                candidates: CandidateLinePair {
+                    line_lrp1: CandidateLine {
+                        lrp: Point {
+                            coordinate: Coordinate {
+                                lon: 13.454214,
+                                lat: 52.5157088
                             },
-                            edge: EdgeId(16218),
-                            rating: RatingScore::from(1000.0),
-                            distance_to_projection: None
+                            line: LineAttributes {
+                                frc: Frc::Frc2,
+                                fow: Fow::SingleCarriageway,
+                                bearing: Bearing::from_degrees(99)
+                            },
+                            path: Some(PathAttributes {
+                                lfrcnp: Frc::Frc2,
+                                dnp: Length::from_meters(100.0)
+                            })
                         },
-                        line_lrp2: CandidateLine {
-                            lrp: Point {
-                                coordinate: Coordinate {
-                                    lon: 13.457137,
-                                    lat: 52.515407
-                                },
-                                line: LineAttributes {
-                                    frc: Frc::Frc2,
-                                    fow: Fow::SingleCarriageway,
-                                    bearing: Bearing::from_degrees(100)
-                                },
-                                path: Some(PathAttributes {
-                                    lfrcnp: Frc::Frc2,
-                                    dnp: Length::from_meters(17.0)
-                                })
-                            },
-                            edge: EdgeId(16218),
-                            rating: RatingScore::from(1000.0),
-                            distance_to_projection: None
-                        }
-                    }
-                },
-                CandidateRoute {
-                    path: Path {
-                        length: Length::ZERO,
-                        edges: vec![]
+                        edge: EdgeId(16218),
+                        rating: RatingScore::from(1000.0),
+                        distance_to_projection: None
                     },
-                    candidates: CandidateLinePair {
-                        line_lrp1: CandidateLine {
-                            lrp: Point {
-                                coordinate: Coordinate {
-                                    lon: 13.457137,
-                                    lat: 52.515407
-                                },
-                                line: LineAttributes {
-                                    frc: Frc::Frc2,
-                                    fow: Fow::SingleCarriageway,
-                                    bearing: Bearing::from_degrees(100)
-                                },
-                                path: Some(PathAttributes {
-                                    lfrcnp: Frc::Frc2,
-                                    dnp: Length::from_meters(17.0)
-                                })
+                    line_lrp2: CandidateLine {
+                        lrp: Point {
+                            coordinate: Coordinate {
+                                lon: 13.455676,
+                                lat: 52.515561
                             },
-                            edge: EdgeId(16218),
-                            rating: RatingScore::from(1000.0),
-                            distance_to_projection: None
+                            line: LineAttributes {
+                                frc: Frc::Frc2,
+                                fow: Fow::SingleCarriageway,
+                                bearing: Bearing::from_degrees(100)
+                            },
+                            path: Some(PathAttributes {
+                                lfrcnp: Frc::Frc2,
+                                dnp: Length::from_meters(100.0)
+                            })
                         },
-                        line_lrp2: CandidateLine {
-                            lrp: Point {
-                                coordinate: Coordinate {
-                                    lon: 13.457386,
-                                    lat: 52.5153814
-                                },
-                                line: LineAttributes {
-                                    frc: Frc::Frc2,
-                                    fow: Fow::SingleCarriageway,
-                                    bearing: Bearing::from_degrees(280)
-                                },
-                                path: None
-                            },
-                            edge: EdgeId(16218),
-                            rating: RatingScore::from(1000.0),
-                            distance_to_projection: None
-                        }
+                        edge: EdgeId(16218),
+                        rating: RatingScore::from(1000.0),
+                        distance_to_projection: None
                     }
                 }
-            ])
+            }
+        );
+
+        assert_eq!(
+            routes[1],
+            CandidateRoute {
+                path: Path {
+                    length: Length::ZERO,
+                    edges: vec![]
+                },
+                candidates: CandidateLinePair {
+                    line_lrp1: CandidateLine {
+                        lrp: Point {
+                            coordinate: Coordinate {
+                                lon: 13.455676,
+                                lat: 52.515561
+                            },
+                            line: LineAttributes {
+                                frc: Frc::Frc2,
+                                fow: Fow::SingleCarriageway,
+                                bearing: Bearing::from_degrees(100)
+                            },
+                            path: Some(PathAttributes {
+                                lfrcnp: Frc::Frc2,
+                                dnp: Length::from_meters(100.0)
+                            })
+                        },
+                        edge: EdgeId(16218),
+                        rating: RatingScore::from(1000.0),
+                        distance_to_projection: None
+                    },
+                    line_lrp2: CandidateLine {
+                        lrp: Point {
+                            coordinate: Coordinate {
+                                lon: 13.457137,
+                                lat: 52.515407
+                            },
+                            line: LineAttributes {
+                                frc: Frc::Frc2,
+                                fow: Fow::SingleCarriageway,
+                                bearing: Bearing::from_degrees(100)
+                            },
+                            path: Some(PathAttributes {
+                                lfrcnp: Frc::Frc2,
+                                dnp: Length::from_meters(17.0)
+                            })
+                        },
+                        edge: EdgeId(16218),
+                        rating: RatingScore::from(1000.0),
+                        distance_to_projection: None
+                    }
+                }
+            }
+        );
+
+        assert_eq!(
+            routes[2],
+            CandidateRoute {
+                path: Path {
+                    length: Length::ZERO,
+                    edges: vec![]
+                },
+                candidates: CandidateLinePair {
+                    line_lrp1: CandidateLine {
+                        lrp: Point {
+                            coordinate: Coordinate {
+                                lon: 13.457137,
+                                lat: 52.515407
+                            },
+                            line: LineAttributes {
+                                frc: Frc::Frc2,
+                                fow: Fow::SingleCarriageway,
+                                bearing: Bearing::from_degrees(100)
+                            },
+                            path: Some(PathAttributes {
+                                lfrcnp: Frc::Frc2,
+                                dnp: Length::from_meters(17.0)
+                            })
+                        },
+                        edge: EdgeId(16218),
+                        rating: RatingScore::from(1000.0),
+                        distance_to_projection: None
+                    },
+                    line_lrp2: CandidateLine {
+                        lrp: Point {
+                            coordinate: Coordinate {
+                                lon: 13.457386,
+                                lat: 52.5153814
+                            },
+                            line: LineAttributes {
+                                frc: Frc::Frc2,
+                                fow: Fow::SingleCarriageway,
+                                bearing: Bearing::from_degrees(280)
+                            },
+                            path: None
+                        },
+                        edge: EdgeId(16218),
+                        rating: RatingScore::from(1000.0),
+                        distance_to_projection: None
+                    }
+                }
+            }
         );
     }
 }
