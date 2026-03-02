@@ -1,4 +1,4 @@
-use tracing::{trace, warn};
+use tracing::{debug, trace, warn};
 
 use crate::EncodeError::InvalidLrp;
 use crate::encoder::lrp::{LocRefPoint, LocRefPoints};
@@ -90,6 +90,8 @@ fn split_lrp<G: DirectedGraph>(
         return Ok(lrps);
     }
 
+    debug!("Splitting {lrp:?} at every {max_lrp_distance}");
+
     // long single line was not handled during the shortest route stage when finding intermediates
     debug_assert!(!lrp.point.is_last());
     debug_assert_eq!(lrp.edges.len(), 1);
@@ -101,13 +103,16 @@ fn split_lrp<G: DirectedGraph>(
 
     while dnp > max_lrp_distance {
         let coordinate = graph.get_coordinate_along_edge(edge, distance)?;
+        trace!("Splitting LRP at {coordinate} ({distance})");
 
         if let Some(path) = lrps.last_mut().and_then(|lrp| lrp.point.path.as_mut()) {
             // creating another LRP on the same line requires updating the DNP of the previous
             path.dnp = max_lrp_distance;
         }
 
-        lrps.push(LocRefPoint::line(config, graph, edge, coordinate)?);
+        let lrp = LocRefPoint::line(config, graph, edge, coordinate, distance)?;
+        lrps.push(lrp);
+
         dnp -= max_lrp_distance;
         distance += max_lrp_distance;
     }
@@ -956,8 +961,8 @@ mod tests {
                 },
                 LocRefPoint {
                     projection_coordinate: Some(Coordinate {
-                        lon: 13.455676767654381,
-                        lat: 52.5155615984457,
+                        lon: 13.455676,
+                        lat: 52.515561,
                     }),
                     edges: vec![EdgeId(16218)],
                     point: Point {
@@ -978,8 +983,8 @@ mod tests {
                 },
                 LocRefPoint {
                     projection_coordinate: Some(Coordinate {
-                        lon: 13.457137508978576,
-                        lat: 52.51540708300186,
+                        lon: 13.457137,
+                        lat: 52.515407,
                     }),
                     edges: vec![EdgeId(16218)],
                     point: Point {
@@ -994,7 +999,7 @@ mod tests {
                         },
                         path: Some(PathAttributes {
                             lfrcnp: Frc::Frc2,
-                            dnp: Length::from_meters(16.346160186372742)
+                            dnp: Length::from_meters(17.0)
                         })
                     }
                 },
@@ -1019,8 +1024,8 @@ mod tests {
                 },
                 LocRefPoint {
                     projection_coordinate: Some(Coordinate {
-                        lon: 13.458844359049749,
-                        lat: 52.515229693289946,
+                        lon: 13.458844,
+                        lat: 52.515229,
                     },),
                     edges: vec![EdgeId(16219)],
                     point: Point {
@@ -1035,7 +1040,7 @@ mod tests {
                         },
                         path: Some(PathAttributes {
                             lfrcnp: Frc::Frc2,
-                            dnp: Length::from_meters(8.884732961834075)
+                            dnp: Length::from_meters(9.0)
                         })
                     }
                 },
@@ -1100,8 +1105,8 @@ mod tests {
                 },
                 LocRefPoint {
                     projection_coordinate: Some(Coordinate {
-                        lon: 13.459018736929124,
-                        lat: 52.51450982635798,
+                        lon: 13.459018,
+                        lat: 52.514509,
                     }),
                     edges: vec![EdgeId(-9044470)],
                     point: Point {
@@ -1116,7 +1121,7 @@ mod tests {
                         },
                         path: Some(PathAttributes {
                             lfrcnp: Frc::Frc6,
-                            dnp: Length::from_meters(3.523195526723825)
+                            dnp: Length::from_meters(4.0)
                         })
                     }
                 },
