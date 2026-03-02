@@ -126,11 +126,11 @@ impl<EdgeId: Copy> LocRefPoint<EdgeId> {
         graph: &G,
         edge: EdgeId,
         coordinate: Coordinate,
+        projection: Length,
     ) -> Result<Self, EncodeError<G::Error>>
     where
         G: DirectedGraph<EdgeId = EdgeId>,
     {
-        let projection = graph.get_distance_along_edge(edge, coordinate)?;
         let bearing_distance = config.bearing_distance;
         let lfrcnp = graph.get_edge_frc(edge)?;
         let dnp = graph.get_edge_length(edge)? - projection;
