@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::LazyLock;
 
 use geo::{CoordsIter, LineString, coord};
-use geojson::{Feature, FeatureCollection, Value};
+use geojson::{Feature, FeatureCollection, GeometryValue};
 
 use crate::{Coordinate, Fow, Frc, Length};
 
@@ -51,12 +51,12 @@ impl GeojsonGraph {
             let geometry = geometry.as_ref().unwrap();
             let properties = properties.as_ref().unwrap();
 
-            if let Value::Point(point) = &geometry.value {
+            if let GeometryValue::Point { coordinates } = &geometry.value {
                 let id = properties.get("id").unwrap().as_i64().unwrap() as u64;
 
                 let coordinate = Coordinate {
-                    lon: point[0],
-                    lat: point[1],
+                    lon: coordinates[0],
+                    lat: coordinates[1],
                 };
 
                 graph.nodes.insert(
@@ -78,13 +78,15 @@ impl GeojsonGraph {
             let geometry = geometry.as_ref().unwrap();
             let properties = properties.as_ref().unwrap();
 
-            if let Value::LineString(lines) = &geometry.value {
+            if let GeometryValue::LineString { coordinates } = &geometry.value {
                 let id = properties.get("id").unwrap().as_i64().unwrap();
                 let length = properties.get("length").unwrap().as_i64().unwrap() as f64;
                 let frc = properties.get("frc").unwrap().as_i64().unwrap() as i8;
                 let fow = properties.get("fow").unwrap().as_i64().unwrap() as i8;
                 let direction = properties.get("direction").unwrap().as_i64().unwrap();
-                let geometry = lines.iter().map(|line| coord! { x: line[0], y: line[1] });
+                let geometry = coordinates
+                    .iter()
+                    .map(|line| coord! { x: line[0], y: line[1] });
 
                 let mut start_node_id = properties.get("startId").unwrap().as_i64().unwrap() as u64;
                 let mut end_node_id = properties.get("endId").unwrap().as_i64().unwrap() as u64;
