@@ -269,8 +269,9 @@ impl<'a, G: DirectedGraph> Intermediator<'a, G> {
             if previous_edge != self.last_edge {
                 // the shortest path to the intermediate (next location edge) does not include
                 // the last (location) edge, therefore there is an additional (2nd) deviation
-                let location_index = self.rfind_intermediate_index(previous_map);
-                warn!("Multiple deviations from shortest path at {location_index:?}");
+                let location_index = self.rfind_intermediate_index(previous_map)?;
+                debug!("Multiple deviations from shortest path at {location_index:?}");
+                return Ok(Some(Intermediate { location_index }));
             }
 
             Ok(Some(Intermediate { location_index }))
