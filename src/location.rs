@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use tracing::debug;
+use tracing::{debug, warn};
 
 use crate::graph::path::is_path_connected;
 use crate::{Coordinate, DirectedGraph, Length, LocationError, Orientation, SideOfRoad};
@@ -121,7 +121,7 @@ impl<EdgeId: Copy + Debug> LineLocation<EdgeId> {
             neg_offset,
         };
 
-        ensure_line_is_valid(graph, &line, Length::MAX_BINARY_LRP_DISTANCE)?;
+        ensure_line_is_valid(graph, &line)?;
 
         Ok(line)
     }
@@ -137,7 +137,6 @@ impl<EdgeId: Copy + Debug> LineLocation<EdgeId> {
 fn ensure_line_is_valid<G: DirectedGraph>(
     graph: &G,
     line: &LineLocation<G::EdgeId>,
-    max_lrp_distance: Length,
 ) -> Result<(), LocationError<G::Error>> {
     let LineLocation {
         ref path,
@@ -151,9 +150,23 @@ fn ensure_line_is_valid<G: DirectedGraph>(
         return Err(LocationError::NotConnected);
     }
 
-    if pos_offset > max_lrp_distance
-        || neg_offset > max_lrp_distance
-        || pos_offset >= graph.get_edge_length(path[0])?
+    if pos_offset > Length::MAX_BINARY_LRP_DISTANCE {
+        warn!(
+            "LRP max recommended distance exceeded at {:?} by positive offset: {pos_offset} > {}",
+            path[0],
+            Length::MAX_BINARY_LRP_DISTANCE
+        );
+    }
+
+    if neg_offset > Length::MAX_BINARY_LRP_DISTANCE {
+        warn!(
+            "LRP max recommended distance exceeded at {:?} by negative offset: {neg_offset} > {}",
+            path[path.len() - 1],
+            Length::MAX_BINARY_LRP_DISTANCE
+        );
+    }
+
+    if pos_offset >= graph.get_edge_length(path[0])?
         || neg_offset >= graph.get_edge_length(path[path.len() - 1])?
         || pos_offset + neg_offset >= line.path_length(graph)?
     {
