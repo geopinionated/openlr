@@ -187,8 +187,12 @@ where
     let mut candidate_lines = Vec::with_capacity(candidate_nodes.len());
 
     for (i, lrp_nodes) in candidate_nodes.enumerate() {
-        let CandidateNodes { lrp, .. } = &lrp_nodes;
-        debug!("Finding lines for LRP {i} (last={}) {lrp:?}", lrp.is_last());
+        let CandidateNodes { lrp, nodes } = &lrp_nodes;
+        debug!(
+            "Finding lines for LRP {i} (last={}) {lrp:?} from {} nodes",
+            lrp.is_last(),
+            nodes.len(),
+        );
 
         let mut lrp_lines = find_candidate_lines_from_nodes(config, graph, lrp_nodes)?;
         append_projected_candidate_lines(config, graph, &mut lrp_lines)?;
