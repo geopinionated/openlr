@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use std::hash::Hash;
 
 use radix_heap::RadixHeapMap;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxBuildHasher, FxHashMap};
 use tracing::{debug, warn};
 
 use crate::graph::dijkstra::unpack_path;
@@ -99,8 +99,17 @@ pub fn shortest_path_location<G: DirectedGraph>(
     let mut heap = RadixHeapMap::from_iter([(Reverse(origin_length), origin)]);
     let mut intermediator = Intermediator::new(graph, location, max_lrp_distance)?;
 
+    let location_idx = location.iter().enumerate().fold(
+        FxHashMap::with_capacity_and_hasher(location.len(), FxBuildHasher),
+        |mut map, (i, e)| {
+            // insert only if not already present because path loops are handled separately
+            map.entry(*e).or_insert(i);
+            map
+        },
+    );
+
     while let Some((Reverse(h_distance), h_edge)) = heap.pop() {
-        if let Some(location_index) = location.iter().position(|&e| e == h_edge) {
+        if let Some(&location_index) = location_idx.get(&h_edge) {
             // Step – 5 Determine the position of a new intermediate location reference point
             if let Some(intermediate) =
                 intermediator.get_intermediate(h_edge, h_distance, &previous_map)?
