@@ -30,10 +30,10 @@ pub fn resolve_lrps<G: DirectedGraph>(
             // Step – 6 Restart shortest path calculation between the new intermediate location
             // reference point and the end of the location.
             ShortestPath::Intermediate(Intermediate { location_index }) => {
-                let loc = location[..location_index].to_vec();
+                let mut loc = location.split_off(location_index);
+                std::mem::swap(&mut location, &mut loc);
                 trace!("Found (node) intermediate LRP for {loc:?}");
                 candidate_lrps.push(LocRefPoint::node(config, graph, loc)?);
-                location.drain(..location_index);
             }
             ShortestPath::NotFound => {
                 return Err(EncodeError::RouteNotFound);
@@ -56,7 +56,7 @@ pub fn resolve_lrps<G: DirectedGraph>(
     // distance between two location reference points exceeds the maximum distance.
     let mut lrps = Vec::with_capacity(candidate_lrps.len());
     for lrp in candidate_lrps {
-        lrps.append(&mut split_lrp(config, graph, lrp)?);
+        split_lrp(config, graph, lrp, &mut lrps)?;
     }
 
     Ok(LocRefPoints {
@@ -79,16 +79,17 @@ fn split_lrp<G: DirectedGraph>(
     config: &EncoderConfig,
     graph: &G,
     lrp: LocRefPoint<G::EdgeId>,
-) -> Result<Vec<LocRefPoint<G::EdgeId>>, EncodeError<G::Error>> {
+    lrps: &mut Vec<LocRefPoint<G::EdgeId>>,
+) -> Result<(), EncodeError<G::Error>> {
     let EncoderConfig {
         max_lrp_distance, ..
     } = *config;
 
-    let mut lrps = vec![lrp];
-    let lrp = &lrps[0];
+    lrps.push(lrp);
+    let lrp = &lrps[lrps.len() - 1];
 
     if lrp.point.dnp() <= max_lrp_distance {
-        return Ok(lrps);
+        return Ok(());
     }
 
     debug!("Splitting {lrp:?} at every {max_lrp_distance}");
@@ -119,7 +120,7 @@ fn split_lrp<G: DirectedGraph>(
     }
 
     debug_assert!(lrps.iter().all(|lrp| lrp.point.dnp() <= max_lrp_distance));
-    Ok(lrps)
+    Ok(())
 }
 
 #[cfg(test)]
