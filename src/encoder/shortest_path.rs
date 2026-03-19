@@ -99,14 +99,11 @@ pub fn shortest_path_location<G: DirectedGraph>(
     let mut heap = RadixHeapMap::from_iter([(Reverse(origin_length), origin)]);
     let mut intermediator = Intermediator::new(graph, location, max_lrp_distance)?;
 
-    let location_idx = location.iter().enumerate().fold(
-        FxHashMap::with_capacity_and_hasher(location.len(), FxBuildHasher),
-        |mut map, (i, e)| {
-            // insert only if not already present because path loops are handled separately
-            map.entry(*e).or_insert(i);
-            map
-        },
-    );
+    let mut location_idx = FxHashMap::with_capacity_and_hasher(location.len(), FxBuildHasher);
+    // duplicates overwritten with first appearence because path loops are handled separately
+    for (i, e) in location.iter().enumerate().rev() {
+        location_idx.insert(*e, i);
+    }
 
     while let Some((Reverse(h_distance), h_edge)) = heap.pop() {
         if let Some(&location_index) = location_idx.get(&h_edge) {
