@@ -296,8 +296,16 @@ impl Length {
         Self(OrderedFloat(meters))
     }
 
+    pub const fn from_kilometers(kilometers: f64) -> Self {
+        Self::from_meters(kilometers * 1000.0)
+    }
+
     pub const fn meters(&self) -> f64 {
         self.0.0
+    }
+
+    pub const fn kilometers(&self) -> f64 {
+        self.meters() / 1000.0
     }
 
     pub fn is_zero(&self) -> bool {
@@ -447,7 +455,7 @@ pub struct Coordinate {
 
 impl fmt::Display for Coordinate {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:.5},{:.5}", self.lon, self.lat)
+        write!(f, "{:.7},{:.7}", self.lon, self.lat)
     }
 }
 
@@ -897,7 +905,7 @@ mod tests {
     fn coordinate_parse_to_string() {
         assert_eq!(
             Coordinate::new(6.63237, 46.78186).unwrap().to_string(),
-            "6.63237,46.78186"
+            "6.6323700,46.7818600"
         );
 
         assert_eq!(

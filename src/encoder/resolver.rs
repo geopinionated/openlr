@@ -11,6 +11,7 @@ pub fn resolve_lrps<G: DirectedGraph>(
     graph: &G,
     line: LineLocation<G::EdgeId>,
 ) -> Result<LocRefPoints<G::EdgeId>, EncodeError<G::Error>> {
+    debug!("Resolving LRPs for {} edges", line.path.len());
     let mut location: Vec<G::EdgeId> = line.path.clone();
 
     let last_edge = location[location.len() - 1];

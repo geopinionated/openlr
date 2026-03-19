@@ -125,6 +125,8 @@ fn resolve_single_line_routes<G: DirectedGraph>(
     best_edge: G::EdgeId,
     offsets: Offsets,
 ) -> Result<Option<CandidateRoutes<G::EdgeId>>, DecodeError<G::Error>> {
+    debug!("Resolving single line routes on {best_edge:?} with {offsets:?}");
+
     let pairs = candidate_lines.windows(2).filter_map(|window| {
         Some(CandidateLinePair {
             line_lrp1: window[0].best_candidate()?,
@@ -133,9 +135,13 @@ fn resolve_single_line_routes<G: DirectedGraph>(
     });
 
     let routes: Vec<_> = pairs
-        .enumerate()
-        .map(|(i, candidates)| {
-            let edges = if i == 0 { vec![best_edge] } else { vec![] };
+        .map(|candidates| {
+            let edges = if candidates.line_lrp2.lrp.is_last() {
+                vec![best_edge]
+            } else {
+                vec![]
+            };
+
             let length = edges
                 .iter()
                 .try_fold(Length::ZERO, |acc, &e| Ok(acc + graph.get_edge_length(e)?))?;
@@ -1122,8 +1128,8 @@ mod tests {
             routes[0],
             CandidateRoute {
                 path: Path {
-                    length: Length::from_meters(217.0),
-                    edges: vec![EdgeId(16218)]
+                    length: Length::ZERO,
+                    edges: vec![]
                 },
                 candidates: CandidateLinePair {
                     line_lrp1: CandidateLine {
@@ -1226,8 +1232,8 @@ mod tests {
             routes[2],
             CandidateRoute {
                 path: Path {
-                    length: Length::ZERO,
-                    edges: vec![]
+                    length: Length::from_meters(217.0),
+                    edges: vec![EdgeId(16218)]
                 },
                 candidates: CandidateLinePair {
                     line_lrp1: CandidateLine {
