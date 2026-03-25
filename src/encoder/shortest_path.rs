@@ -1,6 +1,5 @@
 use std::cmp::Reverse;
 use std::fmt::Debug;
-use std::hash::Hash;
 
 use radix_heap::RadixHeapMap;
 use rustc_hash::{FxBuildHasher, FxHashMap};
@@ -97,13 +96,14 @@ pub fn shortest_path_location<G: DirectedGraph>(
     let mut shortest_distances = FxHashMap::from_iter([(origin, origin_length)]);
     let mut previous_map: FxHashMap<G::EdgeId, G::EdgeId> = FxHashMap::default();
     let mut heap = RadixHeapMap::from_iter([(Reverse(origin_length), origin)]);
-    let mut intermediator = Intermediator::new(graph, location, max_lrp_distance)?;
 
     let mut location_idx = FxHashMap::with_capacity_and_hasher(location.len(), FxBuildHasher);
     // duplicates overwritten with first appearence because path loops are handled separately
     for (i, e) in location.iter().enumerate().rev() {
         location_idx.insert(*e, i);
     }
+
+    let mut intermediator = Intermediator::new(graph, location, &location_idx, max_lrp_distance)?;
 
     while let Some((Reverse(h_distance), h_edge)) = heap.pop() {
         if let Some(&location_index) = location_idx.get(&h_edge) {
@@ -180,6 +180,7 @@ pub fn shortest_path_location<G: DirectedGraph>(
 struct Intermediator<'a, G: DirectedGraph> {
     graph: &'a G,
     location: &'a [G::EdgeId],
+    location_idx: &'a FxHashMap<G::EdgeId, usize>,
     max_lrp_distance: Length,
     last_edge: G::EdgeId,
     last_edge_index: usize,
@@ -189,6 +190,7 @@ impl<'a, G: DirectedGraph> Intermediator<'a, G> {
     fn new(
         graph: &'a G,
         location: &'a [G::EdgeId],
+        location_idx: &'a FxHashMap<G::EdgeId, usize>,
         max_lrp_distance: Length,
     ) -> Result<Self, EncodeError<G::Error>> {
         let last_edge = location.first().copied().ok_or(LocationError::Empty)?;
@@ -197,6 +199,7 @@ impl<'a, G: DirectedGraph> Intermediator<'a, G> {
         Ok(Self {
             graph,
             location,
+            location_idx,
             max_lrp_distance,
             last_edge,
             last_edge_index,
@@ -247,11 +250,10 @@ impl<'a, G: DirectedGraph> Intermediator<'a, G> {
         // The location deviates from the shortest path that would allow to reach this element.
         // Find the start of this deviation along the current path, at least the start line should
         // be found because all the paths go back to the origin.
-        let common_edge =
-            find_common_edge(self.location, previous_map, h_edge).ok_or_else(|| {
-                warn!("Cannot find common edge of {h_edge:?}");
-                EncodeError::IntermediateError(self.last_edge_index)
-            })?;
+        let common_edge = self.find_common_edge(previous_map, h_edge).ok_or_else(|| {
+            warn!("Cannot find common edge of {h_edge:?}");
+            EncodeError::IntermediateError(self.last_edge_index)
+        })?;
 
         // check if the deviation starts at the last element found so far or earlier in the path
         if common_edge == self.last_edge {
@@ -318,7 +320,7 @@ impl<'a, G: DirectedGraph> Intermediator<'a, G> {
             if edge == self.location[0] {
                 return Ok(self.last_edge_index);
             } else if is_node_valid(self.graph, self.graph.get_edge_start_vertex(edge)?)? {
-                let index = self.location.iter().position(|&e| e == edge);
+                let index = self.location_idx.get(&edge).copied();
                 return index.ok_or_else(|| EncodeError::IntermediateError(self.last_edge_index));
             }
 
@@ -328,21 +330,22 @@ impl<'a, G: DirectedGraph> Intermediator<'a, G> {
                 .ok_or_else(|| EncodeError::IntermediateError(self.last_edge_index))?;
         }
     }
-}
 
-/// Returns the first element that is part of both the location and the provided given edge path.
-fn find_common_edge<EdgeId: Copy + Eq + Hash>(
-    location: &[EdgeId],
-    previous_map: &FxHashMap<EdgeId, EdgeId>,
-    mut edge: EdgeId,
-) -> Option<EdgeId> {
-    while let Some(&previous_edge) = previous_map.get(&edge) {
-        if location.contains(&previous_edge) {
-            return Some(previous_edge);
+    /// Returns the first element that is part of both the location and the provided given edge
+    /// path.
+    fn find_common_edge(
+        &self,
+        previous_map: &FxHashMap<G::EdgeId, G::EdgeId>,
+        mut edge: G::EdgeId,
+    ) -> Option<G::EdgeId> {
+        while let Some(&previous_edge) = previous_map.get(&edge) {
+            if self.location_idx.contains_key(&previous_edge) {
+                return Some(previous_edge);
+            }
+            edge = previous_edge;
         }
-        edge = previous_edge;
+        None
     }
-    None
 }
 
 #[cfg(test)]
