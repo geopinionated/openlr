@@ -195,6 +195,7 @@ fn resolve_candidate_route<G: DirectedGraph>(
         })?;
 
         let path = Path { length, edges };
+        debug!("Route found on same edge {edge_lrp1:?}");
         return Ok(Some(CandidateRoute { path, candidates }));
     }
 
@@ -290,7 +291,7 @@ fn resolve_top_k_candidate_pairs<EdgeId: Debug + Copy + PartialEq>(
 ) -> Vec<CandidateLinePair<EdgeId>> {
     let max_size = lines_lrp1.lines.len() * lines_lrp2.lines.len();
     let k_size = max_size.min(config.max_number_retries + 1);
-    debug!("Resolving candidate pair ratings with K size: {k_size}");
+    debug!("Resolving candidate pair ratings with K={k_size}");
 
     let mut pair_ratings: BinaryHeap<Reverse<RatingScore>> = BinaryHeap::with_capacity(k_size + 1);
     let mut rating_pairs: FxHashMap<RatingScore, Vec<_>> =

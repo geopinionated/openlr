@@ -127,34 +127,29 @@ pub fn find_candidate_nodes<G, I>(
     config: &DecoderConfig,
     graph: &G,
     points: I,
-) -> Result<impl ExactSizeIterator<Item = CandidateNodes<G::VertexId>>, DecodeError<G::Error>>
+) -> impl ExactSizeIterator<Item = Result<CandidateNodes<G::VertexId>, G::Error>>
 where
     G: DirectedGraph,
     I: IntoIterator,
     I::IntoIter: ExactSizeIterator<Item = Point>,
 {
-    let nodes: Vec<_> = points
-        .into_iter()
-        .map(move |lrp| {
-            debug!("Finding candidate nodes for {lrp:?}");
+    points.into_iter().map(move |lrp| {
+        debug!("Finding candidate nodes for {lrp:?}");
 
-            let nodes: Vec<_> = graph
-                .nearest_vertices_within_distance(lrp.coordinate, config.max_node_distance)?
-                .map(|(vertex, distance_to_lrp)| {
-                    debug_assert!(distance_to_lrp <= config.max_node_distance);
-                    CandidateNode {
-                        vertex,
-                        distance_to_lrp,
-                    }
-                })
-                .collect();
+        let nodes: Vec<_> = graph
+            .nearest_vertices_within_distance(lrp.coordinate, config.max_node_distance)?
+            .map(|(vertex, distance_to_lrp)| {
+                debug_assert!(distance_to_lrp <= config.max_node_distance);
+                CandidateNode {
+                    vertex,
+                    distance_to_lrp,
+                }
+            })
+            .collect();
 
-            debug_assert!(nodes.is_sorted_by_key(|n| n.distance_to_lrp));
-            Ok::<_, G::Error>(CandidateNodes { lrp, nodes })
-        })
-        .collect::<Result<_, _>>()?;
-
-    Ok(nodes.into_iter())
+        debug_assert!(nodes.is_sorted_by_key(|n| n.distance_to_lrp));
+        Ok(CandidateNodes { lrp, nodes })
+    })
 }
 
 /// For each location reference point the decoder tries to determine lines which should fulfill the
@@ -181,12 +176,13 @@ pub fn find_candidate_lines<G: DirectedGraph, I>(
 ) -> Result<Vec<CandidateLines<G::EdgeId>>, DecodeError<G::Error>>
 where
     I: IntoIterator,
-    I::IntoIter: ExactSizeIterator<Item = CandidateNodes<G::VertexId>>,
+    I::IntoIter: ExactSizeIterator<Item = Result<CandidateNodes<G::VertexId>, G::Error>>,
 {
     let candidate_nodes = candidate_nodes.into_iter();
     let mut candidate_lines = Vec::with_capacity(candidate_nodes.len());
 
     for (i, lrp_nodes) in candidate_nodes.enumerate() {
+        let lrp_nodes = lrp_nodes?;
         let CandidateNodes { lrp, ref nodes } = lrp_nodes;
         debug!(
             "Finding lines for LRP {i} (last={}) {lrp:?} from {} nodes",
@@ -486,8 +482,7 @@ mod tests {
         ];
 
         let nodes: Vec<_> = find_candidate_nodes(&config, graph, points)
-            .unwrap()
-            .flat_map(|candidate| candidate.nodes)
+            .flat_map(|candidate| candidate.unwrap().nodes)
             .map(|node| (node.vertex, (node.distance_to_lrp.meters() * 100.0).round()))
             .collect();
 
@@ -513,8 +508,7 @@ mod tests {
         }];
 
         let nodes: Vec<_> = find_candidate_nodes(&config, graph, points)
-            .unwrap()
-            .flat_map(|candidate| candidate.nodes)
+            .flat_map(|candidate| candidate.unwrap().nodes)
             .map(|node| (node.vertex, node.distance_to_lrp.meters().round()))
             .collect();
 
@@ -553,9 +547,10 @@ mod tests {
             }),
         };
 
-        let nodes: Vec<_> = find_candidate_nodes(&config, graph, [lrp])
-            .unwrap()
-            .collect();
+        let nodes = find_candidate_nodes(&config, graph, [lrp])
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+
         assert_eq!(nodes, [CandidateNodes { lrp, nodes: vec![] }]);
     }
 
@@ -598,9 +593,9 @@ mod tests {
         };
 
         let nodes: Vec<_> = find_candidate_nodes(&config, graph, [first_lrp, last_lrp])
-            .unwrap()
             .map(|candidate| {
                 candidate
+                    .unwrap()
                     .nodes
                     .into_iter()
                     .map(|node| node.vertex)
@@ -676,6 +671,7 @@ mod tests {
             },
         ];
 
+        let points = points.into_iter().map(Ok);
         let lines: Vec<_> = find_candidate_lines(&config, graph, points)
             .unwrap()
             .into_iter()
@@ -754,6 +750,7 @@ mod tests {
             },
         ];
 
+        let points = points.into_iter().map(Ok);
         let lines = find_candidate_lines(&config, graph, points).unwrap();
 
         let lines: Vec<_> = lines
@@ -862,6 +859,7 @@ mod tests {
             },
         ];
 
+        let points = points.into_iter().map(Ok);
         let lines = find_candidate_lines(&config, graph, points).unwrap();
 
         let lines: Vec<_> = lines
