@@ -187,7 +187,7 @@ where
     let mut candidate_lines = Vec::with_capacity(candidate_nodes.len());
 
     for (i, lrp_nodes) in candidate_nodes.enumerate() {
-        let CandidateNodes { lrp, nodes } = &lrp_nodes;
+        let CandidateNodes { lrp, ref nodes } = lrp_nodes;
         debug!(
             "Finding lines for LRP {i} (last={}) {lrp:?} from {} nodes",
             lrp.is_last(),
@@ -197,7 +197,7 @@ where
         let mut lrp_lines = find_candidate_lines_from_nodes(config, graph, lrp_nodes)?;
         append_projected_candidate_lines(config, graph, &mut lrp_lines)?;
 
-        let CandidateLines { lines, lrp } = &mut lrp_lines;
+        let CandidateLines { lrp, lines } = &mut lrp_lines;
         debug!(
             "Found {} lines for LRP {i} (last={})",
             lines.len(),
@@ -296,7 +296,7 @@ fn append_projected_candidate_lines<G: DirectedGraph>(
     candidate_lines: &mut CandidateLines<G::EdgeId>,
 ) -> Result<(), DecodeError<G::Error>> {
     let lrp = candidate_lines.lrp;
-    debug!("Finding candidates from projected lines");
+    debug!("Finding candidates from projected lines from {lrp:?}");
 
     let projected_lines: Vec<_> = graph
         .nearest_edges_within_distance(lrp.coordinate, config.max_node_distance)?

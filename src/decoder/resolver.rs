@@ -223,7 +223,7 @@ fn resolve_candidate_route<G: DirectedGraph>(
         }
 
         debug_assert!(!path.edges.is_empty());
-        debug_assert!(path.length <= max_length, "{} > {max_length}", path.length);
+        debug_assert!(path.length <= max_length + graph.get_edge_length(edge_lrp2)?);
 
         debug!("Route found: {edge_lrp1:?} -> {edge_lrp2:?}: {path:?}");
         return Ok(Some(CandidateRoute { path, candidates }));
@@ -266,21 +266,17 @@ fn max_route_length<G: DirectedGraph>(
     graph: &G,
     candidates: &CandidateLinePair<G::EdgeId>,
 ) -> Result<Length, DecodeError<G::Error>> {
-    let CandidateLinePair {
-        line_lrp1,
-        line_lrp2,
-    } = candidates;
+    let CandidateLinePair { line_lrp1, .. } = candidates;
 
     let mut max_distance = line_lrp1.lrp.dnp() + config.next_point_variance;
 
-    // shortest path can only stop at distances between real vertices, therefore we need to
-    // add the complete length when computing max distance upper bound if the lines were projected
+    // Shortest path can only consider full edges, therefore we need to add the complete length when
+    // computing the max distance upper bound if the lines were projected, but we can exclude the
+    // 2nd LRP since finding the shortest path does not reject the path if the max distance is
+    // exceeded right at the destination edge. This is an optimization that allows to keep the
+    // search space smaller and avoid exploring too much when the LRP is on very long edges.
     if line_lrp1.is_projected() {
         max_distance += graph.get_edge_length(line_lrp1.edge)?;
-    }
-
-    if line_lrp2.is_projected() || !line_lrp2.lrp.is_last() {
-        max_distance += graph.get_edge_length(line_lrp2.edge)?;
     }
 
     Ok(max_distance.ceil())
