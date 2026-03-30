@@ -24,7 +24,7 @@ pub fn decode_line<G: DirectedGraph>(
 
     // Step – 2 For each location reference point find candidate nodes
     let lrps_count = line.points.len();
-    let nodes = find_candidate_nodes(config, graph, line.points)?;
+    let nodes = find_candidate_nodes(config, graph, line.points);
     debug_assert_eq!(nodes.len(), lrps_count);
 
     // Step – 3 For each location reference point find candidate lines

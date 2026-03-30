@@ -54,7 +54,7 @@ pub fn shortest_path<G: DirectedGraph>(
             let distance = h_distance + graph.get_edge_length(edge)?;
             let frc = graph.get_edge_frc(edge)?;
 
-            if distance > max_length {
+            if distance > max_length && edge != destination {
                 trace!("Element distance too far: {edge:?} {distance} > {max_length}");
                 continue;
             }
@@ -159,7 +159,8 @@ mod tests {
                 EdgeId(16218),
                 EdgeId(961826),
                 Frc::Frc7,
-                Length::from_meters(752.0)
+                // EdgeId: 16218 -> 16219 -> 4232179
+                Length::from_meters(217.0 + 109.0 + 16.0)
             )
             .unwrap(),
             None
