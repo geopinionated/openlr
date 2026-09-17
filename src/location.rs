@@ -186,22 +186,15 @@ where
     G: DirectedGraph,
     I: IntoIterator<Item = G::EdgeId>,
 {
-    edges
-        .into_iter()
-        .enumerate()
-        .scan(Length::ZERO, |length, (i, edge)| {
-            let current_length = *length;
-            if current_length <= offset {
-                match graph.get_edge_length(edge) {
-                    Ok(edge_length) => *length += edge_length,
-                    Err(e) => return Some(Err(e)),
-                };
-                Some(Ok((i, current_length)))
-            } else {
-                None
-            }
-        })
-        .try_fold(None, |_, last| Ok(Some(last?)))
+    let mut cumulative_length = Length::ZERO;
+    for (i, edge) in edges.into_iter().enumerate() {
+        let edge_length = graph.get_edge_length(edge)?;
+        if cumulative_length + edge_length > offset {
+            return Ok(Some((i, cumulative_length)));
+        }
+        cumulative_length += edge_length;
+    }
+    Ok(None)
 }
 
 #[cfg(test)]

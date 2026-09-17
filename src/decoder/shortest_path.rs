@@ -22,6 +22,12 @@ pub fn shortest_path<G: DirectedGraph>(
     );
 
     let origin_length = graph.get_edge_length(origin)?;
+
+    if origin_length > max_length {
+        trace!("Element distance at origin too far: {origin:?} {origin_length} > {max_length}");
+        return Ok(None);
+    }
+
     let mut shortest_distances = FxHashMap::from_iter([(origin, origin_length)]);
     let mut previous_map: FxHashMap<G::EdgeId, G::EdgeId> = FxHashMap::default();
     let mut heap = RadixHeapMap::from_iter([(Reverse(origin_length), origin)]);
