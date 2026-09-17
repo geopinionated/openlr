@@ -1,8 +1,8 @@
-use std::collections::HashMap;
 use std::sync::LazyLock;
 
 use geo::{CoordsIter, LineString, coord};
 use geojson::{Feature, FeatureCollection, GeometryValue};
+use rustc_hash::FxHashMap;
 
 use crate::{Coordinate, Fow, Frc, Length};
 
@@ -16,8 +16,8 @@ type LineId = i64;
 
 #[derive(Debug, Default)]
 pub struct GeojsonGraph {
-    pub nodes: HashMap<NodeId, Node>,
-    pub lines: HashMap<LineId, Line>,
+    pub nodes: FxHashMap<NodeId, Node>,
+    pub lines: FxHashMap<LineId, Line>,
 }
 
 #[derive(Debug)]

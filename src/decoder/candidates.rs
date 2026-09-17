@@ -105,7 +105,7 @@ impl<EdgeId: Debug> fmt::Display for ProvisionalCandidateLine<EdgeId> {
         )?;
 
         if let Some(distance_to_projection) = self.distance_to_projection {
-            write!(f, " | {}", &distance_to_projection.round())?;
+            write!(f, " | {}", distance_to_projection.round())?;
         }
 
         write!(f, " }}")

@@ -1,12 +1,11 @@
-use std::collections::{HashMap, HashSet};
 use std::sync::LazyLock;
 
 use geo::{
     BoundingRect, Closest, Distance, Haversine, HaversineClosestPoint, InterpolatableLine,
     LineString, Point,
 };
-use graph::prelude::{DirectedCsrGraph, DirectedNeighborsWithValues};
 use rstar::{AABB, PointDistance, RTree, RTreeObject};
+use rustc_hash::{FxHashMap, FxHashSet};
 use thiserror::Error;
 
 use crate::graph::tests::geojson::{GEOJSON_GRAPH, GeojsonGraph};
@@ -31,11 +30,45 @@ impl EdgeId {
     }
 }
 
+#[derive(Debug)]
+struct Graph {
+    outgoing: FxHashMap<VertexId, Vec<(EdgeId, VertexId)>>,
+    incoming: FxHashMap<VertexId, Vec<(EdgeId, VertexId)>>,
+}
+
+impl Graph {
+    fn from_edges(edges: impl IntoIterator<Item = (VertexId, VertexId, EdgeId)>) -> Self {
+        let mut outgoing = FxHashMap::default();
+        let mut incoming = FxHashMap::default();
+
+        for (from, to, edge_id) in edges {
+            outgoing
+                .entry(from)
+                .or_insert_with(Vec::new)
+                .push((edge_id, to));
+            incoming
+                .entry(to)
+                .or_insert_with(Vec::new)
+                .push((edge_id, from));
+        }
+
+        Self { outgoing, incoming }
+    }
+
+    fn vertex_exiting_edges(&self, v: VertexId) -> impl Iterator<Item = (EdgeId, VertexId)> {
+        self.outgoing.get(&v).into_iter().flatten().copied()
+    }
+
+    fn vertex_entering_edges(&self, v: VertexId) -> impl Iterator<Item = (EdgeId, VertexId)> {
+        self.incoming.get(&v).into_iter().flatten().copied()
+    }
+}
+
 pub struct NetworkGraph {
-    network: DirectedCsrGraph<u64, (), EdgeId>,
+    graph: Graph,
     geospatial_nodes: RTree<GeospatialNode>,
     geospatial_edges: RTree<GeospatialEdge>,
-    edge_properties: HashMap<EdgeId, EdgeProperties>,
+    edge_properties: FxHashMap<EdgeId, EdgeProperties>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -170,14 +203,8 @@ impl DirectedGraph for NetworkGraph {
         &self,
         vertex: Self::VertexId,
     ) -> Result<impl Iterator<Item = (Self::EdgeId, Self::VertexId)>, Self::Error> {
-        let mut edges: Vec<_> = self
-            .network
-            .out_neighbors_with_values(vertex.0)
-            .map(|item| (item.value, VertexId(item.target)))
-            .collect();
-
-        // edges returned in a deterministic order
-        edges.sort();
+        let mut edges: Vec<_> = self.graph.vertex_exiting_edges(vertex).collect();
+        edges.sort_unstable(); // edges returned in a deterministic order
         Ok(edges.into_iter())
     }
 
@@ -185,14 +212,8 @@ impl DirectedGraph for NetworkGraph {
         &self,
         vertex: Self::VertexId,
     ) -> Result<impl Iterator<Item = (Self::EdgeId, Self::VertexId)>, Self::Error> {
-        let mut edges: Vec<_> = self
-            .network
-            .in_neighbors_with_values(vertex.0)
-            .map(|item| (item.value, VertexId(item.target)))
-            .collect();
-
-        // edges returned in a deterministic order
-        edges.sort();
+        let mut edges: Vec<_> = self.graph.vertex_entering_edges(vertex).collect();
+        edges.sort_unstable(); // edges returned in a deterministic order
         Ok(edges.into_iter())
     }
 
@@ -347,7 +368,7 @@ impl NetworkGraph {
         let network_edges = graph.nodes.iter().flat_map(|(&from_id, node)| {
             node.exiting_lines
                 .iter()
-                .map(move |&(line_id, to_id)| (from_id, to_id, EdgeId(line_id)))
+                .map(move |&(line_id, to_id)| (VertexId(from_id), VertexId(to_id), EdgeId(line_id)))
         });
 
         let geospatial_nodes: Vec<GeospatialNode> = graph
@@ -359,10 +380,10 @@ impl NetworkGraph {
             })
             .collect();
 
-        let directed_edges: HashSet<EdgeId> = graph
+        let directed_edges: FxHashSet<EdgeId> = graph
             .nodes
-            .iter()
-            .flat_map(|(_, node)| {
+            .values()
+            .flat_map(|node| {
                 node.exiting_lines
                     .iter()
                     .map(|&(line_id, _)| EdgeId(line_id))
@@ -381,9 +402,7 @@ impl NetworkGraph {
             .collect();
 
         NetworkGraph {
-            network: graph::prelude::GraphBuilder::new()
-                .edges_with_values(network_edges)
-                .build(),
+            graph: Graph::from_edges(network_edges),
             geospatial_nodes: RTree::bulk_load(geospatial_nodes),
             geospatial_edges: RTree::bulk_load(geospatial_edges),
             edge_properties,
