@@ -11,8 +11,8 @@ categories = ["encoding"]
 
 [dependencies]
 approx = "0.5"
-base64 = "0.22"
-ordered-float = "5.3"
+base64 = "0.23"
+ordered-float = "5.5"
 radix-heap = "0.4"
 rustc-hash = "2.1"
 strum = { version = "0.28", features = ["derive"] }
@@ -20,9 +20,8 @@ thiserror = "2.0"
 tracing = "0.1"
 
 [dev-dependencies]
-geo = "0.32"
+geo = "0.33"
 geojson = "1.0"
-graph = "0.3"
-rayon = "=1.10.0" # https://github.com/neo4j-labs/graph/issues/138
+rayon = "1.12"
 rstar = "0.12"
 test-log = { version = "0.2", features = ["trace"] }
