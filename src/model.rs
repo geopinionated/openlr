@@ -228,7 +228,7 @@ impl Fow {
             (TrafficSquare, _) => Rating::Poor,
             (SlipRoad, SlipRoad) => Rating::Excellent,
             (SlipRoad, _) => Rating::Poor,
-            (Other, Other) => Rating::Excellent,
+            (Other, Other) => Rating::Average,
             (Other, _) => Rating::Poor,
         }
     }

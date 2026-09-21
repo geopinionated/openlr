@@ -250,8 +250,10 @@ fn find_candidate_lines_from_nodes<G: DirectedGraph>(
         // only outgoing lines are accepted for the LRPs
         // except for the last LRP where only incoming lines are accepted
         let edges: Box<dyn Iterator<Item = _>> = if lrp.is_last() {
+            trace!("Iterating over provisional candidate edges entering {vertex:?}");
             Box::new(graph.vertex_entering_edges(vertex)?)
         } else {
+            trace!("Iterating over provisional candidate edges exiting {vertex:?}");
             Box::new(graph.vertex_exiting_edges(vertex)?)
         };
 
