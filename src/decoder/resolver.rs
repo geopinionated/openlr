@@ -179,6 +179,7 @@ fn resolve_candidate_route<G: DirectedGraph>(
             CandidateLine {
                 lrp: lrp2,
                 edge: edge_lrp2,
+                distance_to_projection: projection_lrp2,
                 ..
             },
     } = candidates;
@@ -211,9 +212,23 @@ fn resolve_candidate_route<G: DirectedGraph>(
 
     if let Some(mut path) = shortest_path(graph, edge_lrp1, edge_lrp2, lfrcnp, max_length)? {
         let min_length = lrp1.dnp() - config.next_point_variance;
+        let destination_length = graph.get_edge_length(edge_lrp2)?;
 
-        if path.length < min_length {
-            debug!("{path:?} length is shorter than expected: {min_length}");
+        // The path includes the whole destination edge, but the distance between the LRPs ends at
+        // the beginning of the destination edge (plus its projection) or, for the last LRP, at the
+        // projection of the LRP into the destination edge (or at its end).
+        let projection = if let Some(projection) = projection_lrp2 {
+            projection
+        } else if lrp2.is_last() {
+            destination_length
+        } else {
+            Length::ZERO
+        };
+
+        let path_length = path.length - destination_length + projection;
+
+        if path_length < min_length {
+            debug!("{path:?} length ({path_length}) is shorter than expected: {min_length}");
             return Ok(None);
         }
 
@@ -1273,5 +1288,125 @@ mod tests {
                 }
             }
         );
+    }
+
+    #[test]
+    fn decoder_resolve_routes_007() {
+        let graph: &NetworkGraph = &NETWORK_GRAPH;
+        let config = DecoderConfig::default();
+
+        let length = |e: i64| graph.get_edge_length(EdgeId(e)).unwrap();
+        let real_distance = length(8717174) + length(8717175);
+        let destination_length = length(109783);
+        assert!(config.next_point_variance < destination_length * 2.0);
+
+        let candidates = |dnp: Length| CandidateLinePair {
+            line_lrp1: CandidateLine {
+                lrp: Point {
+                    coordinate: Coordinate {
+                        lon: 13.4615506,
+                        lat: 52.5170544,
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc6,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(107),
+                    },
+                    path: Some(PathAttributes {
+                        lfrcnp: Frc::Frc6,
+                        dnp,
+                    }),
+                },
+                edge: EdgeId(8717174),
+                rating: RatingScore::from(1000.0),
+                distance_to_projection: None,
+            },
+            line_lrp2: CandidateLine {
+                lrp: Point {
+                    coordinate: Coordinate {
+                        lon: 13.4625506,
+                        lat: 52.5168944,
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc6,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(17),
+                    },
+                    path: Some(PathAttributes {
+                        lfrcnp: Frc::Frc6,
+                        dnp: Length::from_meters(100.0),
+                    }),
+                },
+                edge: EdgeId(109783),
+                rating: RatingScore::from(1000.0),
+                distance_to_projection: None,
+            },
+        };
+
+        let route = resolve_candidate_route(&config, graph, candidates(real_distance)).unwrap();
+        assert!(route.is_some());
+
+        let dnp = real_distance + config.next_point_variance + destination_length * 0.5;
+        let route = resolve_candidate_route(&config, graph, candidates(dnp)).unwrap();
+        assert!(route.is_none());
+    }
+
+    #[test]
+    fn decoder_resolve_routes_008() {
+        let graph: &NetworkGraph = &NETWORK_GRAPH;
+        let config = DecoderConfig::default();
+
+        let length = |e: i64| graph.get_edge_length(EdgeId(e)).unwrap();
+        let projection = length(109783) * 0.25;
+        let real_distance = length(8717174) + length(8717175) + projection;
+        let margin = Length::from_meters(10.0);
+        assert!(projection + margin < length(109783));
+
+        let candidates = |dnp: Length| CandidateLinePair {
+            line_lrp1: CandidateLine {
+                lrp: Point {
+                    coordinate: Coordinate {
+                        lon: 13.4615506,
+                        lat: 52.5170544,
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc6,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(107),
+                    },
+                    path: Some(PathAttributes {
+                        lfrcnp: Frc::Frc6,
+                        dnp,
+                    }),
+                },
+                edge: EdgeId(8717174),
+                rating: RatingScore::from(1000.0),
+                distance_to_projection: None,
+            },
+            line_lrp2: CandidateLine {
+                lrp: Point {
+                    coordinate: Coordinate {
+                        lon: 13.46284,
+                        lat: 52.51500,
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc6,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(17),
+                    },
+                    path: None,
+                },
+                edge: EdgeId(109783),
+                rating: RatingScore::from(1000.0),
+                distance_to_projection: Some(projection),
+            },
+        };
+
+        let route = resolve_candidate_route(&config, graph, candidates(real_distance)).unwrap();
+        assert!(route.is_some());
+
+        let dnp = real_distance + config.next_point_variance + margin;
+        let route = resolve_candidate_route(&config, graph, candidates(dnp)).unwrap();
+        assert!(route.is_none());
     }
 }
