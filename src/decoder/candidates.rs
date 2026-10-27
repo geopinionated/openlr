@@ -211,9 +211,7 @@ where
             let position = if best_rating < config.min_line_rating {
                 1
             } else {
-                lines
-                    .binary_search_by(|l| config.min_line_rating.cmp(&l.rating))
-                    .unwrap_or_else(|i| i)
+                lines.partition_point(|l| l.rating >= config.min_line_rating)
             };
 
             lines.truncate(position);
@@ -890,5 +888,59 @@ mod tests {
                 vec![(EdgeId(7531947), None)]
             ]
         );
+    }
+
+    #[test]
+    fn decoder_find_candidate_lines_004() {
+        let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+        let points = || {
+            [CandidateNodes {
+                lrp: Point {
+                    coordinate: Coordinate {
+                        lon: 13.46112,
+                        lat: 52.51711,
+                    },
+                    line: LineAttributes {
+                        frc: Frc::Frc6,
+                        fow: Fow::SingleCarriageway,
+                        bearing: Bearing::from_degrees(107),
+                    },
+                    path: Some(PathAttributes {
+                        lfrcnp: Frc::Frc6,
+                        dnp: Length::from_meters(381.0),
+                    }),
+                },
+                nodes: vec![CandidateNode {
+                    vertex: VertexId(68),
+                    distance_to_lrp: Length::from_meters(1.74),
+                }],
+            }]
+            .into_iter()
+            .map(Ok)
+        };
+
+        let config = DecoderConfig {
+            max_node_distance: Length::from_meters(100.0),
+            max_bearing_difference: Bearing::from_degrees(90),
+            min_line_rating: RatingScore::from(0.0), // do not discard anything
+            ..Default::default()
+        };
+        let all = find_candidate_lines(&config, graph, points()).unwrap();
+        assert_eq!(all.len(), 1);
+        let ratings: Vec<_> = all[0].lines.iter().map(|l| l.rating).collect();
+        assert_eq!(ratings.len(), 4, "{ratings:?}");
+
+        let config = DecoderConfig {
+            // candidate lines rated exactly as `min_line_rating` must be kept: only lines rated
+            // strictly below the minimum are discarded: use the rating of the second best line
+            min_line_rating: ratings[1],
+            ..config
+        };
+        let kept = find_candidate_lines(&config, graph, points()).unwrap();
+        assert_eq!(kept.len(), 1);
+        let expected = ratings.iter().filter(|r| **r >= ratings[1]).count();
+        assert_eq!(kept[0].lines.len(), expected);
+        assert_eq!(expected, 3);
     }
 }
