@@ -78,8 +78,13 @@ pub fn resolve_routes<G: DirectedGraph>(
                 .flatten();
 
             if let Some(route) = route {
-                let (pos_offset, neg_offset) = route.calculate_offsets(graph, offsets)?;
-                if !is_path_loop(graph, &route.path.edges, pos_offset, neg_offset)? {
+                let lrp2 = candidates_lrp2.lrp;
+                let (pos, neg) = route.calculate_offsets(graph, offsets)?;
+                // offsets cut only the start of the first route and the end of the last route
+                let pos = if routes.is_empty() { pos } else { Length::ZERO };
+                let neg = if lrp2.is_last() { neg } else { Length::ZERO };
+
+                if !is_path_loop(graph, &route.path.edges, pos, neg)? {
                     routes.push(route);
                     break;
                 }
@@ -396,7 +401,7 @@ mod tests {
     use super::*;
     use crate::decoder::candidates::CandidateLine;
     use crate::graph::tests::{EdgeId, NETWORK_GRAPH, NetworkGraph};
-    use crate::{Bearing, Coordinate, Fow, LineAttributes, PathAttributes, Point};
+    use crate::{Bearing, Coordinate, Fow, LineAttributes, Offset, PathAttributes, Point};
 
     #[test]
     fn decoder_resolve_top_k_candidate_pairs_001() {
@@ -1408,5 +1413,179 @@ mod tests {
         let dnp = real_distance + config.next_point_variance + margin;
         let route = resolve_candidate_route(&config, graph, candidates(dnp)).unwrap();
         assert!(route.is_none());
+    }
+
+    #[test]
+    fn decoder_resolve_routes_009() {
+        let graph: &NetworkGraph = &NETWORK_GRAPH;
+        let config = DecoderConfig::default();
+
+        let first_lrp = Point {
+            coordinate: Coordinate {
+                lon: 13.4572516,
+                lat: 52.5149212,
+            },
+            line: LineAttributes {
+                frc: Frc::Frc6,
+                fow: Fow::SingleCarriageway,
+                bearing: Bearing::from_degrees(95),
+            },
+            path: Some(PathAttributes {
+                lfrcnp: Frc::Frc6,
+                dnp: Length::from_meters(248.0),
+            }),
+        };
+
+        let second_lrp = Point {
+            coordinate: Coordinate {
+                lon: 13.4572516,
+                lat: 52.5149212,
+            },
+            line: LineAttributes {
+                frc: Frc::Frc6,
+                fow: Fow::SingleCarriageway,
+                bearing: Bearing::from_degrees(0),
+            },
+            path: Some(PathAttributes {
+                lfrcnp: Frc::Frc6,
+                dnp: Length::from_meters(160.0),
+            }),
+        };
+
+        let last_lrp = Point {
+            coordinate: Coordinate {
+                lon: 13.458181,
+                lat: 52.515299,
+            },
+            line: LineAttributes {
+                frc: Frc::Frc6,
+                fow: Fow::SingleCarriageway,
+                bearing: Bearing::from_degrees(280),
+            },
+            path: None,
+        };
+
+        let candidate_lines = [
+            CandidateLines {
+                lrp: first_lrp,
+                lines: vec![CandidateLine {
+                    lrp: first_lrp,
+                    edge: EdgeId(3622026),
+                    rating: RatingScore::from(1000.0),
+                    distance_to_projection: None,
+                }],
+            },
+            CandidateLines {
+                lrp: second_lrp,
+                lines: vec![CandidateLine {
+                    lrp: second_lrp,
+                    edge: EdgeId(3622025),
+                    rating: RatingScore::from(1000.0),
+                    distance_to_projection: None,
+                }],
+            },
+            CandidateLines {
+                lrp: last_lrp,
+                lines: vec![CandidateLine {
+                    lrp: last_lrp,
+                    edge: EdgeId(16219),
+                    rating: RatingScore::from(1000.0),
+                    distance_to_projection: None,
+                }],
+            },
+        ];
+
+        // routes (sub-path between two consecutive LRPs) that are closed loops must be rejected
+        for offsets in [Offsets::ZERO, Offsets::negative(Offset::from_range(0.5))] {
+            let routes = resolve_routes(&config, graph, &candidate_lines, offsets);
+            assert!(matches!(routes, Err(DecodeError::RouteNotFound(_))));
+        }
+    }
+
+    #[test]
+    fn decoder_resolve_routes_010() {
+        let graph: &NetworkGraph = &NETWORK_GRAPH;
+        let config = DecoderConfig::default();
+
+        let first_lrp = Point {
+            coordinate: Coordinate {
+                lon: 13.4551048,
+                lat: 52.5152531,
+            },
+            line: LineAttributes {
+                frc: Frc::Frc6,
+                fow: Fow::SingleCarriageway,
+                bearing: Bearing::from_degrees(100),
+            },
+            path: Some(PathAttributes {
+                lfrcnp: Frc::Frc6,
+                dnp: Length::from_meters(153.0),
+            }),
+        };
+
+        let second_lrp = Point {
+            coordinate: Coordinate {
+                lon: 13.4572516,
+                lat: 52.5149212,
+            },
+            line: LineAttributes {
+                frc: Frc::Frc6,
+                fow: Fow::SingleCarriageway,
+                bearing: Bearing::from_degrees(95),
+            },
+            path: Some(PathAttributes {
+                lfrcnp: Frc::Frc6,
+                dnp: Length::from_meters(299.0),
+            }),
+        };
+
+        let last_lrp = Point {
+            coordinate: Coordinate {
+                lon: 13.457386,
+                lat: 52.5153814,
+            },
+            line: LineAttributes {
+                frc: Frc::Frc6,
+                fow: Fow::SingleCarriageway,
+                bearing: Bearing::from_degrees(0),
+            },
+            path: None,
+        };
+
+        let candidate_lines = [
+            CandidateLines {
+                lrp: first_lrp,
+                lines: vec![CandidateLine {
+                    lrp: first_lrp,
+                    edge: EdgeId(7020005),
+                    rating: RatingScore::from(1000.0),
+                    distance_to_projection: None,
+                }],
+            },
+            CandidateLines {
+                lrp: second_lrp,
+                lines: vec![CandidateLine {
+                    lrp: second_lrp,
+                    edge: EdgeId(3622026),
+                    rating: RatingScore::from(1000.0),
+                    distance_to_projection: None,
+                }],
+            },
+            CandidateLines {
+                lrp: last_lrp,
+                lines: vec![CandidateLine {
+                    lrp: last_lrp,
+                    edge: EdgeId(3622025),
+                    rating: RatingScore::from(1000.0),
+                    distance_to_projection: None,
+                }],
+            },
+        ];
+
+        // routes (sub-path between two consecutive LRPs) that are closed loops must be rejected
+        for offsets in [Offsets::ZERO, Offsets::positive(Offset::from_range(0.5))] {
+            let routes = resolve_routes(&config, graph, &candidate_lines, offsets);
+            assert!(matches!(routes, Err(DecodeError::RouteNotFound(_))));
+        }
     }
 }
