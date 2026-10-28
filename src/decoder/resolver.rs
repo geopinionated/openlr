@@ -61,9 +61,15 @@ pub fn resolve_routes<G: DirectedGraph>(
     for window in candidate_lines.windows(2) {
         let [candidates_lrp1, candidates_lrp2] = [&window[0], &window[1]];
         let routes_count = routes.len();
+        let last_candidate_edge = routes.last().map(|route| route.last_candidate_edge());
 
-        let pairs =
-            resolve_top_k_candidate_pairs(config, candidates_lrp1, candidates_lrp2, best_edge);
+        let pairs = resolve_top_k_candidate_pairs(
+            config,
+            candidates_lrp1,
+            candidates_lrp2,
+            best_edge,
+            last_candidate_edge,
+        );
 
         // Find the first candidates pair that can be used to construct a valid route between the
         // two consecutive LRPs, also try to find an alternative route if consecutive best pairs are
@@ -299,6 +305,7 @@ fn resolve_top_k_candidate_pairs<EdgeId: Debug + Copy + PartialEq>(
     lines_lrp1: &CandidateLines<EdgeId>,
     lines_lrp2: &CandidateLines<EdgeId>,
     best_single_line_edge: Option<EdgeId>,
+    last_candidate_edge: Option<EdgeId>,
 ) -> Vec<CandidateLinePair<EdgeId>> {
     let max_size = lines_lrp1.lines.len() * lines_lrp2.lines.len();
     let k_size = max_size.min(config.max_number_retries + 1);
@@ -326,7 +333,13 @@ fn resolve_top_k_candidate_pairs<EdgeId: Debug + Copy + PartialEq>(
         }
     }
 
-    candidates.sort_by_cached_key(|pair| Reverse(pair.rating(config.same_line_degradation)));
+    candidates.sort_by_cached_key(|pair| {
+        Reverse(pair.rating(
+            config.same_line_degradation,
+            config.connected_route_boost,
+            last_candidate_edge,
+        ))
+    });
     candidates.truncate(k_size);
 
     debug!(
@@ -336,7 +349,11 @@ fn resolve_top_k_candidate_pairs<EdgeId: Debug + Copy + PartialEq>(
             .map(|pair| (
                 pair.line_lrp1.edge,
                 pair.line_lrp2.edge,
-                pair.rating(config.same_line_degradation)
+                pair.rating(
+                    config.same_line_degradation,
+                    config.connected_route_boost,
+                    last_candidate_edge,
+                )
             ))
             .collect::<Vec<_>>()
     );
@@ -407,6 +424,7 @@ mod tests {
                 lines: vec![line3, line4, line5],
             },
             None,
+            None,
         );
 
         assert_eq!(
@@ -428,6 +446,79 @@ mod tests {
                     line_lrp1: line2,
                     line_lrp2: line4
                 }
+            ]
+        );
+    }
+
+    #[test]
+    fn decoder_resolve_top_k_candidate_pairs_002() {
+        let config = DecoderConfig {
+            max_number_retries: 3,
+            connected_route_boost: 0.10,
+            ..Default::default()
+        };
+
+        let line1 = CandidateLine {
+            lrp: Point::default(),
+            edge: 1,
+            distance_to_projection: None,
+            rating: RatingScore::from(105.0),
+        };
+
+        let line2 = CandidateLine {
+            lrp: Point::default(),
+            edge: 2,
+            distance_to_projection: None,
+            rating: RatingScore::from(100.0),
+        };
+
+        let line3 = CandidateLine {
+            lrp: Point::default(),
+            edge: 3,
+            distance_to_projection: None,
+            rating: RatingScore::from(100.0),
+        };
+
+        let lines_lrp1 = CandidateLines {
+            lrp: Point::default(),
+            lines: vec![line1, line2],
+        };
+        let lines_lrp2 = CandidateLines {
+            lrp: Point::default(),
+            lines: vec![line3],
+        };
+
+        let pairs = resolve_top_k_candidate_pairs(&config, &lines_lrp1, &lines_lrp2, None, None);
+
+        // Line 1 rates 5% above line 2, but line 2 is where the previous route ended and the
+        // increase is 10%, so line 2 goes first. Without a previous route the order is given only
+        // by the ratings.
+        assert_eq!(
+            pairs,
+            [
+                CandidateLinePair {
+                    line_lrp1: line1,
+                    line_lrp2: line3
+                },
+                CandidateLinePair {
+                    line_lrp1: line2,
+                    line_lrp2: line3
+                },
+            ]
+        );
+
+        let pairs = resolve_top_k_candidate_pairs(&config, &lines_lrp1, &lines_lrp2, None, Some(2));
+        assert_eq!(
+            pairs,
+            [
+                CandidateLinePair {
+                    line_lrp1: line2,
+                    line_lrp2: line3
+                },
+                CandidateLinePair {
+                    line_lrp1: line1,
+                    line_lrp2: line3
+                },
             ]
         );
     }
