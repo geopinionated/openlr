@@ -208,28 +208,29 @@ impl Fow {
 
     pub(crate) const fn rating(&self, other: &Self) -> Rating {
         use Fow::*;
-        match (self, other) {
-            (Undefined, _) | (_, Undefined) => Rating::Average,
-            (Motorway, Motorway) => Rating::Excellent,
-            (Motorway, MultipleCarriageway) => Rating::Good,
-            (Motorway, _) => Rating::Poor,
-            (MultipleCarriageway, MultipleCarriageway) => Rating::Excellent,
-            (MultipleCarriageway, Motorway) => Rating::Good,
-            (MultipleCarriageway, _) => Rating::Poor,
-            (SingleCarriageway, SingleCarriageway | Roundabout) => Rating::Excellent,
-            (SingleCarriageway, MultipleCarriageway) => Rating::Good,
-            (SingleCarriageway, TrafficSquare) => Rating::Average,
-            (SingleCarriageway, _) => Rating::Poor,
-            (Roundabout, Roundabout | SingleCarriageway) => Rating::Excellent,
-            (Roundabout, MultipleCarriageway | TrafficSquare) => Rating::Average,
-            (Roundabout, _) => Rating::Poor,
-            (TrafficSquare, TrafficSquare) => Rating::Excellent,
-            (TrafficSquare, SingleCarriageway | Roundabout) => Rating::Average,
-            (TrafficSquare, _) => Rating::Poor,
-            (SlipRoad, SlipRoad) => Rating::Excellent,
-            (SlipRoad, _) => Rating::Poor,
-            (Other, Other) => Rating::Average,
-            (Other, _) => Rating::Poor,
+
+        let (a, b) = if self.value() <= other.value() {
+            (self, other)
+        } else {
+            (other, self)
+        };
+
+        match (a, b) {
+            (Undefined, _) => Rating::Average,
+            (Motorway, Motorway)
+            | (MultipleCarriageway, MultipleCarriageway)
+            | (SingleCarriageway, SingleCarriageway | Roundabout)
+            | (Roundabout, Roundabout)
+            | (TrafficSquare, TrafficSquare)
+            | (SlipRoad, SlipRoad) => Rating::Excellent,
+            (Motorway, MultipleCarriageway) | (MultipleCarriageway, SingleCarriageway) => {
+                Rating::Good
+            }
+            (MultipleCarriageway, Roundabout)
+            | (SingleCarriageway, TrafficSquare)
+            | (Roundabout, TrafficSquare)
+            | (Other, Other) => Rating::Average,
+            _ => Rating::Poor,
         }
     }
 
