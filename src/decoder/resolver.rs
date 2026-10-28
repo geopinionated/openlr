@@ -1,15 +1,12 @@
 use std::cmp::Reverse;
-use std::collections::BinaryHeap;
 use std::fmt::Debug;
 
-use rustc_hash::FxHashMap;
 use tracing::debug;
 
 use crate::decoder::candidates::{CandidateLine, CandidateLinePair, CandidateLines};
 use crate::decoder::route::{CandidateRoute, CandidateRoutes};
 use crate::decoder::shortest_path::shortest_path;
 use crate::graph::path::{Path, is_path_connected, is_path_loop};
-use crate::model::RatingScore;
 use crate::{DecodeError, DecoderConfig, DirectedGraph, Frc, Length, Offsets};
 
 /// The decoder needs to compute a shortest-path between each pair of subsequent location reference
@@ -313,9 +310,7 @@ fn resolve_top_k_candidate_pairs<EdgeId: Debug + Copy + PartialEq>(
     let k_size = max_size.min(config.max_number_retries + 1);
     debug!("Resolving candidate pair ratings with K={k_size}");
 
-    let mut pair_ratings: BinaryHeap<Reverse<RatingScore>> = BinaryHeap::with_capacity(k_size + 1);
-    let mut rating_pairs: FxHashMap<RatingScore, Vec<_>> =
-        FxHashMap::with_capacity_and_hasher(k_size + 1, Default::default());
+    let mut candidates = Vec::with_capacity(max_size);
 
     for &line_lrp1 in &lines_lrp1.lines {
         for &line_lrp2 in &lines_lrp2.lines {
@@ -330,49 +325,15 @@ fn resolve_top_k_candidate_pairs<EdgeId: Debug + Copy + PartialEq>(
                 continue;
             }
 
-            let candidate_pair = CandidateLinePair {
+            candidates.push(CandidateLinePair {
                 line_lrp1,
                 line_lrp2,
-            };
-
-            let pair_rating = candidate_pair.rating(config.same_line_degradation);
-            pair_ratings.push(Reverse(pair_rating));
-
-            if pair_ratings.len() <= k_size {
-                rating_pairs
-                    .entry(pair_rating)
-                    .or_default()
-                    .push(candidate_pair);
-
-                continue;
-            }
-
-            let worst_rating = match pair_ratings.pop() {
-                Some(Reverse(rating)) if pair_rating <= rating => continue,
-                Some(Reverse(rating)) => rating,
-                None => continue,
-            };
-
-            rating_pairs
-                .entry(pair_rating)
-                .or_default()
-                .push(candidate_pair);
-
-            if let Some(pairs) = rating_pairs.get_mut(&worst_rating)
-                && pairs.len() > 1
-            {
-                pairs.pop();
-            } else {
-                rating_pairs.remove(&worst_rating);
-            }
+            });
         }
     }
 
-    let mut candidates = Vec::with_capacity(k_size);
-    while let Some(Reverse(rating)) = pair_ratings.pop() {
-        candidates.extend(rating_pairs.remove(&rating).into_iter().flatten());
-    }
-    candidates.reverse();
+    candidates.sort_by_cached_key(|pair| Reverse(pair.rating(config.same_line_degradation)));
+    candidates.truncate(k_size);
 
     debug!(
         "Top K candidates: {:?}",
@@ -386,11 +347,6 @@ fn resolve_top_k_candidate_pairs<EdgeId: Debug + Copy + PartialEq>(
             .collect::<Vec<_>>()
     );
 
-    debug_assert!(rating_pairs.is_empty());
-    debug_assert!(candidates.len() <= k_size);
-    debug_assert!(
-        candidates.is_sorted_by_key(|pair| Reverse(pair.rating(config.same_line_degradation)))
-    );
     candidates
 }
 
@@ -401,6 +357,7 @@ mod tests {
     use super::*;
     use crate::decoder::candidates::CandidateLine;
     use crate::graph::tests::{EdgeId, NETWORK_GRAPH, NetworkGraph};
+    use crate::model::RatingScore;
     use crate::{Bearing, Coordinate, Fow, LineAttributes, Offset, PathAttributes, Point};
 
     #[test]
