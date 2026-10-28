@@ -137,20 +137,7 @@ fn resolve_single_line_routes<G: DirectedGraph>(
     });
 
     let routes: Vec<_> = pairs
-        .map(|candidates| {
-            let edges = if candidates.line_lrp2.lrp.is_last() {
-                vec![best_edge]
-            } else {
-                vec![]
-            };
-
-            let length = edges
-                .iter()
-                .try_fold(Length::ZERO, |acc, &e| Ok(acc + graph.get_edge_length(e)?))?;
-
-            let path = Path { length, edges };
-            Ok::<_, G::Error>(CandidateRoute { path, candidates })
-        })
+        .map(|candidates| same_edge_route(graph, candidates))
         .collect::<Result<_, _>>()?;
 
     let routes: CandidateRoutes<_> = routes.into();
@@ -187,19 +174,8 @@ fn resolve_candidate_route<G: DirectedGraph>(
     } = candidates;
 
     if edge_lrp1 == edge_lrp2 {
-        let edges = if lrp2.is_last() {
-            vec![edge_lrp1]
-        } else {
-            vec![]
-        };
-
-        let length = edges.iter().try_fold(Length::ZERO, |acc, &e| {
-            Ok::<_, G::Error>(acc + graph.get_edge_length(e)?)
-        })?;
-
-        let path = Path { length, edges };
         debug!("Route found on same edge {edge_lrp1:?}");
-        return Ok(Some(CandidateRoute { path, candidates }));
+        return Ok(Some(same_edge_route(graph, candidates)?));
     }
 
     // LRP1 lfrcnp (lowest FRC to the next point) encoded up to edge before LRP2, but the shortest
@@ -277,6 +253,24 @@ fn resolve_alternative_route<G: DirectedGraph>(
     }
 
     Ok(Some(new_route))
+}
+
+/// Route between two LRPs whose candidate lines are on the same edge: it contains the edge only
+/// when the 2nd LRP is the last one, otherwise the LRPs are connected without traversing any edge.
+fn same_edge_route<G: DirectedGraph>(
+    graph: &G,
+    candidates: CandidateLinePair<G::EdgeId>,
+) -> Result<CandidateRoute<G::EdgeId>, G::Error> {
+    let path = if candidates.line_lrp2.lrp.is_last() {
+        Path {
+            length: graph.get_edge_length(candidates.line_lrp1.edge)?,
+            edges: vec![candidates.line_lrp1.edge],
+        }
+    } else {
+        Path::default()
+    };
+
+    Ok(CandidateRoute { path, candidates })
 }
 
 fn max_route_length<G: DirectedGraph>(
