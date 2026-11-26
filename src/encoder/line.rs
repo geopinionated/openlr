@@ -1,6 +1,7 @@
 use tracing::debug;
 
 use crate::encoder::expansion::line_location_with_expansion;
+use crate::encoder::lrp::LocRefPoints;
 use crate::encoder::resolver::resolve_lrps;
 use crate::{
     ClosedLine, ClosedLineLocation, DirectedGraph, EncodeError, EncoderConfig, Length, Line,
@@ -31,22 +32,7 @@ pub fn encode_line<G: DirectedGraph>(
     line: LineLocation<G::EdgeId>,
 ) -> Result<Line, EncodeError<G::Error>> {
     debug!("Encoding {line:?} with {config:?}");
-
-    // Step – 1 Check validity of the location and offsets to be encoded
-    let line = line.trim(graph)?;
-
-    // Step – 2 Adjust start and end node of the location to represent valid map nodes
-    let line = line_location_with_expansion(config, graph, line)?;
-    debug_assert!(!line.path.is_empty());
-
-    // Step – 3..8 Split location into intermediate LRPs until full coverage
-    let lrps = resolve_lrps(config, graph, line)?;
-    debug_assert!(lrps.len() > 1);
-
-    // Step – 9 Trim LRPs if the offset values exceeds the length of the corresponding path
-    let lrps = lrps.trim(config, graph)?;
-
-    Ok(lrps.into())
+    Ok(encode_lrps(config, graph, line)?.into())
 }
 
 pub fn encode_point_along_line<G: DirectedGraph>(
@@ -62,10 +48,12 @@ pub fn encode_point_along_line<G: DirectedGraph>(
         neg_offset: Length::ZERO,
     };
 
-    let line = encode_line(config, graph, line)?;
+    let lrps = encode_lrps(config, graph, line)?;
+    let line: Line = lrps.fit_point_along_line(config, graph)?.into();
+    debug_assert_eq!(line.points.len(), 2);
 
     Ok(PointAlongLine {
-        points: [line.points[0], line.points[line.points.len() - 1]],
+        points: [line.points[0], line.points[1]],
         offset: line.offsets.pos,
         orientation: point.orientation,
         side: point.side,
@@ -110,6 +98,26 @@ pub fn encode_closed_line<G: DirectedGraph>(
         points: line.points,
         last_line,
     })
+}
+
+fn encode_lrps<G: DirectedGraph>(
+    config: &EncoderConfig,
+    graph: &G,
+    line: LineLocation<G::EdgeId>,
+) -> Result<LocRefPoints<G::EdgeId>, EncodeError<G::Error>> {
+    // Step – 1 Check validity of the location and offsets to be encoded
+    let line = line.trim(graph)?;
+
+    // Step – 2 Adjust start and end node of the location to represent valid map nodes
+    let line = line_location_with_expansion(config, graph, line)?;
+    debug_assert!(!line.path.is_empty());
+
+    // Step – 3..8 Split location into intermediate LRPs until full coverage
+    let lrps = resolve_lrps(config, graph, line)?;
+    debug_assert!(lrps.len() > 1);
+
+    // Step – 9 Trim LRPs if the offset values exceeds the length of the corresponding path
+    lrps.trim(config, graph)
 }
 
 #[cfg(test)]
@@ -172,5 +180,48 @@ mod tests {
         let encoded = encode_base64_openlr(&EncoderConfig::default(), graph, line.clone()).unwrap();
         let decoded = decode_base64_openlr(&DecoderConfig::default(), graph, &encoded).unwrap();
         assert_eq!(decoded, line);
+    }
+
+    #[test]
+    fn encoder_encode_point_along_line_location_reference_002() {
+        // A point along line location reference has only 2 LRPs, and the positive offset is
+        // relative to the distance between them (the DNP of the first LRP). When the path
+        // of the location needs more than 2 LRPs (here because it is longer than the
+        // maximum distance between LRPs), the first and the last LRP of the whole path
+        // cannot be used: the first LRP must be the one whose sub-path contains the point,
+        // and the last LRP must be the end of that sub-path.
+        let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+        let config = EncoderConfig {
+            max_lrp_distance: Length::from_meters(100.0),
+            ..EncoderConfig::default()
+        };
+
+        let path = vec![EdgeId(8717174), EdgeId(8717175), EdgeId(109783)];
+        let length = |e: &EdgeId| graph.get_edge_length(*e).unwrap();
+        assert!(config.max_lrp_distance * 2.0 < path.iter().map(length).sum());
+
+        // the point is on the 2nd edge of the path
+        let offset = length(&path[0]) + length(&path[1]) * 0.5;
+
+        let location = Location::PointAlongLine(PointAlongLineLocation {
+            path,
+            offset,
+            orientation: Orientation::Forward,
+            side: SideOfRoad::Left,
+        });
+
+        let encoded = encode_base64_openlr(&config, graph, location).unwrap();
+        let decoded = decode_base64_openlr(&DecoderConfig::default(), graph, &encoded).unwrap();
+
+        assert_eq!(
+            decoded,
+            Location::PointAlongLine(PointAlongLineLocation {
+                path: vec![EdgeId(8717175)],
+                offset: Length::from_meters(25.599609375),
+                orientation: Orientation::Forward,
+                side: SideOfRoad::Left,
+            })
+        );
     }
 }

@@ -41,6 +41,9 @@ pub struct DecoderConfig {
     pub next_point_variance: Length,
     /// Factor applied to reduce the rating of the top K best candidate LRP lines on the same line.
     pub same_line_degradation: f64,
+    /// Fraction added to the rating of a candidate pair whose first line is the line where the
+    /// previous route ended, so that consecutive routes are preferably connected.
+    pub connected_route_boost: f64,
 }
 
 impl Default for DecoderConfig {
@@ -56,6 +59,7 @@ impl Default for DecoderConfig {
             max_number_retries: 8,
             next_point_variance: Length::from_meters(150.0),
             same_line_degradation: 0.85,
+            connected_route_boost: 0.1,
         }
     }
 }

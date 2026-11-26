@@ -3,7 +3,7 @@ use tracing::{debug, trace, warn};
 use crate::EncodeError::InvalidLrp;
 use crate::encoder::lrp::{LocRefPoint, LocRefPoints};
 use crate::encoder::shortest_path::{Intermediate, ShortestPath, shortest_path_location};
-use crate::{DirectedGraph, EncodeError, EncoderConfig, LineLocation};
+use crate::{DirectedGraph, EncodeError, EncoderConfig, Length, LineLocation};
 
 /// Resolves all the LRPs that should be necessary to encode the given line.
 pub fn resolve_lrps<G: DirectedGraph>(
@@ -100,23 +100,28 @@ fn split_lrp<G: DirectedGraph>(
     debug_assert!(lrp.projection_coordinate.is_none());
 
     let edge = lrp.edges[0];
-    let mut dnp = lrp.point.dnp();
-    let mut distance = max_lrp_distance;
+    let dnp = lrp.point.dnp();
 
-    while dnp > max_lrp_distance {
+    // The line is split in equal N parts, instead of parts of max distance plus a (possibly tiny)
+    // remainder, because a LRP placed right before the end of the line cannot be distinguished by
+    // the decoder from the node at the end of the line (and would be decoded onto the next line).
+    let n = (dnp.meters() / max_lrp_distance.meters()).ceil() as usize;
+    let part_length = Length::from_meters(dnp.meters() / n as f64);
+
+    for i in 1..n {
+        let distance = part_length * i as f64;
         let coordinate = graph.get_coordinate_along_edge(edge, distance)?;
         trace!("Splitting LRP at {coordinate} ({distance})");
 
-        if let Some(path) = lrps.last_mut().and_then(|lrp| lrp.point.path.as_mut()) {
-            // creating another LRP on the same line requires updating the DNP of the previous
-            path.dnp = max_lrp_distance;
-        }
-
         let lrp = LocRefPoint::line(config, graph, edge, coordinate, distance)?;
         lrps.push(lrp);
+    }
 
-        dnp -= max_lrp_distance;
-        distance += max_lrp_distance;
+    // creating other LRPs on the same line requires updating the DNP of all of them
+    for lrp in lrps.iter_mut().rev().take(n) {
+        if let Some(path) = lrp.point.path.as_mut() {
+            path.dnp = part_length;
+        }
     }
 
     debug_assert!(lrps.iter().all(|lrp| lrp.point.dnp() <= max_lrp_distance));
@@ -1001,6 +1006,7 @@ mod tests {
         let LocRefPoints { lrps, .. } = resolve_lrps(&config, graph, line).unwrap();
         assert_eq!(lrps.len(), 6);
 
+        // each edge (217m and 109m) is split in equal parts of at most the max distance
         assert_eq!(
             lrps[0],
             LocRefPoint {
@@ -1018,7 +1024,7 @@ mod tests {
                     },
                     path: Some(PathAttributes {
                         lfrcnp: Frc::Frc2,
-                        dnp: Length::from_meters(100.0)
+                        dnp: Length::from_meters(217.0 / 3.0)
                     })
                 }
             }
@@ -1028,14 +1034,14 @@ mod tests {
             lrps[1],
             LocRefPoint {
                 projection_coordinate: Some(Coordinate {
-                    lon: 13.455676,
-                    lat: 52.515561,
+                    lon: 13.455272,
+                    lat: 52.515603,
                 }),
                 edges: vec![EdgeId(16218)],
                 point: Point {
                     coordinate: Coordinate {
-                        lon: 13.455676,
-                        lat: 52.515561
+                        lon: 13.455272,
+                        lat: 52.515603
                     },
                     line: LineAttributes {
                         frc: Frc::Frc2,
@@ -1044,7 +1050,7 @@ mod tests {
                     },
                     path: Some(PathAttributes {
                         lfrcnp: Frc::Frc2,
-                        dnp: Length::from_meters(100.0)
+                        dnp: Length::from_meters(217.0 / 3.0)
                     })
                 }
             }
@@ -1054,14 +1060,14 @@ mod tests {
             lrps[2],
             LocRefPoint {
                 projection_coordinate: Some(Coordinate {
-                    lon: 13.457137,
-                    lat: 52.515407,
+                    lon: 13.456329,
+                    lat: 52.515492,
                 }),
                 edges: vec![EdgeId(16218)],
                 point: Point {
                     coordinate: Coordinate {
-                        lon: 13.457137,
-                        lat: 52.515407
+                        lon: 13.456329,
+                        lat: 52.515492
                     },
                     line: LineAttributes {
                         frc: Frc::Frc2,
@@ -1070,7 +1076,7 @@ mod tests {
                     },
                     path: Some(PathAttributes {
                         lfrcnp: Frc::Frc2,
-                        dnp: Length::from_meters(17.0)
+                        dnp: Length::from_meters(217.0 / 3.0)
                     })
                 }
             }
@@ -1093,7 +1099,7 @@ mod tests {
                     },
                     path: Some(PathAttributes {
                         lfrcnp: Frc::Frc2,
-                        dnp: Length::from_meters(100.0)
+                        dnp: Length::from_meters(109.0 / 2.0)
                     })
                 }
             }
@@ -1103,14 +1109,14 @@ mod tests {
             lrps[4],
             LocRefPoint {
                 projection_coordinate: Some(Coordinate {
-                    lon: 13.458844,
-                    lat: 52.515229,
-                },),
+                    lon: 13.458181,
+                    lat: 52.515299,
+                }),
                 edges: vec![EdgeId(16219)],
                 point: Point {
                     coordinate: Coordinate {
-                        lon: 13.458844,
-                        lat: 52.515229
+                        lon: 13.458181,
+                        lat: 52.515299
                     },
                     line: LineAttributes {
                         frc: Frc::Frc2,
@@ -1119,7 +1125,7 @@ mod tests {
                     },
                     path: Some(PathAttributes {
                         lfrcnp: Frc::Frc2,
-                        dnp: Length::from_meters(9.0)
+                        dnp: Length::from_meters(109.0 / 2.0)
                     })
                 }
             }
@@ -1181,7 +1187,7 @@ mod tests {
                     },
                     path: Some(PathAttributes {
                         lfrcnp: Frc::Frc6,
-                        dnp: Length::from_meters(15.0)
+                        dnp: Length::from_meters(9.5)
                     })
                 }
             }
@@ -1191,14 +1197,14 @@ mod tests {
             lrps[1],
             LocRefPoint {
                 projection_coordinate: Some(Coordinate {
-                    lon: 13.459018,
-                    lat: 52.514509,
+                    lon: 13.4589477,
+                    lat: 52.514537,
                 }),
                 edges: vec![EdgeId(-9044470)],
                 point: Point {
                     coordinate: Coordinate {
-                        lon: 13.459018,
-                        lat: 52.514509
+                        lon: 13.4589477,
+                        lat: 52.514537
                     },
                     line: LineAttributes {
                         frc: Frc::Frc6,
@@ -1207,7 +1213,7 @@ mod tests {
                     },
                     path: Some(PathAttributes {
                         lfrcnp: Frc::Frc6,
-                        dnp: Length::from_meters(4.0)
+                        dnp: Length::from_meters(9.5)
                     })
                 }
             }
@@ -1278,5 +1284,40 @@ mod tests {
                 }
             },
         );
+    }
+
+    #[test]
+    fn encoder_resolve_lrps_014() {
+        let graph: &NetworkGraph = &NETWORK_GRAPH;
+
+        let config = EncoderConfig {
+            max_lrp_distance: Length::from_meters(135.0),
+            ..Default::default()
+        };
+
+        // The edge is 136m long, therefore it exceeds the max distance of just 1m: splitting it at
+        // every max distance would leave an LRP right before the end of the edge.
+        let line = LineLocation {
+            path: vec![EdgeId(8717174)],
+            pos_offset: Length::ZERO,
+            neg_offset: Length::ZERO,
+        };
+
+        let LocRefPoints { lrps, .. } = resolve_lrps(&config, graph, line).unwrap();
+        assert_eq!(lrps.len(), 3);
+
+        let dnps: Vec<_> = lrps.iter().map(|lrp| lrp.point.dnp()).collect();
+        assert_eq!(
+            dnps,
+            [
+                Length::from_meters(68.0),
+                Length::from_meters(68.0),
+                Length::ZERO
+            ]
+        );
+
+        assert!(lrps[0].projection_coordinate.is_none());
+        assert!(lrps[1].projection_coordinate.is_some());
+        assert!(lrps[2].point.is_last());
     }
 }

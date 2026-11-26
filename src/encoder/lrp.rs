@@ -217,6 +217,31 @@ impl<EdgeId: Copy + Debug> LocRefPoints<EdgeId> {
             return Err(EncodeError::InvalidLrpOffsets);
         }
 
+        self.with_last_lrp(config, graph)
+    }
+
+    /// Truncates the LRPs to 2 points that can fit a Point Along Line - after trimming the line.
+    pub fn fit_point_along_line<G>(
+        mut self,
+        config: &EncoderConfig,
+        graph: &G,
+    ) -> Result<Self, EncodeError<G::Error>>
+    where
+        G: DirectedGraph<EdgeId = EdgeId>,
+    {
+        debug_assert!(self.lrps.len() > 1);
+        self.lrps.truncate(2);
+        self.with_last_lrp(config, graph)
+    }
+
+    fn with_last_lrp<G>(
+        mut self,
+        config: &EncoderConfig,
+        graph: &G,
+    ) -> Result<Self, EncodeError<G::Error>>
+    where
+        G: DirectedGraph<EdgeId = EdgeId>,
+    {
         let mut lrps_rev = self.lrps.iter_mut().rev();
 
         if let Some(last_lrp) = lrps_rev.next().filter(|lrp| !lrp.point.is_last())
